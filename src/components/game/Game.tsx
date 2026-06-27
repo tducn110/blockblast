@@ -9,6 +9,7 @@ import { GameHUD } from "./GameHUD";
 import { LeaderboardPanel } from "./LeaderboardPanel";
 import { Mascot } from "./Mascot";
 import { PixiBlockBlastCanvas } from "./PixiBlockBlastCanvas";
+import { GAME_TEXT } from "../../constants/gameText";
 
 export function Game() {
   const scoreData = useScoreData();
@@ -20,45 +21,28 @@ export function Game() {
   const piecesLeft = game.pieces.filter((piece) => !piece.placed).length;
 
   return (
-    <section
-      style={{
-        width: "100%",
-        maxWidth: 410,
-        margin: "0 auto",
-        background: "rgba(253,246,234,0.96)",
-        border: "2px solid rgba(138,125,101,0.34)",
-        borderRadius: 28,
-        padding: "14px 14px 18px",
-        boxShadow: "0 18px 46px rgba(42,36,24,0.18)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        position: "relative",
-        fontFamily: "'Be Vietnam Pro', sans-serif",
-        overflow: "hidden",
-      }}
-    >
+    <section className="w-full max-w-[410px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col gap-[12px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <LogoBubble size={34} />
           <div className="min-w-0">
-            <div style={{ fontSize: 15, fontWeight: 900, color: "#2a2418", lineHeight: 1.05 }}>
-              Xếp Khối
+            <div className="text-[15px] font-black text-[#2a2418] leading-[1.05]">
+              {GAME_TEXT.TITLE}
             </div>
-            <div style={{ fontSize: 9, fontWeight: 800, color: "#8a7d65", letterSpacing: 0.5 }}>
-              BỘ LẠC ĐẬU PHỘNG
+            <div className="text-[9px] font-extrabold text-[#8a7d65] tracking-[0.5px]">
+              {GAME_TEXT.SUBTITLE}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1">
-          <IconButton label="Bảng điểm" onClick={() => setShowLeaderboard(true)}>
+          <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={() => setShowLeaderboard(true)}>
             <Trophy size={16} />
           </IconButton>
-          <IconButton label={game.sfxEnabled ? "Tắt âm thanh" : "Bật âm thanh"} onClick={game.toggleSfx}>
+          <IconButton label={game.sfxEnabled ? GAME_TEXT.TOOLTIP_SOUND_ON : GAME_TEXT.TOOLTIP_SOUND_OFF} onClick={game.toggleSfx}>
             {game.sfxEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </IconButton>
-          <IconButton label="Chơi lại" onClick={game.resetGame}>
+          <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={game.resetGame}>
             <RotateCcw size={16} />
           </IconButton>
         </div>
@@ -76,25 +60,17 @@ export function Game() {
         </div>
       </div>
 
-      <p style={{ fontSize: 11, color: "#8a7d65", textAlign: "center", margin: 0 }}>
-        Kéo khối vào bảng, lấp đầy hàng hoặc cột để dọn ô
+      <p className="text-[11px] text-[#8a7d65] text-center m-0">
+        {GAME_TEXT.INSTRUCTION}
       </p>
 
       {scoreData.saveError && (
-        <p
-          style={{
-            margin: "-4px 0 0",
-            color: "#b85a22",
-            fontSize: 11,
-            fontWeight: 700,
-            textAlign: "center",
-          }}
-        >
+        <p className="mt-[-4px] mb-0 text-[#b85a22] text-[11px] font-bold text-center">
           {scoreData.saveError}
         </p>
       )}
 
-      <div style={{ position: "relative" }}>
+      <div className="relative">
         <PixiBlockBlastCanvas
           board={game.board}
           pieces={game.pieces}
@@ -107,37 +83,23 @@ export function Game() {
         />
 
         {game.status === "gameOver" && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(42,36,24,0.82)",
-              borderRadius: 22,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              animation: "fadeScaleIn 0.32s ease",
-              zIndex: 20,
-            }}
-          >
+          <div className="absolute inset-0 bg-[#2a2418]/80 rounded-[22px] flex flex-col items-center justify-center gap-[12px] z-20 animate-[fadeScaleIn_0.32s_ease]">
             <style>{`
               @keyframes fadeScaleIn {
                 from { opacity: 0; transform: scale(0.96); }
                 to { opacity: 1; transform: scale(1); }
               }
             `}</style>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#f0b840" }}>Hết chỗ rồi!</div>
-            <div style={{ fontSize: 15, color: "#efe3c4" }}>
-              Kết quả: <strong>{game.score.toLocaleString()}</strong> điểm
+            <div className="text-[26px] font-black text-[#f0b840]">{GAME_TEXT.GAME_OVER_TITLE}</div>
+            <div className="text-[15px] text-[#efe3c4]">
+              {GAME_TEXT.RESULT} <strong>{game.score.toLocaleString()}</strong> {GAME_TEXT.POINTS}
             </div>
             <div className="flex gap-2">
               <Button onClick={game.resetGame} size="sm">
-                Chơi lại
+                {GAME_TEXT.BTN_PLAY_AGAIN}
               </Button>
               <Button variant="ghost" onClick={() => setShowLeaderboard(true)} size="sm">
-                Bảng điểm
+                {GAME_TEXT.BTN_LEADERBOARD}
               </Button>
             </div>
           </div>
