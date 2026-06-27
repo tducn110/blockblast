@@ -13,6 +13,14 @@ import {
   BOARD_Y
 } from "../../utils/pixiDrawUtils";
 
+interface SlotObjects {
+  container: Container;
+  shell: Graphics;
+  pieceGraphic: Graphics;
+  mark: Graphics;
+  pieceId: string | null;
+}
+
 export function usePixiPieces(
   app: Application | null,
   piecesLayer: Container | null,
@@ -26,11 +34,12 @@ export function usePixiPieces(
 ) {
   const dragGhostRef = useRef<Graphics | null>(null);
   const draggingPieceRef = useRef<BlockPiece | null>(null);
-  const latestRef = useRef({ selectedPieceId, onPlacePiece });
+  const latestRef = useRef({ selectedPieceId, onPlacePiece, onSelectPiece });
+  const slotsRef = useRef<SlotObjects[]>([]);
 
   useEffect(() => {
-    latestRef.current = { selectedPieceId, onPlacePiece };
-  }, [selectedPieceId, onPlacePiece]);
+    latestRef.current = { selectedPieceId, onPlacePiece, onSelectPiece };
+  }, [selectedPieceId, onPlacePiece, onSelectPiece]);
 
   // Setup global drag listeners on app stage
   useEffect(() => {
@@ -95,58 +104,42 @@ export function usePixiPieces(
     };
   }, [ready, app, dragLayer, boardLayer]);
 
-  // Draw pieces
+  // Setup and update pieces
   useEffect(() => {
     if (!ready || !piecesLayer || !dragLayer) return;
 
-    piecesLayer.removeChildren();
+    if (slotsRef.current.length === 0) {
+      // Initialize slots once
+      for (let index = 0; index < 3; index++) {
+        const slotX = 19 + index * PIECE_SLOT_WIDTH;
+        const container = new Container();
+        container.x = slotX;
+        container.y = TRAY_Y;
+        container.eventMode = "static";
+        container.cursor = "pointer";
+        container.hitArea = new Rectangle(0, 0, PIECE_SLOT_WIDTH - 10, PIECE_SLOT_HEIGHT);
 
-    pieces.forEach((piece, index) => {
-      const slotX = 19 + index * PIECE_SLOT_WIDTH;
-      const slot = new Container();
-      slot.x = slotX;
-      slot.y = TRAY_Y;
-
-      const isSelected = selectedPieceId === piece.id;
-      const shell = new Graphics();
-      shell.roundRect(0, 0, PIECE_SLOT_WIDTH - 10, PIECE_SLOT_HEIGHT, 18)
-        .fill({ color: piece.placed ? 0xefe3c4 : 0xfdf6ea, alpha: piece.placed ? 0.58 : 0.92 })
-        .stroke({
-          width: isSelected ? 3 : 1.5,
-          color: isSelected ? 0xe87432 : 0x8a7d65,
-          alpha: isSelected ? 0.95 : 0.26,
-        });
-      slot.addChild(shell);
-
-      const pieceGraphic = new Graphics();
-      const bounds = pieceBounds(piece);
-      const previewCell = Math.min(22, Math.floor((PIECE_SLOT_WIDTH - 28) / bounds.width));
-      const previewGap = 2;
-      const pieceWidth = bounds.width * previewCell + (bounds.width - 1) * previewGap;
-      const pieceHeight = bounds.height * previewCell + (bounds.height - 1) * previewGap;
-      const startX = (PIECE_SLOT_WIDTH - 10 - pieceWidth) / 2;
-      const startY = (PIECE_SLOT_HEIGHT - pieceHeight) / 2;
-      const pieceAlpha = piece.placed ? 0.22 : 1;
-
-      for (const cell of piece.cells) {
-        const x = startX + (cell.col - bounds.minCol) * (previewCell + previewGap);
-        const y = startY + (cell.row - bounds.minRow) * (previewCell + previewGap);
-        drawBlock(pieceGraphic, x, y, previewCell, piece.colorId, pieceAlpha);
-      }
-      slot.addChild(pieceGraphic);
-
-      if (piece.placed) {
+        const shell = new Graphics();
+        const pieceGraphic = new Graphics();
         const mark = new Graphics();
-        mark.roundRect(31, 34, 40, 16, 8)
-          .fill({ color: 0x2a2418, alpha: 0.16 })
-          .stroke({ width: 1, color: 0x2a2418, alpha: 0.16 });
-        slot.addChild(mark);
-      } else {
-        slot.eventMode = "static";
-        slot.cursor = "pointer";
-        slot.hitArea = new Rectangle(0, 0, PIECE_SLOT_WIDTH - 10, PIECE_SLOT_HEIGHT);
-        slot.on("pointertap", () => onSelectPiece(isSelected ? null : piece.id));
-        slot.on("pointerdown", (event: FederatedPointerEvent) => {
+        
+        container.addChild(shell, pieceGraphic, mark);
+        piecesLayer.addChild(container);
+
+        container.on("pointertap", () => {
+          const slot = slotsRef.current[index];
+          if (!slot || !slot.pieceId) return;
+          const current = latestRef.current;
+          const isSelected = current.selectedPieceId === slot.pieceId;
+          current.onSelectPiece(isSelected ? null : slot.pieceId);
+        });
+
+        container.on("pointerdown", (event: FederatedPointerEvent) => {
+          const slot = slotsRef.current[index];
+          if (!slot || !slot.pieceId) return;
+          const piece = pieces.find(p => p.id === slot.pieceId);
+          if (!piece || piece.placed) return;
+
           const existingGhost = dragGhostRef.current;
           if (existingGhost) {
             dragLayer.removeChild(existingGhost);
@@ -154,6 +147,7 @@ export function usePixiPieces(
           }
 
           const ghost = new Graphics();
+          const bounds = pieceBounds(piece);
           for (const cell of piece.cells) {
             const x = (cell.col - bounds.minCol) * (CELL + GAP);
             const y = (cell.row - bounds.minRow) * (CELL + GAP);
@@ -166,11 +160,63 @@ export function usePixiPieces(
           dragLayer.addChild(ghost);
           dragGhostRef.current = ghost;
           draggingPieceRef.current = piece;
-          onSelectPiece(piece.id);
+          latestRef.current.onSelectPiece(piece.id);
         });
+
+        slotsRef.current.push({ container, shell, pieceGraphic, mark, pieceId: null });
+      }
+    }
+
+    // Update slots with current pieces
+    pieces.forEach((piece, index) => {
+      const slot = slotsRef.current[index];
+      if (!slot) return;
+      
+      slot.pieceId = piece.id;
+      const isSelected = selectedPieceId === piece.id;
+
+      slot.shell.clear();
+      slot.shell.roundRect(0, 0, PIECE_SLOT_WIDTH - 10, PIECE_SLOT_HEIGHT, 18)
+        .fill({ color: piece.placed ? 0xefe3c4 : 0xfdf6ea, alpha: piece.placed ? 0.58 : 0.92 })
+        .stroke({
+          width: isSelected ? 3 : 1.5,
+          color: isSelected ? 0xe87432 : 0x8a7d65,
+          alpha: isSelected ? 0.95 : 0.26,
+        });
+
+      slot.pieceGraphic.clear();
+      if (!piece.placed) {
+        const bounds = pieceBounds(piece);
+        const previewCell = Math.min(22, Math.floor((PIECE_SLOT_WIDTH - 28) / bounds.width));
+        const previewGap = 2;
+        const pieceWidth = bounds.width * previewCell + (bounds.width - 1) * previewGap;
+        const pieceHeight = bounds.height * previewCell + (bounds.height - 1) * previewGap;
+        const startX = (PIECE_SLOT_WIDTH - 10 - pieceWidth) / 2;
+        const startY = (PIECE_SLOT_HEIGHT - pieceHeight) / 2;
+
+        for (const cell of piece.cells) {
+          const x = startX + (cell.col - bounds.minCol) * (previewCell + previewGap);
+          const y = startY + (cell.row - bounds.minRow) * (previewCell + previewGap);
+          drawBlock(slot.pieceGraphic, x, y, previewCell, piece.colorId, 1);
+        }
       }
 
-      piecesLayer.addChild(slot);
+      slot.mark.clear();
+      if (piece.placed) {
+        slot.mark.roundRect(31, 34, 40, 16, 8)
+          .fill({ color: 0x2a2418, alpha: 0.16 })
+          .stroke({ width: 1, color: 0x2a2418, alpha: 0.16 });
+      }
     });
-  }, [pieces, selectedPieceId, onSelectPiece, ready, piecesLayer, dragLayer]);
+
+  }, [pieces, selectedPieceId, ready, piecesLayer, dragLayer]);
+
+  useEffect(() => {
+    return () => {
+      slotsRef.current.forEach(slot => {
+        slot.container.destroy({ children: true });
+      });
+      slotsRef.current = [];
+    };
+  }, []);
 }
