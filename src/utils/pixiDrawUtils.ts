@@ -6,16 +6,18 @@ import {
   BlockPiece,
 } from "./blockBlastLogic";
 
-export const VIEW_WIDTH = 382;
-export const VIEW_HEIGHT = 486;
-export const BOARD_X = 23;
-export const BOARD_Y = 22;
-export const CELL = 42;
-export const GAP = 3;
+export const VIEW_WIDTH = 412;
+export const VIEW_HEIGHT = 572;
+export const BOARD_X = 12;
+export const BOARD_Y = 24;
+export const CELL = 45;
+export const GAP = 4;
 export const BOARD_PIXELS = BOARD_SIZE * CELL + (BOARD_SIZE - 1) * GAP;
-export const TRAY_Y = BOARD_Y + BOARD_PIXELS + 28;
-export const PIECE_SLOT_WIDTH = 112;
-export const PIECE_SLOT_HEIGHT = 94;
+export const TRAY_Y = BOARD_Y + BOARD_PIXELS + 32;
+export const TRAY_X = 17;
+export const PIECE_SLOT_WIDTH = 118;
+export const PIECE_SLOT_HEIGHT = 104;
+export const PIECE_SLOT_GAP = 12;
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace("#", ""), 16);
@@ -59,16 +61,16 @@ export function drawBoardBackground(g: Graphics) {
 
   g.moveTo(0, 132)
     .bezierCurveTo(86, 86, 148, 172, 238, 119)
-    .bezierCurveTo(296, 84, 332, 98, 382, 74)
-    .lineTo(382, 0)
+    .bezierCurveTo(296, 84, 332, 98, VIEW_WIDTH, 74)
+    .lineTo(VIEW_WIDTH, 0)
     .lineTo(0, 0)
     .closePath()
     .fill({ color: 0xe6d8b2, alpha: 0.36 });
 
   g.moveTo(0, 216)
     .bezierCurveTo(86, 188, 134, 228, 216, 196)
-    .bezierCurveTo(288, 168, 334, 194, 382, 162)
-    .lineTo(382, 0)
+    .bezierCurveTo(288, 168, 334, 194, VIEW_WIDTH, 162)
+    .lineTo(VIEW_WIDTH, 0)
     .lineTo(0, 0)
     .closePath()
     .fill({ color: 0xc8d68a, alpha: 0.22 });

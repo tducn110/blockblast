@@ -21,7 +21,7 @@ export function Game() {
   const piecesLeft = game.pieces.filter((piece) => !piece.placed).length;
 
   return (
-    <section className="w-full max-w-[410px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col gap-[12px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden">
+    <section className="w-full max-w-[440px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col gap-[12px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <LogoBubble size={34} />
