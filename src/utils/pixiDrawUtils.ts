@@ -1,4 +1,4 @@
-import { Graphics } from "pixi.js";
+import { Graphics, Application, Texture, Sprite } from "pixi.js";
 import {
   BLOCK_BORDER_MAP,
   BLOCK_COLOR_MAP,
@@ -29,6 +29,36 @@ export function colorOf(colorId?: string): number {
 
 export function borderOf(colorId?: string): number {
   return hexToNumber(BLOCK_BORDER_MAP[colorId ?? "peanut"] ?? BLOCK_BORDER_MAP.peanut);
+}
+
+const textureCache = new Map<string, Texture>();
+
+export function getBlockTexture(app: Application, size: number, colorId: string, alpha = 1): Texture {
+  const key = `${colorId}-${size}-${alpha}`;
+  if (textureCache.has(key)) return textureCache.get(key)!;
+
+  const g = new Graphics();
+  const radius = Math.max(7, size * 0.2);
+  const color = colorOf(colorId);
+  const border = borderOf(colorId);
+
+  g.roundRect(1, 2, size - 2, size - 2, radius)
+    .fill({ color: 0x000000, alpha: 0.13 * alpha });
+  g.roundRect(0, 0, size - 2, size - 2, radius)
+    .fill({ color, alpha })
+    .stroke({ width: 2, color: border, alpha: 0.92 * alpha });
+  g.roundRect(5, 5, size - 13, Math.max(5, size * 0.18), radius * 0.7)
+    .fill({ color: 0xffffff, alpha: 0.24 * alpha });
+  g.roundRect(5, size - 11, size - 13, 4, radius * 0.5)
+    .fill({ color: border, alpha: 0.16 * alpha });
+
+  const texture = app.renderer.generateTexture(g);
+  textureCache.set(key, texture);
+  
+  // Free the graphics object memory
+  g.destroy();
+  
+  return texture;
 }
 
 export function drawBlock(

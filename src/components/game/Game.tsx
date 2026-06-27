@@ -1,23 +1,33 @@
-import { useState } from "react";
-import { RotateCcw, Trophy, Volume2, VolumeX } from "lucide-react";
+import { Trophy, RotateCcw, Settings } from "lucide-react";
 import { useBlockBlastGame } from "../../hooks/useBlockBlastGame";
-import { useScoreData } from "../../hooks/useScoreData";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { LogoBubble } from "../ui/LogoBubble";
 import { GameHUD } from "./GameHUD";
-import { LeaderboardPanel } from "./LeaderboardPanel";
 import { Mascot } from "./Mascot";
 import { PixiBlockBlastCanvas } from "./PixiBlockBlastCanvas";
 import { GAME_TEXT } from "../../constants/gameText";
+import type { LocalStats } from "../../utils/localStats";
 
-export function Game() {
-  const scoreData = useScoreData();
+interface GameProps {
+  scoreData: {
+    bestScore: number;
+    stats: LocalStats;
+    handleGameOver: (score: number) => void;
+    saveError: string | null;
+  };
+  sfxEnabled: boolean;
+  onDashboard: () => void;
+  onSettings: () => void;
+}
+
+export function Game({ scoreData, sfxEnabled, onDashboard, onSettings }: GameProps) {
   const game = useBlockBlastGame({
     bestScore: scoreData.bestScore,
     onGameOver: scoreData.handleGameOver,
+    sfxEnabled,
   });
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  
   const piecesLeft = game.pieces.filter((piece) => !piece.placed).length;
 
   return (
@@ -39,15 +49,15 @@ export function Game() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 lg:gap-3">
-            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={() => setShowLeaderboard(true)}>
-              <Trophy size={16} />
+          <div className="flex items-center gap-2 lg:gap-3">
+            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={onDashboard} size={40}>
+              <Trophy size={20} />
             </IconButton>
-            <IconButton label={game.sfxEnabled ? GAME_TEXT.TOOLTIP_SOUND_ON : GAME_TEXT.TOOLTIP_SOUND_OFF} onClick={game.toggleSfx}>
-              {game.sfxEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            <IconButton label="Cài đặt" onClick={onSettings} size={40}>
+              <Settings size={22} />
             </IconButton>
-            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={game.resetGame}>
-              <RotateCcw size={16} />
+            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={game.resetGame} size={40}>
+              <RotateCcw size={20} />
             </IconButton>
           </div>
         </div>
@@ -102,7 +112,7 @@ export function Game() {
                 <Button onClick={game.resetGame} size="sm">
                   {GAME_TEXT.BTN_PLAY_AGAIN}
                 </Button>
-                <Button variant="ghost" onClick={() => setShowLeaderboard(true)} size="sm">
+                <Button variant="ghost" onClick={onDashboard} size="sm">
                   {GAME_TEXT.BTN_LEADERBOARD}
                 </Button>
               </div>
@@ -110,14 +120,6 @@ export function Game() {
           )}
         </div>
       </div>
-
-      {showLeaderboard && (
-        <LeaderboardPanel
-          stats={scoreData.stats}
-          maxCombo={game.maxCombo}
-          onClose={() => setShowLeaderboard(false)}
-        />
-      )}
     </section>
   );
 }
