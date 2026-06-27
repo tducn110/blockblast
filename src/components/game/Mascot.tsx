@@ -7,17 +7,8 @@ export function Mascot({ size = 48 }: { size?: number }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
-      style={{ animation: "mascot-breathe 3s ease-in-out infinite" }}
+      className="animate-[mascot-breathe_3s_ease-in-out_infinite]"
     >
-      <style>{`
-        @keyframes mascot-breathe {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-2px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          @keyframes mascot-breathe { 0%, 100% { transform: none; } }
-        }
-      `}</style>
       {/* Body - peanut shape */}
       <ellipse cx="24" cy="30" rx="12" ry="14" fill="#f0b840" stroke="#c8920c" strokeWidth="1.5" />
       {/* Head */}
