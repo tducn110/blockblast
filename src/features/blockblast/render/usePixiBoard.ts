@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite } from "pixi.js";
-import { BoardGrid, BOARD_SIZE } from "../../utils/blockBlastLogic";
-import { cellPoint, CELL, GAP, getBlockTexture } from "../../utils/pixiDrawUtils";
+import { BoardGrid, BOARD_SIZE } from "@/features/blockblast/game/blockBlastLogic";
+import { cellPoint, CELL, GAP, getBlockTexture } from "@/features/blockblast/game/pixiDrawUtils";
 
 interface CellGraphics {
   bg: Graphics;

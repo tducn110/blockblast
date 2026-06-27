@@ -3,8 +3,8 @@ import {
   getLocalScoreData,
   saveLocalGameResult,
   type GameResult,
-} from "../lib/localScores";
-import type { LocalStats } from "../utils/localStats";
+} from "@/features/blockblast/lib/localScores";
+import type { LocalStats } from "@/features/blockblast/game/localStats";
 
 export interface ScoreData {
   stats: LocalStats;

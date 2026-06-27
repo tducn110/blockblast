@@ -4,7 +4,7 @@ import {
   BLOCK_COLOR_MAP,
   BOARD_SIZE,
   BlockPiece,
-} from "./blockBlastLogic";
+} from "@/features/blockblast/game/blockBlastLogic";
 
 export const VIEW_WIDTH = 412;
 export const VIEW_HEIGHT = 572;

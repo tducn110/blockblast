@@ -1,11 +1,11 @@
 import { useEffect } from "react";
-import { BoardGrid, BlockPiece } from "../../utils/blockBlastLogic";
-import type { ClearAnimation, PlacementAnimation } from "../../hooks/useBlockBlastGame";
-import { VIEW_WIDTH, VIEW_HEIGHT } from "../../utils/pixiDrawUtils";
-import { usePixiApp } from "../../hooks/pixi/usePixiApp";
-import { usePixiBoard } from "../../hooks/pixi/usePixiBoard";
-import { usePixiPieces } from "../../hooks/pixi/usePixiPieces";
-import { usePixiAnimations } from "../../hooks/pixi/usePixiAnimations";
+import { BoardGrid, BlockPiece } from "@/features/blockblast/game/blockBlastLogic";
+import type { ClearAnimation, PlacementAnimation } from "@/features/blockblast/hooks/useBlockBlastGame";
+import { VIEW_WIDTH, VIEW_HEIGHT } from "@/features/blockblast/game/pixiDrawUtils";
+import { usePixiApp } from "@/features/blockblast/render/usePixiApp";
+import { usePixiBoard } from "@/features/blockblast/render/usePixiBoard";
+import { usePixiPieces } from "@/features/blockblast/render/usePixiPieces";
+import { usePixiAnimations } from "@/features/blockblast/render/usePixiAnimations";
 
 interface PixiBlockBlastCanvasProps {
   board: BoardGrid;

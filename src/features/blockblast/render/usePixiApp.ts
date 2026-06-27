@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Container, Graphics, Rectangle } from "pixi.js";
-import { VIEW_WIDTH, VIEW_HEIGHT, drawBoardBackground } from "../../utils/pixiDrawUtils";
+import { VIEW_WIDTH, VIEW_HEIGHT, drawBoardBackground } from "@/features/blockblast/game/pixiDrawUtils";
 
 export function usePixiApp() {
   const hostRef = useRef<HTMLDivElement | null>(null);

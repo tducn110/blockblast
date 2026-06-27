@@ -1,5 +1,5 @@
 import { Music, Settings as SettingsIcon, Volume2, VolumeX } from "lucide-react";
-import { Button } from "../ui/Button";
+import { Button } from "@/components/ui/Button";
 
 interface SettingsProps {
   musicEnabled: boolean;

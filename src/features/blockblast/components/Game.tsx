@@ -1,13 +1,13 @@
 import { Trophy, RotateCcw, Settings } from "lucide-react";
-import { useBlockBlastGame } from "../../hooks/useBlockBlastGame";
-import { Button } from "../ui/Button";
-import { IconButton } from "../ui/IconButton";
-import { LogoBubble } from "../ui/LogoBubble";
-import { GameHUD } from "./GameHUD";
-import { Mascot } from "./Mascot";
-import { PixiBlockBlastCanvas } from "./PixiBlockBlastCanvas";
-import { GAME_TEXT } from "../../constants/gameText";
-import type { LocalStats } from "../../utils/localStats";
+import { useBlockBlastGame } from "@/features/blockblast/hooks/useBlockBlastGame";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
+import { LogoBubble } from "@/components/ui/LogoBubble";
+import { GameHUD } from "@/features/blockblast/components/GameHUD";
+import { Mascot } from "@/features/blockblast/components/Mascot";
+import { PixiBlockBlastCanvas } from "@/features/blockblast/components/PixiBlockBlastCanvas";
+import { GAME_TEXT } from "@/features/blockblast/lib/gameText";
+import type { LocalStats } from "@/features/blockblast/game/localStats";
 
 interface GameProps {
   scoreData: {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent } from "pixi.js";
-import { BlockPiece, BOARD_SIZE, canPlacePiece } from "../../utils/blockBlastLogic";
+import { BlockPiece, BOARD_SIZE, canPlacePiece } from "@/features/blockblast/game/blockBlastLogic";
 import {
   PIECE_SLOT_WIDTH,
   TRAY_Y,
@@ -13,8 +13,8 @@ import {
   BOARD_X,
   BOARD_Y,
   getBlockTexture
-} from "../../utils/pixiDrawUtils";
-import { GameState } from "../useBlockBlastGame";
+} from "@/features/blockblast/game/pixiDrawUtils";
+import { GameState } from "@/features/blockblast/hooks/useBlockBlastGame";
 
 interface SlotObjects {
   container: Container;

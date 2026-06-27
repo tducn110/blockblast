@@ -4,7 +4,7 @@ import {
   saveStats,
   type LocalStats,
   type LocalStatsEntry,
-} from "../utils/localStats";
+} from "@/features/blockblast/game/localStats";
 
 export interface GameResult {
   score: number;
