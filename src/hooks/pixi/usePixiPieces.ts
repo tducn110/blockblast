@@ -4,6 +4,8 @@ import { BlockPiece, BOARD_SIZE } from "../../utils/blockBlastLogic";
 import {
   PIECE_SLOT_WIDTH,
   TRAY_Y,
+  TRAY_X,
+  PIECE_SLOT_GAP,
   PIECE_SLOT_HEIGHT,
   pieceBounds,
   drawBlock,
@@ -111,13 +113,13 @@ export function usePixiPieces(
     if (slotsRef.current.length === 0) {
       // Initialize slots once
       for (let index = 0; index < 3; index++) {
-        const slotX = 19 + index * PIECE_SLOT_WIDTH;
+        const slotX = TRAY_X + index * (PIECE_SLOT_WIDTH + PIECE_SLOT_GAP);
         const container = new Container();
         container.x = slotX;
         container.y = TRAY_Y;
         container.eventMode = "static";
         container.cursor = "pointer";
-        container.hitArea = new Rectangle(0, 0, PIECE_SLOT_WIDTH - 10, PIECE_SLOT_HEIGHT);
+        container.hitArea = new Rectangle(0, 0, PIECE_SLOT_WIDTH, PIECE_SLOT_HEIGHT);
 
         const shell = new Graphics();
         const pieceGraphic = new Graphics();
@@ -176,7 +178,7 @@ export function usePixiPieces(
       const isSelected = selectedPieceId === piece.id;
 
       slot.shell.clear();
-      slot.shell.roundRect(0, 0, PIECE_SLOT_WIDTH - 10, PIECE_SLOT_HEIGHT, 18)
+      slot.shell.roundRect(0, 0, PIECE_SLOT_WIDTH, PIECE_SLOT_HEIGHT, 18)
         .fill({ color: piece.placed ? 0xefe3c4 : 0xfdf6ea, alpha: piece.placed ? 0.58 : 0.92 })
         .stroke({
           width: isSelected ? 3 : 1.5,
@@ -187,11 +189,11 @@ export function usePixiPieces(
       slot.pieceGraphic.clear();
       if (!piece.placed) {
         const bounds = pieceBounds(piece);
-        const previewCell = Math.min(22, Math.floor((PIECE_SLOT_WIDTH - 28) / bounds.width));
+        const previewCell = Math.min(24, Math.floor((PIECE_SLOT_WIDTH - 24) / bounds.width));
         const previewGap = 2;
         const pieceWidth = bounds.width * previewCell + (bounds.width - 1) * previewGap;
         const pieceHeight = bounds.height * previewCell + (bounds.height - 1) * previewGap;
-        const startX = (PIECE_SLOT_WIDTH - 10 - pieceWidth) / 2;
+        const startX = (PIECE_SLOT_WIDTH - pieceWidth) / 2;
         const startY = (PIECE_SLOT_HEIGHT - pieceHeight) / 2;
 
         for (const cell of piece.cells) {
@@ -203,7 +205,7 @@ export function usePixiPieces(
 
       slot.mark.clear();
       if (piece.placed) {
-        slot.mark.roundRect(31, 34, 40, 16, 8)
+        slot.mark.roundRect(37, 42, 40, 16, 8)
           .fill({ color: 0x2a2418, alpha: 0.16 })
           .stroke({ width: 1, color: 0x2a2418, alpha: 0.16 });
       }
