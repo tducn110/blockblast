@@ -38,13 +38,14 @@ export function PixiBlockBlastCanvas({
     ready,
   } = usePixiApp();
 
-  usePixiBoard(boardLayerRef.current, board, ready);
+  usePixiBoard(appRef.current!, boardLayerRef.current, board, ready);
   
   usePixiPieces(
     appRef.current,
     piecesLayerRef.current,
     dragLayerRef.current,
     boardLayerRef.current,
+    board,
     pieces,
     selectedPieceId,
     onSelectPiece,
@@ -59,6 +60,24 @@ export function PixiBlockBlastCanvas({
     placementAnimation,
     ready
   );
+
+  useEffect(() => {
+    if (!appRef.current) return;
+    const ticker = appRef.current.ticker;
+    let lastTime = performance.now();
+    
+    const monitor = () => {
+      const now = performance.now();
+      const delta = now - lastTime;
+      lastTime = now;
+      if (delta > 24) {
+        console.warn(`[PERF] ticker_spike: ${delta.toFixed(2)}ms`);
+      }
+    };
+    
+    ticker.add(monitor);
+    return () => { ticker.remove(monitor); };
+  }, [ready]);
 
   useEffect(() => {
     if (!appRef.current || !appRef.current.canvas) return;

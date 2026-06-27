@@ -41,7 +41,7 @@ export function usePixiApp() {
       app.canvas.style.width = "100%";
       app.canvas.style.height = "auto";
       app.canvas.style.display = "block";
-      app.canvas.style.touchAction = "manipulation";
+      app.canvas.style.touchAction = "none";
       hostRef.current.appendChild(app.canvas);
 
       const background = new Graphics();

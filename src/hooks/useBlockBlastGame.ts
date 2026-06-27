@@ -190,6 +190,8 @@ export function useBlockBlastGame({
       if (!canPlacePiece(board, piece, row, col)) {
         return false;
       }
+      
+      const t0 = performance.now();
 
       const newBoard = placePiece(board, piece, row, col);
       const nextPlacementAnimation = makePlacementAnimation(piece, row, col);
@@ -258,6 +260,11 @@ export function useBlockBlastGame({
           piecesPlaced: newPiecesPlaced,
         });
       }
+      
+      const t1 = performance.now();
+      console.log(`[PERF] onPlacePiece_logic: ${(t1-t0).toFixed(2)}ms`);
+      // Expose to global for board render delay measurement
+      (globalThis as any).__lastPlacePieceTime = performance.now();
 
       return true;
     },
