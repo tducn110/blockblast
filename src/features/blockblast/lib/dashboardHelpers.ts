@@ -1,4 +1,4 @@
-import type { LocalStats } from "../utils/localStats";
+import type { LocalStats } from "@/features/blockblast/game/localStats";
 
 export const MOCK_LEADERBOARD = [
   { name: "Sói Cô Độc", score: 85400, maxCombo: 12 },

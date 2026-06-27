@@ -10,8 +10,8 @@ import {
   calculateClearScore,
   BoardGrid,
   BlockPiece,
-} from "../utils/blockBlastLogic";
-import type { GameResult } from "../lib/localScores";
+} from "@/features/blockblast/game/blockBlastLogic";
+import type { GameResult } from "@/features/blockblast/lib/localScores";
 
 export interface FeedbackItem {
   id: string;

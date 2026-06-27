@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { CountrysideBackdrop } from "../components/background/CountrysideBackdrop";
-import { Game } from "../components/game/Game";
-import { DashboardScreen } from "../components/screens/Dashboard";
-import { SettingsScreen } from "../components/screens/Settings";
-import { useScoreData } from "../hooks/useScoreData";
+import { CountrysideBackdrop } from "@/components/background/CountrysideBackdrop";
+import { Game } from "@/features/blockblast/components/Game";
+import { DashboardScreen } from "@/features/blockblast/screens/Dashboard";
+import { SettingsScreen } from "@/features/blockblast/screens/Settings";
+import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
 
 type Screen = "game" | "dashboard" | "settings";
 

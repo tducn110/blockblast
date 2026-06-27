@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Ticker, Sprite, Texture } from "pixi.js";
-import type { ClearAnimation, PlacementAnimation } from "../useBlockBlastGame";
-import { cellPoint, drawBlock, CELL, colorOf } from "../../utils/pixiDrawUtils";
+import type { ClearAnimation, PlacementAnimation } from "@/features/blockblast/hooks/useBlockBlastGame";
+import { cellPoint, drawBlock, CELL, colorOf } from "@/features/blockblast/game/pixiDrawUtils";
 
 interface Particle {
   sprite: Sprite;
