@@ -36,12 +36,12 @@ export function usePixiPieces(
 ) {
   const dragGhostRef = useRef<Graphics | null>(null);
   const draggingPieceRef = useRef<BlockPiece | null>(null);
-  const latestRef = useRef({ selectedPieceId, onPlacePiece, onSelectPiece });
+  const latestRef = useRef({ pieces, selectedPieceId, onPlacePiece, onSelectPiece });
   const slotsRef = useRef<SlotObjects[]>([]);
 
   useEffect(() => {
-    latestRef.current = { selectedPieceId, onPlacePiece, onSelectPiece };
-  }, [selectedPieceId, onPlacePiece, onSelectPiece]);
+    latestRef.current = { pieces, selectedPieceId, onPlacePiece, onSelectPiece };
+  }, [pieces, selectedPieceId, onPlacePiece, onSelectPiece]);
 
   // Setup global drag listeners on app stage
   useEffect(() => {
@@ -139,7 +139,8 @@ export function usePixiPieces(
         container.on("pointerdown", (event: FederatedPointerEvent) => {
           const slot = slotsRef.current[index];
           if (!slot || !slot.pieceId) return;
-          const piece = pieces.find(p => p.id === slot.pieceId);
+          const current = latestRef.current;
+          const piece = current.pieces.find(p => p.id === slot.pieceId);
           if (!piece || piece.placed) return;
 
           const existingGhost = dragGhostRef.current;
