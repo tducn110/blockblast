@@ -84,12 +84,6 @@ export function Game() {
 
         {game.status === "gameOver" && (
           <div className="absolute inset-0 bg-[#2a2418]/80 rounded-[22px] flex flex-col items-center justify-center gap-[12px] z-20 animate-[fadeScaleIn_0.32s_ease]">
-            <style>{`
-              @keyframes fadeScaleIn {
-                from { opacity: 0; transform: scale(0.96); }
-                to { opacity: 1; transform: scale(1); }
-              }
-            `}</style>
             <div className="text-[26px] font-black text-[#f0b840]">{GAME_TEXT.GAME_OVER_TITLE}</div>
             <div className="text-[15px] text-[#efe3c4]">
               {GAME_TEXT.RESULT} <strong>{game.score.toLocaleString()}</strong> {GAME_TEXT.POINTS}
