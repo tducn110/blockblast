@@ -23,7 +23,7 @@ export function usePixiApp() {
         antialias: false,
         autoDensity: true,
         preference: "webgl",
-        resolution: Math.min(window.devicePixelRatio || 1, 1.5),
+        resolution: window.devicePixelRatio || 2,
         eventFeatures: {
           click: true,
           globalMove: true,
