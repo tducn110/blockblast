@@ -71,6 +71,7 @@ export default function App() {
           <Game 
             scoreData={scoreData} 
             sfxEnabled={sfxEnabled} 
+            musicEnabled={musicEnabled}
             onDashboard={() => setScreen("dashboard")} 
             onSettings={() => setScreen("settings")}
           />
