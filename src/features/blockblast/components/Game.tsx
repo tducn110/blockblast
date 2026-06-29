@@ -7,28 +7,28 @@ import { GameHUD } from "@/features/blockblast/components/GameHUD";
 import { Mascot } from "@/features/blockblast/components/Mascot";
 import { PixiBlockBlastCanvas } from "@/features/blockblast/components/PixiBlockBlastCanvas";
 import { GAME_TEXT } from "@/features/blockblast/lib/gameText";
-import type { LocalStats } from "@/features/blockblast/game/localStats";
+import type { ScoreData } from "@/features/blockblast/hooks/useScoreData";
 
 interface GameProps {
-  scoreData: {
-    bestScore: number;
-    stats: LocalStats;
-    handleGameOver: (score: number) => void;
-    saveError: string | null;
-  };
+  scoreData: ScoreData;
   sfxEnabled: boolean;
+  musicEnabled: boolean;
   onDashboard: () => void;
   onSettings: () => void;
 }
 
-export function Game({ scoreData, sfxEnabled, onDashboard, onSettings }: GameProps) {
+export function Game({ scoreData, sfxEnabled, musicEnabled, onDashboard, onSettings }: GameProps) {
   const game = useBlockBlastGame({
     bestScore: scoreData.bestScore,
     onGameOver: scoreData.handleGameOver,
     sfxEnabled,
+    musicEnabled,
   });
   
   const piecesLeft = game.pieces.filter((piece) => !piece.placed).length;
+  const mascotMood = game.status === "gameOver" ? "gameOver" : game.combo > 1 ? "combo" : "idle";
+  const mascotVariantIndex =
+    game.status === "gameOver" ? 3 : game.combo > 1 ? game.combo : game.piecesPlaced;
 
   return (
     <section className="w-full max-w-[440px] lg:max-w-[860px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[28px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[32px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden">
@@ -64,7 +64,7 @@ export function Game({ scoreData, sfxEnabled, onDashboard, onSettings }: GamePro
 
         {/* HUD row (Mobile) / Stack (PC) */}
         <div className="flex items-center gap-3 lg:flex-col lg:items-start lg:gap-6 lg:mt-6">
-          <Mascot size={46} />
+          <Mascot size={64} variantIndex={mascotVariantIndex} mood={mascotMood} />
           <div className="flex-1 min-w-0 lg:w-full">
             <GameHUD
               score={game.score}
@@ -101,6 +101,22 @@ export function Game({ scoreData, sfxEnabled, onDashboard, onSettings }: GamePro
             onSelectPiece={game.selectPiece}
             onPlacePiece={game.placePiece}
           />
+
+          {game.feedback.length > 0 && (
+            <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col items-start gap-1.5">
+              {game.feedback.slice(-3).map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-full bg-[#2a2418]/88 px-3 py-1 text-[11px] font-extrabold text-[#fdf6ea] shadow-[0_8px_18px_rgba(42,36,24,0.2)] animate-[fadeScaleIn_0.22s_ease]"
+                  style={{
+                    color: item.type === "combo" ? "#f0b840" : "#fdf6ea",
+                  }}
+                >
+                  {item.text}
+                </div>
+              ))}
+            </div>
+          )}
 
           {game.status === "gameOver" && (
             <div className="absolute inset-0 bg-[#2a2418]/80 rounded-[22px] flex flex-col items-center justify-center gap-[12px] z-20 animate-[fadeScaleIn_0.32s_ease]">

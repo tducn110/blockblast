@@ -11,6 +11,7 @@ import {
   BoardGrid,
   BlockPiece,
 } from "@/features/blockblast/game/blockBlastLogic";
+import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { GameResult } from "@/features/blockblast/lib/localScores";
 
 export interface FeedbackItem {
@@ -73,6 +74,8 @@ export interface GameActions {
 
 export interface UseBlockBlastGameOptions {
   bestScore?: number;
+  sfxEnabled?: boolean;
+  musicEnabled?: boolean;
   onGameOver?: (result: GameResult) => void;
 }
 
@@ -135,6 +138,8 @@ function makePlacementAnimation(
 
 export function useBlockBlastGame({
   bestScore: externalBestScore = 0,
+  sfxEnabled: controlledSfxEnabled,
+  musicEnabled: controlledMusicEnabled,
   onGameOver,
 }: UseBlockBlastGameOptions = {}): GameState & GameActions {
   const [board, setBoard] = useState<BoardGrid>(createEmptyBoard);
@@ -150,16 +155,31 @@ export function useBlockBlastGame({
   const [piecesPlaced, setPiecesPlaced] = useState(0);
   const [linesCleared, setLinesCleared] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
-  const [sfxEnabled, setSfxEnabled] = useState(true);
-  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [internalSfxEnabled, setInternalSfxEnabled] = useState(controlledSfxEnabled ?? true);
+  const [internalMusicEnabled, setInternalMusicEnabled] = useState(controlledMusicEnabled ?? false);
   const [clearAnimation, setClearAnimation] = useState<ClearAnimation | null>(null);
   const [placementAnimation, setPlacementAnimation] = useState<PlacementAnimation | null>(null);
   const clearAnimationTimers = useRef<number[]>([]);
   const placementAnimationTimers = useRef<number[]>([]);
+  const sfxEnabled = controlledSfxEnabled ?? internalSfxEnabled;
+  const musicEnabled = controlledMusicEnabled ?? internalMusicEnabled;
 
   useEffect(() => {
     setBestScore((current) => Math.max(current, externalBestScore));
   }, [externalBestScore]);
+
+  useEffect(() => {
+    if (controlledSfxEnabled !== undefined) setInternalSfxEnabled(controlledSfxEnabled);
+  }, [controlledSfxEnabled]);
+
+  useEffect(() => {
+    if (controlledMusicEnabled !== undefined) setInternalMusicEnabled(controlledMusicEnabled);
+  }, [controlledMusicEnabled]);
+
+  useEffect(() => {
+    blockBlastAudio.setMusicEnabled(musicEnabled);
+    return () => blockBlastAudio.setMusicEnabled(false);
+  }, [musicEnabled]);
 
   useEffect(
     () => () => {
@@ -188,6 +208,7 @@ export function useBlockBlastGame({
       if (!piece) return false;
 
       if (!canPlacePiece(board, piece, row, col)) {
+        if (sfxEnabled) blockBlastAudio.playInvalid();
         return false;
       }
       
@@ -196,11 +217,18 @@ export function useBlockBlastGame({
       const newBoard = placePiece(board, piece, row, col);
       const nextPlacementAnimation = makePlacementAnimation(piece, row, col);
       const placementScore = calculatePlacementScore(piece);
-      const { board: clearedBoard, clearedRows, clearedCols, clearedCount } = clearLines(newBoard);
+      const {
+        board: clearedBoard,
+        clearedRows,
+        clearedCols,
+        clearedCount,
+        clearedCells,
+      } = clearLines(newBoard);
       const nextClearAnimation = makeClearAnimation(newBoard, clearedRows, clearedCols);
 
       const newCombo = clearedCount > 0 ? combo + 1 : 0;
-      const clearScore = clearedCount > 0 ? calculateClearScore(clearedCount, newCombo) : 0;
+      const clearScore =
+        clearedCount > 0 ? calculateClearScore(clearedCount, newCombo, clearedCells) : 0;
       const totalAdded = placementScore + clearScore;
 
       const newScore = score + totalAdded;
@@ -212,6 +240,7 @@ export function useBlockBlastGame({
       const feedbackItems: FeedbackItem[] = [];
       clearedRows.forEach(() => feedbackItems.push(makeFeedback("Dọn hàng!", "clear-row")));
       clearedCols.forEach(() => feedbackItems.push(makeFeedback("Dọn cột!", "clear-col")));
+      if (totalAdded > placementScore) feedbackItems.push(makeFeedback(`+${totalAdded} điểm`, "placement"));
       if (newCombo > 1) feedbackItems.push(makeFeedback(`Combo x${newCombo}!`, "combo"));
 
       const newPieces = pieces.map((p) =>
@@ -251,7 +280,17 @@ export function useBlockBlastGame({
         clearAnimationTimers.current.push(timer);
       }
 
+      if (sfxEnabled) {
+        if (clearedCount > 0) {
+          blockBlastAudio.playLineClear(clearedRows.length, clearedCols.length, newCombo);
+          if (newCombo > 1) blockBlastAudio.playCombo(newCombo);
+        } else {
+          blockBlastAudio.playPlace();
+        }
+      }
+
       if (gameOver) {
+        if (sfxEnabled) blockBlastAudio.playGameOver();
         setStatus("gameOver");
         onGameOver?.({
           score: newScore,
@@ -268,7 +307,20 @@ export function useBlockBlastGame({
 
       return true;
     },
-    [board, pieces, score, bestScore, combo, status, piecesPlaced, linesCleared, maxCombo, addFeedback, onGameOver]
+    [
+      board,
+      pieces,
+      score,
+      bestScore,
+      combo,
+      status,
+      piecesPlaced,
+      linesCleared,
+      maxCombo,
+      sfxEnabled,
+      addFeedback,
+      onGameOver,
+    ]
   );
 
   const selectPiece = useCallback((id: string | null) => {
@@ -325,8 +377,8 @@ export function useBlockBlastGame({
     setBestScore(externalBestScore);
   }, [externalBestScore]);
 
-  const toggleSfx = useCallback(() => setSfxEnabled((v) => !v), []);
-  const toggleMusic = useCallback(() => setMusicEnabled((v) => !v), []);
+  const toggleSfx = useCallback(() => setInternalSfxEnabled((v) => !v), []);
+  const toggleMusic = useCallback(() => setInternalMusicEnabled((v) => !v), []);
 
   const dismissFeedback = useCallback((id: string) => {
     setFeedback((prev) => prev.filter((f) => f.id !== id));

@@ -156,17 +156,30 @@ export function clearLines(board: BoardGrid): {
   clearedRows: number[];
   clearedCols: number[];
   clearedCount: number;
+  clearedCells: number;
 } {
   const clearedRows = getFullRows(board);
   const clearedCols = getFullCols(board);
 
   if (clearedRows.length === 0 && clearedCols.length === 0) {
-    return { board, clearedRows, clearedCols, clearedCount: 0 };
+    return { board, clearedRows, clearedCols, clearedCount: 0, clearedCells: 0 };
   }
+
+  const clearedCellKeys = new Set<string>();
+  clearedRows.forEach((row) => {
+    for (let col = 0; col < BOARD_SIZE; col += 1) {
+      clearedCellKeys.add(`${row}-${col}`);
+    }
+  });
+  clearedCols.forEach((col) => {
+    for (let row = 0; row < BOARD_SIZE; row += 1) {
+      clearedCellKeys.add(`${row}-${col}`);
+    }
+  });
 
   const newBoard = board.map((rowArr, r) =>
     rowArr.map((cell, c) => {
-      if (clearedRows.includes(r) || clearedCols.includes(c)) {
+      if (clearedCellKeys.has(`${r}-${c}`)) {
         return { row: r, col: c, filled: false, colorId: undefined };
       }
       return { ...cell };
@@ -178,6 +191,7 @@ export function clearLines(board: BoardGrid): {
     clearedRows,
     clearedCols,
     clearedCount: clearedRows.length + clearedCols.length,
+    clearedCells: clearedCellKeys.size,
   };
 }
 
@@ -201,6 +215,13 @@ export function calculatePlacementScore(piece: BlockPiece): number {
   return piece.cells.length * 10;
 }
 
-export function calculateClearScore(clearedCount: number, combo: number): number {
-  return clearedCount * 100 + combo * 50;
+export function calculateClearScore(clearedCount: number, combo: number, clearedCells: number): number {
+  if (clearedCount <= 0) return 0;
+
+  const lineScore = clearedCount * 120;
+  const cellScore = clearedCells * 5;
+  const multiLineBonus = clearedCount > 1 ? (clearedCount - 1) * 80 : 0;
+  const comboBonus = combo > 1 ? (combo - 1) * 60 : 0;
+
+  return lineScore + cellScore + multiLineBonus + comboBonus;
 }
