@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Trophy, RotateCcw, Settings } from "lucide-react";
 import { useBlockBlastGame, type BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +10,11 @@ import { PixiBlockBlastCanvas } from "@/features/blockblast/components/PixiBlock
 import { SlashScoreOverlay } from "@/features/blockblast/components/SlashScoreOverlay";
 import { GAME_TEXT } from "@/features/blockblast/lib/gameText";
 import type { ScoreData } from "@/features/blockblast/hooks/useScoreData";
+import {
+  BLOCK_BORDER_MAP,
+  BLOCK_COLOR_MAP,
+  type BlockPiece,
+} from "@/features/blockblast/game/blockBlastLogic";
 
 interface GameProps {
   scoreData: ScoreData;
@@ -45,14 +50,38 @@ export function Game({
     lastBoomEventIdRef.current = game.boomEvent.id;
     onBoom(game.boomEvent);
   }, [game.boomEvent, onBoom]);
-  
+
   const mascotMood =
     scenery === "boom" ? "boom" : game.status === "gameOver" ? "gameOver" : "idle";
   const mascotVariantIndex = scenery === "boom" ? 2 : 0;
+  const showMobileReserveSlot = useIsMobileReserveTray();
+  const reserveStoreLabel =
+    game.selectedPieceId === game.reservePiece?.id
+      ? "Bỏ chọn"
+      : game.selectedPieceId && game.reservePiece
+        ? "Đổi khối"
+        : game.selectedPieceId
+          ? "Cất khối"
+        : game.reservePiece && game.pieces.some((piece) => piece.placed)
+          ? "Lấy ra"
+          : "Cất khối";
+  const reserveStoreDisabled =
+    game.status !== "playing" ||
+    !game.reserveUnlocked ||
+    !game.selectedPieceId &&
+    !(game.reservePiece && game.pieces.some((piece) => piece.placed));
+  const adActionDisabled = game.status !== "playing" || game.reserveUnlocked;
+  const handleUnlockReserve = useCallback(async () => {
+    const rewardGranted = await Promise.resolve(true);
+    if (rewardGranted) game.unlockReserveSlot();
+  }, [game.unlockReserveSlot]);
+  const handleReserveAction = () => {
+    game.useReserveSlot();
+  };
 
   return (
     <section
-      className="w-full max-w-[440px] lg:max-w-[860px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[28px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[32px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden"
+      className="w-full max-w-[440px] lg:max-w-[1080px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[30px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[38px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden"
       style={{
         boxShadow:
           scenery === "boom"
@@ -62,7 +91,7 @@ export function Game({
     >
       
       {/* Left Column: UI Controls (Header, HUD, Instructions) */}
-      <div className="flex flex-col gap-[12px] lg:gap-[16px] lg:w-[264px] lg:shrink-0 lg:py-[8px]">
+      <div className="flex flex-col gap-[12px] lg:gap-[18px] lg:w-[340px] lg:shrink-0 lg:py-[8px]">
         {/* Header Row (Mobile) / Stack (PC) */}
         <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-4">
           <div className="flex items-center gap-2 min-w-0">
@@ -90,10 +119,12 @@ export function Game({
           </div>
         </div>
 
-        <div className="flex flex-col gap-[10px] lg:gap-[12px] lg:rounded-[22px] lg:border lg:border-[#8a7d65]/18 lg:bg-[#efe3c4]/38 lg:p-[14px] lg:shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+        <div className="flex flex-col gap-[10px] lg:gap-[14px] lg:rounded-[24px] lg:border lg:border-[#8a7d65]/18 lg:bg-[#efe3c4]/38 lg:p-[16px] lg:shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
           {/* HUD row */}
           <div className="flex items-center gap-3 lg:gap-4">
-            <Mascot size={64} variantIndex={mascotVariantIndex} mood={mascotMood} />
+            <div className="lg:hidden">
+              <Mascot size={64} variantIndex={mascotVariantIndex} mood={mascotMood} />
+            </div>
             <div className="flex-1 min-w-0">
               <GameHUD
                 score={game.score}
@@ -115,21 +146,80 @@ export function Game({
             )}
           </div>
         </div>
+
+        <div className="hidden lg:flex flex-col gap-[14px] rounded-[26px] border border-[#8a7d65]/16 bg-[#fffaf0]/86 p-[16px] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+          <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-[16px]">
+            <div className="grid place-items-center">
+              <Mascot size={112} variantIndex={mascotVariantIndex} mood={mascotMood} />
+            </div>
+
+            <div className="flex min-w-0 flex-col justify-center gap-[10px] rounded-[20px] border border-[#f0b840]/22 bg-[#f5ecd7]/64 p-[14px]">
+              <div>
+                <div className="text-[13px] font-black uppercase tracking-[0.8px] text-[#8e4e22]">
+                  Quảng cáo
+                </div>
+                <div className="mt-[2px] text-[12px] font-bold leading-[1.4] text-[#8a7d65]">
+                  {game.reserveUnlocked
+                    ? "Kho phụ đã mở. Chọn khối rồi cất bên dưới."
+                    : "Xem quảng cáo để mở thêm 1 ô cất khối."}
+                </div>
+              </div>
+
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={adActionDisabled}
+                onClick={handleUnlockReserve}
+                style={{ alignSelf: "flex-start", minWidth: 132, minHeight: 38, paddingLeft: 14, paddingRight: 14 }}
+              >
+                {game.reserveUnlocked ? "Đã mở kho" : "Xem quảng cáo"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-[14px] rounded-[20px] border border-[#8a7d65]/16 bg-[#fdf6ea]/78 p-[12px]">
+            <div className="flex items-center gap-[12px]">
+              <ReservePiecePreview piece={game.reserveUnlocked ? game.reservePiece : null} />
+              <div>
+                <div className="text-[12px] font-black uppercase tracking-[0.7px] text-[#8e4e22]">
+                  Ô cất khối
+                </div>
+                <div className="text-[11px] font-bold leading-[1.35] text-[#8a7d65]">
+                  Chọn khối ở khay rồi cất vào đây.
+                </div>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={reserveStoreDisabled}
+              onClick={handleReserveAction}
+              style={{ minWidth: 104, minHeight: 38, paddingLeft: 12, paddingRight: 12 }}
+            >
+              {reserveStoreLabel}
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Right Column: Canvas Board */}
       <div className="relative flex-1 flex flex-col items-center justify-center">
-        <div className="w-full relative max-w-[500px]">
+        <div className="w-full relative max-w-[590px]">
           <PixiBlockBlastCanvas
             board={game.board}
             pieces={game.pieces}
             selectedPieceId={game.selectedPieceId}
+            reserveUnlocked={game.reserveUnlocked}
+            reservePiece={game.reservePiece}
+            showMobileReserveSlot={showMobileReserveSlot}
             status={game.status}
             clearAnimation={game.clearAnimation}
             placementAnimation={game.placementAnimation}
             paused={paused}
             onSelectPiece={game.selectPiece}
             onPlacePiece={game.placePiece}
+            onUnlockReserve={handleUnlockReserve}
+            onUseReserveSlot={game.useReserveSlot}
           />
 
           <SlashScoreOverlay items={game.feedback} />
@@ -153,5 +243,65 @@ export function Game({
         </div>
       </div>
     </section>
+  );
+}
+
+function useIsMobileReserveTray() {
+  const [isMobileReserveTray, setIsMobileReserveTray] = useState(() =>
+    typeof window === "undefined"
+      ? true
+      : window.matchMedia("(max-width: 1023px)").matches
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobileReserveTray(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return isMobileReserveTray;
+}
+
+function ReservePiecePreview({ piece }: { piece: BlockPiece | null }) {
+  const cells = piece?.cells ?? [];
+  const minRow = cells.length > 0 ? Math.min(...cells.map((cell) => cell.row)) : 0;
+  const minCol = cells.length > 0 ? Math.min(...cells.map((cell) => cell.col)) : 0;
+  const width = cells.length > 0 ? Math.max(...cells.map((cell) => cell.col)) - minCol + 1 : 1;
+  const height = cells.length > 0 ? Math.max(...cells.map((cell) => cell.row)) - minRow + 1 : 1;
+  const blockColor = BLOCK_COLOR_MAP[piece?.colorId ?? "peanut"] ?? BLOCK_COLOR_MAP.peanut;
+  const borderColor = BLOCK_BORDER_MAP[piece?.colorId ?? "peanut"] ?? BLOCK_BORDER_MAP.peanut;
+
+  return (
+    <div className="grid h-[70px] w-[70px] place-items-center rounded-[18px] border border-[#8a7d65]/22 bg-[#fdf6ea]/88">
+      {piece ? (
+        <div
+          className="grid gap-[4px]"
+          style={{
+            gridTemplateColumns: `repeat(${width}, 15px)`,
+            gridTemplateRows: `repeat(${height}, 15px)`,
+          }}
+        >
+          {cells.map((cell) => (
+            <span
+              key={`${cell.row}-${cell.col}`}
+              style={{
+                gridColumn: cell.col - minCol + 1,
+                gridRow: cell.row - minRow + 1,
+                width: 15,
+                height: 15,
+                borderRadius: 5,
+                background: blockColor,
+                border: `1.5px solid ${borderColor}`,
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3)",
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <span className="text-[24px] font-black text-[#8a7d65]/36">+</span>
+      )}
+    </div>
   );
 }

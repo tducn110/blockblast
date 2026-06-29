@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
-import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent, Ticker } from "pixi.js";
+import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent, Ticker, Text } from "pixi.js";
 import { BlockPiece, BOARD_SIZE, canPlacePiece } from "@/features/blockblast/game/blockBlastLogic";
 import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import {
+  VIEW_WIDTH,
   PIECE_SLOT_WIDTH,
   TRAY_Y,
   TRAY_X,
@@ -22,7 +23,63 @@ interface SlotObjects {
   shell: Graphics;
   pieceGraphic: Container; // Changed to Container containing Sprites
   mark: Graphics;
+  label: Text;
   pieceId: string | null;
+}
+
+interface TrayLayout {
+  slotCount: number;
+  slotWidth: number;
+  slotHeight: number;
+  slotGap: number;
+  trayX: number;
+  trayY: number;
+  slotRadius: number;
+  slotPaddingX: number;
+  slotPaddingY: number;
+  previewGap: number;
+  previewMinCell: number;
+  previewMaxCell: number;
+}
+
+const MOBILE_RESERVE_SLOT_WIDTH = 84;
+const MOBILE_RESERVE_SLOT_HEIGHT = 92;
+const MOBILE_RESERVE_SLOT_GAP = 8;
+const MOBILE_RESERVE_TOTAL_WIDTH =
+  MOBILE_RESERVE_SLOT_WIDTH * 4 + MOBILE_RESERVE_SLOT_GAP * 3;
+
+function getTrayLayout(showMobileReserveSlot: boolean): TrayLayout {
+  if (showMobileReserveSlot) {
+    return {
+      slotCount: 4,
+      slotWidth: MOBILE_RESERVE_SLOT_WIDTH,
+      slotHeight: MOBILE_RESERVE_SLOT_HEIGHT,
+      slotGap: MOBILE_RESERVE_SLOT_GAP,
+      trayX: (VIEW_WIDTH - MOBILE_RESERVE_TOTAL_WIDTH) / 2,
+      trayY: TRAY_Y,
+      slotRadius: 13,
+      slotPaddingX: 8,
+      slotPaddingY: 8,
+      previewGap: 2,
+      previewMinCell: 10,
+      previewMaxCell: 19,
+    };
+  }
+
+  return {
+    slotCount: 3,
+    slotWidth: PIECE_SLOT_WIDTH,
+    slotHeight: PIECE_SLOT_HEIGHT,
+    slotGap: PIECE_SLOT_GAP,
+    trayX: TRAY_X,
+    trayY: TRAY_Y,
+    slotRadius: 18,
+    slotPaddingX: 16,
+    slotPaddingY: 14,
+    previewGap: 3,
+    previewMinCell: 14,
+    previewMaxCell: 22,
+  };
 }
 
 type DragState = "idle" | "pickup" | "dragging" | "snapping" | "committing";
@@ -54,6 +111,104 @@ function boardOccupancyKey(board: GameState["board"]): string {
   return key;
 }
 
+function canPieceFitBoard(
+  board: GameState["board"],
+  piece: BlockPiece,
+  boardKey: string,
+  fitCache: Map<string, boolean>
+): boolean {
+  if (piece.placed) return false;
+
+  const cacheKey = `${boardKey}:${piece.id}`;
+  const cached = fitCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let canFit = false;
+  for (let row = 0; row < BOARD_SIZE; row += 1) {
+    for (let col = 0; col < BOARD_SIZE; col += 1) {
+      if (canPlacePiece(board, piece, row, col)) {
+        canFit = true;
+        break;
+      }
+    }
+    if (canFit) break;
+  }
+
+  fitCache.set(cacheKey, canFit);
+  return canFit;
+}
+
+function drawPiecePreview(
+  app: Application,
+  pieceGraphic: Container,
+  piece: BlockPiece,
+  layout: TrayLayout,
+  alpha: number
+) {
+  const sprites = pieceGraphic.children as Sprite[];
+  sprites.forEach((sprite) => {
+    sprite.visible = false;
+  });
+
+  if (piece.placed) return;
+
+  const bounds = pieceBounds(piece);
+  const availableWidth = layout.slotWidth - layout.slotPaddingX * 2;
+  const availableHeight = layout.slotHeight - layout.slotPaddingY * 2;
+  const widthGaps = Math.max(0, bounds.width - 1) * layout.previewGap;
+  const heightGaps = Math.max(0, bounds.height - 1) * layout.previewGap;
+  const cellByWidth = Math.floor((availableWidth - widthGaps) / bounds.width);
+  const cellByHeight = Math.floor((availableHeight - heightGaps) / bounds.height);
+  const previewCell = Math.max(
+    layout.previewMinCell,
+    Math.min(layout.previewMaxCell, cellByWidth, cellByHeight)
+  );
+  const pieceWidth = bounds.width * previewCell + (bounds.width - 1) * layout.previewGap;
+  const pieceHeight = bounds.height * previewCell + (bounds.height - 1) * layout.previewGap;
+  const startX = (layout.slotWidth - pieceWidth) / 2;
+  const startY = (layout.slotHeight - pieceHeight) / 2;
+  const texture = getBlockTexture(app, previewCell, piece.colorId, alpha);
+
+  let spriteIndex = 0;
+  for (const cell of piece.cells) {
+    const sprite = sprites[spriteIndex++];
+    if (!sprite) break;
+    sprite.texture = texture;
+    sprite.x = startX + (cell.col - bounds.minCol) * (previewCell + layout.previewGap);
+    sprite.y = startY + (cell.row - bounds.minRow) * (previewCell + layout.previewGap);
+    sprite.visible = true;
+  }
+}
+
+function drawLockIcon(graphics: Graphics, x: number, y: number, color: number, alpha: number) {
+  graphics
+    .roundRect(x + 3, y + 15, 22, 20, 5)
+    .fill({ color, alpha })
+    .roundRect(x + 8, y + 3, 12, 17, 7)
+    .stroke({ width: 4, color, alpha, alignment: 0.5 })
+    .circle(x + 14, y + 24, 2.5)
+    .fill({ color: 0xfdf6ea, alpha: 0.85 });
+}
+
+function clearSlot(slot: SlotObjects) {
+  slot.pieceId = null;
+  slot.container.eventMode = "none";
+  slot.pieceGraphic.visible = true;
+  (slot.pieceGraphic.children as Sprite[]).forEach((sprite) => {
+    sprite.visible = false;
+  });
+  slot.shell.clear();
+  slot.mark.clear();
+  slot.label.visible = false;
+}
+
+function destroySlots(slots: SlotObjects[]) {
+  slots.forEach((slot) => {
+    slot.container.parent?.removeChild(slot.container);
+    slot.container.destroy({ children: true });
+  });
+}
+
 export function usePixiPieces(
   app: Application | null,
   piecesLayer: Container | null,
@@ -62,12 +217,30 @@ export function usePixiPieces(
   board: GameState["board"],
   pieces: BlockPiece[],
   selectedPieceId: string | null,
+  reserveUnlocked: boolean,
+  reservePiece: BlockPiece | null,
+  showMobileReserveSlot: boolean,
+  status: GameState["status"],
   onSelectPiece: (id: string | null) => void,
   onPlacePiece: (id: string, row: number, col: number) => boolean,
+  onUnlockReserve: () => void | Promise<void>,
+  onUseReserveSlot: () => boolean,
   ready: boolean
 ) {
-  const latestRef = useRef({ pieces, selectedPieceId, onPlacePiece, onSelectPiece, board });
+  const latestRef = useRef({
+    pieces,
+    selectedPieceId,
+    reserveUnlocked,
+    reservePiece,
+    status,
+    onPlacePiece,
+    onSelectPiece,
+    onUnlockReserve,
+    onUseReserveSlot,
+    board,
+  });
   const slotsRef = useRef<SlotObjects[]>([]);
+  const slotModeRef = useRef<boolean | null>(null);
   const previewContainerRef = useRef<Container | null>(null);
   const fitCacheRef = useRef<Map<string, boolean>>(new Map());
 
@@ -89,8 +262,30 @@ export function usePixiPieces(
   });
 
   useEffect(() => {
-    latestRef.current = { pieces, selectedPieceId, onPlacePiece, onSelectPiece, board };
-  }, [pieces, selectedPieceId, onPlacePiece, onSelectPiece, board]);
+    latestRef.current = {
+      pieces,
+      selectedPieceId,
+      reserveUnlocked,
+      reservePiece,
+      status,
+      onPlacePiece,
+      onSelectPiece,
+      onUnlockReserve,
+      onUseReserveSlot,
+      board,
+    };
+  }, [
+    pieces,
+    selectedPieceId,
+    reserveUnlocked,
+    reservePiece,
+    status,
+    onPlacePiece,
+    onSelectPiece,
+    onUnlockReserve,
+    onUseReserveSlot,
+    board,
+  ]);
 
   // Global Drag Pipeline
   useEffect(() => {
@@ -314,15 +509,27 @@ export function usePixiPieces(
   useEffect(() => {
     if (!ready || !app || !piecesLayer || !dragLayer) return;
 
+    const layout = getTrayLayout(showMobileReserveSlot);
+    const reserveSlotIndex = layout.slotCount - 1;
+
+    if (
+      slotModeRef.current !== showMobileReserveSlot ||
+      slotsRef.current.length !== layout.slotCount
+    ) {
+      destroySlots(slotsRef.current);
+      slotsRef.current = [];
+      slotModeRef.current = showMobileReserveSlot;
+    }
+
     if (slotsRef.current.length === 0) {
-      for (let index = 0; index < 3; index++) {
-        const slotX = TRAY_X + index * (PIECE_SLOT_WIDTH + PIECE_SLOT_GAP);
+      for (let index = 0; index < layout.slotCount; index++) {
+        const slotX = layout.trayX + index * (layout.slotWidth + layout.slotGap);
         const container = new Container();
         container.x = slotX;
-        container.y = TRAY_Y;
+        container.y = layout.trayY;
         container.eventMode = "static";
         container.cursor = "pointer";
-        container.hitArea = new Rectangle(0, 0, PIECE_SLOT_WIDTH, PIECE_SLOT_HEIGHT);
+        container.hitArea = new Rectangle(0, 0, layout.slotWidth, layout.slotHeight);
 
         const shell = new Graphics();
         shell.eventMode = "none";
@@ -338,15 +545,51 @@ export function usePixiPieces(
         
         const mark = new Graphics();
         mark.eventMode = "none";
+
+        const label = new Text({
+          text: "",
+          style: {
+            fontFamily: "Be Vietnam Pro, Arial, sans-serif",
+            fontSize: 11,
+            fontWeight: "800",
+            fill: 0x8a7d65,
+            align: "center",
+          },
+        });
+        label.anchor.set(0.5);
+        label.eventMode = "none";
+        label.visible = false;
         
-        container.addChild(shell, pieceGraphic, mark);
+        container.addChild(shell, pieceGraphic, mark, label);
         piecesLayer.addChild(container);
 
         container.on("pointerdown", (event: FederatedPointerEvent) => {
+          const current = latestRef.current;
+          if (current.status !== "playing") return;
+
+          const isReserveSlot = showMobileReserveSlot && index === reserveSlotIndex;
+          if (isReserveSlot) {
+            const hasSelectedPiece =
+              current.selectedPieceId !== null &&
+              current.pieces.some((piece) => piece.id === current.selectedPieceId && !piece.placed);
+            const hasPlacedTraySlot = current.pieces.some((piece) => piece.placed);
+            const actionable =
+              !current.reserveUnlocked ||
+              hasSelectedPiece ||
+              (current.reservePiece !== null && hasPlacedTraySlot);
+
+            if (!actionable || dragCtx.current.state !== "idle") return;
+            if (!current.reserveUnlocked) {
+              void current.onUnlockReserve();
+            } else {
+              current.onUseReserveSlot();
+            }
+            return;
+          }
+
           const slot = slotsRef.current[index];
           if (!slot || !slot.pieceId) return;
 
-          const current = latestRef.current;
           const piece = current.pieces.find(p => p.id === slot.pieceId);
           if (!piece || piece.placed) return;
 
@@ -357,7 +600,7 @@ export function usePixiPieces(
           ctx.activePieceId = piece.id;
           ctx.sourceTrayIndex = index;
           ctx.pointerGlobal = { x: event.global.x, y: event.global.y };
-          ctx.originalTrayPosition = { x: slotX, y: TRAY_Y };
+          ctx.originalTrayPosition = { x: slotX, y: layout.trayY };
 
           const bounds = pieceBounds(piece);
           const pieceWidth = bounds.width * CELL + (bounds.width - 1) * GAP;
@@ -410,7 +653,7 @@ export function usePixiPieces(
           slot.pieceGraphic.visible = false;
         });
 
-        slotsRef.current.push({ container, shell, pieceGraphic, mark, pieceId: null });
+        slotsRef.current.push({ container, shell, pieceGraphic, mark, label, pieceId: null });
       }
     }
 
@@ -419,43 +662,27 @@ export function usePixiPieces(
     const fitCache = fitCacheRef.current;
     if (fitCache.size > 256) fitCache.clear();
 
-    pieces.forEach((piece, index) => {
+    slotsRef.current.forEach(clearSlot);
+
+    pieces.slice(0, 3).forEach((piece, index) => {
       const slot = slotsRef.current[index];
       if (!slot) return;
-      
-      // Calculate fit
-      let canFit = false;
-      if (!piece.placed) {
-        const cacheKey = `${boardKey}:${piece.id}`;
-        const cached = fitCache.get(cacheKey);
-        if (cached !== undefined) {
-          canFit = cached;
-        } else {
-          for (let r = 0; r < BOARD_SIZE; r++) {
-              for (let c = 0; c < BOARD_SIZE; c++) {
-                if (canPlacePiece(board, piece, r, c)) {
-                    canFit = true;
-                    break;
-                }
-              }
-              if (canFit) break;
-          }
-          fitCache.set(cacheKey, canFit);
-        }
-      }
+
+      const canFit = canPieceFitBoard(board, piece, boardKey, fitCache);
 
       slot.pieceId = piece.id;
       const isSelected = selectedPieceId === piece.id;
       const ctx = dragCtx.current;
 
-      const isInteractable = canFit && !piece.placed;
+      const isInteractable = status === "playing" && canFit && !piece.placed;
       slot.container.eventMode = isInteractable ? "static" : "none";
+      slot.container.cursor = isInteractable ? "pointer" : "default";
 
       const isDraggingThis = ctx.activePieceId === piece.id && ctx.sourceTrayIndex === index && ctx.state !== "idle";
       slot.pieceGraphic.visible = !isDraggingThis;
 
       slot.shell.clear();
-      slot.shell.roundRect(0, 0, PIECE_SLOT_WIDTH, PIECE_SLOT_HEIGHT, 18)
+      slot.shell.roundRect(0, 0, layout.slotWidth, layout.slotHeight, layout.slotRadius)
         .fill({ color: piece.placed ? 0xefe3c4 : 0xfdf6ea, alpha: piece.placed ? 0.58 : 0.92 })
         .stroke({
           width: 1.5,
@@ -463,61 +690,105 @@ export function usePixiPieces(
           alpha: isSelected ? 0.38 : 0.26,
         });
       if (isSelected) {
-        slot.shell.roundRect(4, 4, PIECE_SLOT_WIDTH - 8, PIECE_SLOT_HEIGHT - 8, 14)
+        slot.shell.roundRect(4, 4, layout.slotWidth - 8, layout.slotHeight - 8, layout.slotRadius - 4)
           .fill({ color: 0xf0b840, alpha: 0.08 })
           .stroke({ width: 2, color: 0xd66a2f, alpha: 0.72, alignment: 1 });
       }
 
-      // Update sprites
-      const sprites = slot.pieceGraphic.children as Sprite[];
-      sprites.forEach(s => s.visible = false);
-
       if (!piece.placed) {
-        const bounds = pieceBounds(piece);
-        const slotPaddingX = 16;
-        const slotPaddingY = 14;
-        const previewGap = 3;
-        const minCell = 14;
-        const maxCell = 22;
-        const availableWidth = PIECE_SLOT_WIDTH - slotPaddingX * 2;
-        const availableHeight = PIECE_SLOT_HEIGHT - slotPaddingY * 2;
-        const widthGaps = Math.max(0, bounds.width - 1) * previewGap;
-        const heightGaps = Math.max(0, bounds.height - 1) * previewGap;
-        const cellByWidth = Math.floor((availableWidth - widthGaps) / bounds.width);
-        const cellByHeight = Math.floor((availableHeight - heightGaps) / bounds.height);
-        const previewCell = Math.max(minCell, Math.min(maxCell, cellByWidth, cellByHeight));
-        const pieceWidth = bounds.width * previewCell + (bounds.width - 1) * previewGap;
-        const pieceHeight = bounds.height * previewCell + (bounds.height - 1) * previewGap;
-        const startX = (PIECE_SLOT_WIDTH - pieceWidth) / 2;
-        const startY = (PIECE_SLOT_HEIGHT - pieceHeight) / 2;
-
-        const tex = getBlockTexture(app, previewCell, piece.colorId, canFit ? 1 : 0.3);
-
-        let i = 0;
-        for (const cell of piece.cells) {
-          const s = sprites[i++];
-          if (!s) break;
-          s.texture = tex;
-          s.x = startX + (cell.col - bounds.minCol) * (previewCell + previewGap);
-          s.y = startY + (cell.row - bounds.minRow) * (previewCell + previewGap);
-          s.visible = true;
-        }
+        drawPiecePreview(app, slot.pieceGraphic, piece, layout, canFit ? 1 : 0.3);
       }
 
       slot.mark.clear();
     });
+
+    if (showMobileReserveSlot) {
+      const slot = slotsRef.current[reserveSlotIndex];
+      if (slot) {
+        const hasSelectedPiece =
+          selectedPieceId !== null &&
+          pieces.some((piece) => piece.id === selectedPieceId && !piece.placed);
+        const hasPlacedTraySlot = pieces.some((piece) => piece.placed);
+        const canUseReserve =
+          status === "playing" &&
+          (!reserveUnlocked ||
+            hasSelectedPiece ||
+            (reservePiece !== null && hasPlacedTraySlot));
+        const isActiveTarget = reserveUnlocked && hasSelectedPiece;
+
+        slot.pieceId = reservePiece?.id ?? null;
+        slot.container.eventMode = canUseReserve ? "static" : "none";
+        slot.container.cursor = canUseReserve ? "pointer" : "default";
+        slot.shell.clear();
+        slot.mark.clear();
+        slot.label.visible = false;
+        slot.pieceGraphic.visible = true;
+
+        const borderColor = !reserveUnlocked
+          ? 0xd66a2f
+          : isActiveTarget
+            ? 0x6b8e3d
+            : 0x93ad72;
+
+        slot.shell.roundRect(0, 0, layout.slotWidth, layout.slotHeight, layout.slotRadius)
+          .fill({ color: 0xfdf6ea, alpha: reserveUnlocked ? 0.92 : 0.82 })
+          .stroke({
+            width: isActiveTarget ? 2 : 1.5,
+            color: borderColor,
+            alpha: isActiveTarget ? 0.82 : 0.58,
+          });
+
+        if (!reserveUnlocked) {
+          slot.mark
+            .roundRect(0, 0, layout.slotWidth, layout.slotHeight, layout.slotRadius)
+            .fill({ color: 0xf5ecd7, alpha: 0.5 });
+          drawLockIcon(slot.mark, layout.slotWidth / 2 - 14, 18, 0x7c6c55, 0.82);
+          slot.label.text = "Xem QC";
+          slot.label.style.fill = 0x5f5241;
+          slot.label.x = layout.slotWidth / 2;
+          slot.label.y = layout.slotHeight - 22;
+          slot.label.visible = true;
+        } else if (reservePiece) {
+          const canFit = canPieceFitBoard(board, reservePiece, boardKey, fitCache);
+          drawPiecePreview(app, slot.pieceGraphic, reservePiece, layout, canFit ? 1 : 0.35);
+        } else {
+          slot.mark
+            .moveTo(layout.slotWidth / 2 - 7, 36)
+            .lineTo(layout.slotWidth / 2 + 7, 36)
+            .stroke({ width: 4, color: 0x93ad72, alpha: hasSelectedPiece ? 0.86 : 0.44, cap: "round" })
+            .moveTo(layout.slotWidth / 2, 29)
+            .lineTo(layout.slotWidth / 2, 43)
+            .stroke({ width: 4, color: 0x93ad72, alpha: hasSelectedPiece ? 0.86 : 0.44, cap: "round" });
+          slot.label.text = "Cất";
+          slot.label.style.fill = hasSelectedPiece ? 0x6b8e3d : 0x9ba883;
+          slot.label.x = layout.slotWidth / 2;
+          slot.label.y = layout.slotHeight - 24;
+          slot.label.visible = true;
+        }
+      }
+    }
     
     if (DEBUG_BLOCK_BLAST_PERF) {
       console.log(`[PERF] tray_render: ${(performance.now() - trayRenderStart).toFixed(2)}ms`);
     }
 
-  }, [pieces, selectedPieceId, ready, piecesLayer, dragLayer, board, app]);
+  }, [
+    pieces,
+    selectedPieceId,
+    reserveUnlocked,
+    reservePiece,
+    showMobileReserveSlot,
+    status,
+    ready,
+    piecesLayer,
+    dragLayer,
+    board,
+    app,
+  ]);
 
   useEffect(() => {
     return () => {
-      slotsRef.current.forEach(slot => {
-        slot.container.destroy({ children: true });
-      });
+      destroySlots(slotsRef.current);
       slotsRef.current = [];
     };
   }, []);

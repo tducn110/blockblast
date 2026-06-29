@@ -66,6 +66,8 @@ export interface GameState {
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation | null;
   boomEvent: BoomEvent | null;
+  reserveUnlocked: boolean;
+  reservePiece: BlockPiece | null;
 }
 
 export interface GameActions {
@@ -77,6 +79,8 @@ export interface GameActions {
   placeSelectedPiece: (row: number, col: number) => boolean;
   placeDraggingPiece: (row: number, col: number) => boolean;
   resetGame: () => void;
+  unlockReserveSlot: () => void;
+  useReserveSlot: () => boolean;
   toggleSfx: () => void;
   toggleMusic: () => void;
   dismissFeedback: (id: string) => void;
@@ -115,6 +119,13 @@ type GameAction =
   | { type: "setHoverAnchor"; anchor: { row: number; col: number } | null }
   | { type: "placePiece"; payload: PlacePiecePayload }
   | { type: "generateNextTray"; pieces: BlockPiece[]; status: GameCoreState["status"] }
+  | {
+      type: "useReserveSlot";
+      pieces: BlockPiece[];
+      reservePiece: BlockPiece | null;
+      status: GameCoreState["status"];
+    }
+  | { type: "unlockReserveSlot" }
   | { type: "reset"; bestScore: number }
   | { type: "clearPlacementAnimation"; id: string }
   | { type: "clearClearAnimation"; id: string }
@@ -140,6 +151,8 @@ function createInitialCoreState(bestScore: number): GameCoreState {
     clearAnimation: null,
     placementAnimation: null,
     boomEvent: null,
+    reserveUnlocked: false,
+    reservePiece: null,
   };
 }
 
@@ -189,6 +202,18 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
         hoverAnchor: null,
         status: action.status,
       };
+    case "useReserveSlot":
+      return {
+        ...state,
+        pieces: action.pieces,
+        reservePiece: action.reservePiece,
+        selectedPieceId: null,
+        draggingPieceId: null,
+        hoverAnchor: null,
+        status: action.status,
+      };
+    case "unlockReserveSlot":
+      return { ...state, reserveUnlocked: true };
     case "reset":
       return createInitialCoreState(action.bestScore);
     case "clearPlacementAnimation":
@@ -337,6 +362,56 @@ export function useBlockBlastGame({
     });
   }, []);
 
+  const scheduleDeferredTrayGeneration = useCallback(
+    ({
+      board,
+      score,
+      maxCombo,
+      linesCleared,
+      piecesPlaced,
+    }: {
+      board: BoardGrid;
+      score: number;
+      maxCombo: number;
+      linesCleared: number;
+      piecesPlaced: number;
+    }) => {
+      cancelPendingTrayGeneration();
+      const capturedRunId = runIdRef.current;
+      generationRafRef.current = requestAnimationFrame(() => {
+        generationRafRef.current = null;
+        if (capturedRunId !== runIdRef.current) return;
+        if (gameStateRef.current.status !== "resolving") return;
+
+        const genStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
+        const generatedPieces = createSmartPieces(board, score, Date.now());
+        if (DEBUG_BLOCK_BLAST_PERF) {
+          console.log(`[PERF] createSmartPieces_deferred: ${(performance.now() - genStart).toFixed(2)}ms`);
+        }
+
+        const reservePiece = gameStateRef.current.reservePiece;
+        const piecesToCheck = reservePiece ? [...generatedPieces, reservePiece] : generatedPieces;
+        const generatedGameOver = isGameOver(board, piecesToCheck);
+        dispatch({
+          type: "generateNextTray",
+          pieces: generatedPieces,
+          status: generatedGameOver ? "gameOver" : "playing",
+        });
+
+        if (generatedGameOver) {
+          if (sfxEnabled) blockBlastAudio.playGameOver();
+          onGameOver?.({
+            score,
+            maxCombo,
+            linesCleared,
+            piecesPlaced,
+          });
+        }
+      });
+    },
+    [cancelPendingTrayGeneration, onGameOver, sfxEnabled]
+  );
+
   const doPlace = useCallback(
     (pieceId: string, row: number, col: number): boolean => {
       const state = gameStateRef.current;
@@ -404,7 +479,10 @@ export function useBlockBlastGame({
       const nextPieces = newPieces;
 
       // Only check game over if not all placed (deferred generation handles it later)
-      const gameOver = allPlaced ? false : isGameOver(clearedBoard, nextPieces.filter((p) => !p.placed));
+      const gameOverPieces = state.reservePiece
+        ? [...nextPieces.filter((p) => !p.placed), state.reservePiece]
+        : nextPieces.filter((p) => !p.placed);
+      const gameOver = allPlaced ? false : isGameOver(clearedBoard, gameOverPieces);
       const nextStatus = allPlaced ? "resolving" : gameOver ? "gameOver" : "playing";
 
       dispatch({
@@ -428,36 +506,12 @@ export function useBlockBlastGame({
 
       // Defer smart piece generation to next frame when all 3 placed
       if (allPlaced) {
-        cancelPendingTrayGeneration();
-        const capturedRunId = runIdRef.current;
-        generationRafRef.current = requestAnimationFrame(() => {
-          generationRafRef.current = null;
-          if (capturedRunId !== runIdRef.current) return;
-          if (gameStateRef.current.status !== "resolving") return;
-
-          const genStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
-          const generatedPieces = createSmartPieces(clearedBoard, newScore, Date.now());
-          if (DEBUG_BLOCK_BLAST_PERF) {
-            console.log(`[PERF] createSmartPieces_deferred: ${(performance.now() - genStart).toFixed(2)}ms`);
-          }
-
-          // Check game over with the newly generated pieces
-          const generatedGameOver = isGameOver(clearedBoard, generatedPieces);
-          dispatch({
-            type: "generateNextTray",
-            pieces: generatedPieces,
-            status: generatedGameOver ? "gameOver" : "playing",
-          });
-
-          if (generatedGameOver) {
-            if (sfxEnabled) blockBlastAudio.playGameOver();
-            onGameOver?.({
-              score: newScore,
-              maxCombo: newMaxCombo,
-              linesCleared: newLinesCleared,
-              piecesPlaced: newPiecesPlaced,
-            });
-          }
+        scheduleDeferredTrayGeneration({
+          board: clearedBoard,
+          score: newScore,
+          maxCombo: newMaxCombo,
+          linesCleared: newLinesCleared,
+          piecesPlaced: newPiecesPlaced,
         });
       }
 
@@ -504,7 +558,7 @@ export function useBlockBlastGame({
 
       return true;
     },
-    [cancelPendingTrayGeneration, sfxEnabled, scheduleFeedbackDismissal, onGameOver]
+    [sfxEnabled, scheduleDeferredTrayGeneration, scheduleFeedbackDismissal, onGameOver]
   );
 
   const selectPiece = useCallback((id: string | null) => {
@@ -556,6 +610,66 @@ export function useBlockBlastGame({
     dispatch({ type: "reset", bestScore: externalBestScore });
   }, [cancelPendingTrayGeneration, externalBestScore]);
 
+  const unlockReserveSlot = useCallback(() => {
+    if (gameStateRef.current.status !== "playing") return;
+    dispatch({ type: "unlockReserveSlot" });
+  }, []);
+
+  const useReserveSlot = useCallback((): boolean => {
+    const state = gameStateRef.current;
+    if (state.status !== "playing" || !state.reserveUnlocked) return false;
+
+    let nextPieces = state.pieces;
+    let nextReservePiece = state.reservePiece;
+
+    if (state.selectedPieceId) {
+      const selectedIndex = state.pieces.findIndex(
+        (piece) => piece.id === state.selectedPieceId && !piece.placed
+      );
+      if (selectedIndex < 0) return false;
+
+      const selectedPiece = { ...state.pieces[selectedIndex], placed: false };
+      nextPieces = state.pieces.map((piece, index) => {
+        if (index !== selectedIndex) return piece;
+        return state.reservePiece
+          ? { ...state.reservePiece, placed: false }
+          : { ...piece, placed: true };
+      });
+      nextReservePiece = selectedPiece;
+    } else if (state.reservePiece) {
+      const emptyIndex = state.pieces.findIndex((piece) => piece.placed);
+      if (emptyIndex < 0) return false;
+
+      nextPieces = state.pieces.map((piece, index) =>
+        index === emptyIndex ? { ...state.reservePiece!, placed: false } : piece
+      );
+      nextReservePiece = null;
+    } else {
+      return false;
+    }
+
+    const allInactive = nextPieces.every((piece) => piece.placed);
+    dispatch({
+      type: "useReserveSlot",
+      pieces: nextPieces,
+      reservePiece: nextReservePiece,
+      status: allInactive ? "resolving" : "playing",
+    });
+
+    if (allInactive) {
+      scheduleDeferredTrayGeneration({
+        board: state.board,
+        score: state.score,
+        maxCombo: state.maxCombo,
+        linesCleared: state.linesCleared,
+        piecesPlaced: state.piecesPlaced,
+      });
+    }
+
+    if (sfxEnabled) blockBlastAudio.playPlace();
+    return true;
+  }, [scheduleDeferredTrayGeneration, sfxEnabled]);
+
   const toggleSfx = useCallback(() => setInternalSfxEnabled((v) => !v), []);
   const toggleMusic = useCallback(() => setInternalMusicEnabled((v) => !v), []);
 
@@ -575,6 +689,8 @@ export function useBlockBlastGame({
     placeSelectedPiece,
     placeDraggingPiece,
     resetGame,
+    unlockReserveSlot,
+    useReserveSlot,
     toggleSfx,
     toggleMusic,
     dismissFeedback,
