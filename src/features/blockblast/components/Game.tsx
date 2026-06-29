@@ -60,9 +60,9 @@ export function Game({
     >
       
       {/* Left Column: UI Controls (Header, HUD, Instructions) */}
-      <div className="flex flex-col gap-[12px] lg:gap-[24px] lg:w-[280px] lg:shrink-0 lg:py-[12px]">
+      <div className="flex flex-col gap-[12px] lg:gap-[16px] lg:w-[264px] lg:shrink-0 lg:py-[8px]">
         {/* Header Row (Mobile) / Stack (PC) */}
-        <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-6">
+        <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-4">
           <div className="flex items-center gap-2 min-w-0">
             <LogoBubble size={34} />
             <div className="min-w-0">
@@ -88,28 +88,30 @@ export function Game({
           </div>
         </div>
 
-        {/* HUD row (Mobile) / Stack (PC) */}
-        <div className="flex items-center gap-3 lg:flex-col lg:items-start lg:gap-6 lg:mt-6">
-          <Mascot size={64} variantIndex={mascotVariantIndex} mood={mascotMood} />
-          <div className="flex-1 min-w-0 lg:w-full">
-            <GameHUD
-              score={game.score}
-              bestScore={game.bestScore}
-              feedback={game.feedback}
-            />
+        <div className="flex flex-col gap-[10px] lg:gap-[12px] lg:rounded-[22px] lg:border lg:border-[#8a7d65]/18 lg:bg-[#efe3c4]/38 lg:p-[14px] lg:shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+          {/* HUD row */}
+          <div className="flex items-center gap-3 lg:gap-4">
+            <Mascot size={64} variantIndex={mascotVariantIndex} mood={mascotMood} />
+            <div className="flex-1 min-w-0">
+              <GameHUD
+                score={game.score}
+                bestScore={game.bestScore}
+                feedback={game.feedback}
+              />
+            </div>
           </div>
-        </div>
 
-        <div className="lg:mt-auto flex flex-col gap-2">
-          <p className="text-[11px] lg:text-[13px] text-[#8a7d65] text-center lg:text-left m-0">
-            {GAME_TEXT.INSTRUCTION}
-          </p>
-          
-          {scoreData.saveError && (
-            <p className="m-0 text-[#b85a22] text-[11px] lg:text-[13px] font-bold text-center lg:text-left">
-              {scoreData.saveError}
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] lg:text-[12px] text-[#8a7d65] text-center lg:text-left m-0 lg:leading-[1.45]">
+              {GAME_TEXT.INSTRUCTION}
             </p>
-          )}
+
+            {scoreData.saveError && (
+              <p className="m-0 text-[#b85a22] text-[11px] lg:text-[13px] font-bold text-center lg:text-left">
+                {scoreData.saveError}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 

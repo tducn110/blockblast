@@ -458,10 +458,15 @@ export function usePixiPieces(
       slot.shell.roundRect(0, 0, PIECE_SLOT_WIDTH, PIECE_SLOT_HEIGHT, 18)
         .fill({ color: piece.placed ? 0xefe3c4 : 0xfdf6ea, alpha: piece.placed ? 0.58 : 0.92 })
         .stroke({
-          width: isSelected ? 3 : 1.5,
-          color: isSelected ? 0xe87432 : 0x8a7d65,
-          alpha: isSelected ? 0.95 : 0.26,
+          width: 1.5,
+          color: isSelected ? 0xd66a2f : 0x8a7d65,
+          alpha: isSelected ? 0.38 : 0.26,
         });
+      if (isSelected) {
+        slot.shell.roundRect(4, 4, PIECE_SLOT_WIDTH - 8, PIECE_SLOT_HEIGHT - 8, 14)
+          .fill({ color: 0xf0b840, alpha: 0.08 })
+          .stroke({ width: 2, color: 0xd66a2f, alpha: 0.72, alignment: 1 });
+      }
 
       // Update sprites
       const sprites = slot.pieceGraphic.children as Sprite[];
@@ -469,8 +474,18 @@ export function usePixiPieces(
 
       if (!piece.placed) {
         const bounds = pieceBounds(piece);
-        const previewCell = Math.min(24, Math.floor((PIECE_SLOT_WIDTH - 24) / bounds.width));
-        const previewGap = 2;
+        const slotPaddingX = 16;
+        const slotPaddingY = 14;
+        const previewGap = 3;
+        const minCell = 14;
+        const maxCell = 22;
+        const availableWidth = PIECE_SLOT_WIDTH - slotPaddingX * 2;
+        const availableHeight = PIECE_SLOT_HEIGHT - slotPaddingY * 2;
+        const widthGaps = Math.max(0, bounds.width - 1) * previewGap;
+        const heightGaps = Math.max(0, bounds.height - 1) * previewGap;
+        const cellByWidth = Math.floor((availableWidth - widthGaps) / bounds.width);
+        const cellByHeight = Math.floor((availableHeight - heightGaps) / bounds.height);
+        const previewCell = Math.max(minCell, Math.min(maxCell, cellByWidth, cellByHeight));
         const pieceWidth = bounds.width * previewCell + (bounds.width - 1) * previewGap;
         const pieceHeight = bounds.height * previewCell + (bounds.height - 1) * previewGap;
         const startX = (PIECE_SLOT_WIDTH - pieceWidth) / 2;
