@@ -437,10 +437,6 @@ export function usePixiPieces(
       }
 
       slot.mark.clear();
-      if (piece.placed) {
-        slot.mark.roundRect(PIECE_SLOT_WIDTH / 2 - 16, PIECE_SLOT_HEIGHT / 2 - 16, 32, 32, 16)
-          .fill({ color: 0xc4b494, alpha: 0.6 });
-      }
     });
     
     performance.mark("tray_render_end");

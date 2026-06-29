@@ -249,9 +249,8 @@ export function useBlockBlastGame({
       const totalAdded = placementScore + clearScore;
       const remainingCells = countFilledCells(clearedBoard);
       const cleanSweepBoom = clearedCount > 0 && remainingCells === 0 && newCombo >= 2;
-      const multiLineBoom = clearedCount >= 3 && newCombo >= 3;
       const nextBoomEvent =
-        cleanSweepBoom || multiLineBoom
+        cleanSweepBoom
           ? {
               id: `${Date.now()}-${Math.random()}`,
               combo: newCombo,
@@ -268,11 +267,9 @@ export function useBlockBlastGame({
       const newMaxCombo = Math.max(maxCombo, newCombo);
 
       const feedbackItems: FeedbackItem[] = [];
-      clearedRows.forEach(() => feedbackItems.push(makeFeedback("Dọn hàng!", "clear-row")));
-      clearedCols.forEach(() => feedbackItems.push(makeFeedback("Dọn cột!", "clear-col")));
-      if (totalAdded > placementScore) feedbackItems.push(makeFeedback(`+${totalAdded} điểm`, "placement"));
-      if (newCombo > 1) feedbackItems.push(makeFeedback(`Combo x${newCombo}!`, "combo"));
-      if (nextBoomEvent) feedbackItems.push(makeFeedback("Bùm! Đổi sân!", "boom"));
+      if (totalAdded > placementScore) feedbackItems.push(makeFeedback(`+${totalAdded}`, "placement"));
+      if (newCombo > 1) feedbackItems.push(makeFeedback(`x${newCombo} COMBO`, "combo"));
+      if (nextBoomEvent) feedbackItems.push(makeFeedback("FULL CLEAR", "boom"));
 
       const newPieces = pieces.map((p) =>
         p.id === pieceId ? { ...p, placed: true } : p

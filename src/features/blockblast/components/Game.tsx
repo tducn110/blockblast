@@ -7,6 +7,7 @@ import { LogoBubble } from "@/components/ui/LogoBubble";
 import { GameHUD } from "@/features/blockblast/components/GameHUD";
 import { Mascot } from "@/features/blockblast/components/Mascot";
 import { PixiBlockBlastCanvas } from "@/features/blockblast/components/PixiBlockBlastCanvas";
+import { SlashScoreOverlay } from "@/features/blockblast/components/SlashScoreOverlay";
 import { GAME_TEXT } from "@/features/blockblast/lib/gameText";
 import type { ScoreData } from "@/features/blockblast/hooks/useScoreData";
 
@@ -43,11 +44,9 @@ export function Game({
     onBoom(game.boomEvent);
   }, [game.boomEvent, onBoom]);
   
-  const piecesLeft = game.pieces.filter((piece) => !piece.placed).length;
   const mascotMood =
-    scenery === "boom" ? "boom" : game.status === "gameOver" ? "gameOver" : game.combo > 1 ? "combo" : "idle";
-  const mascotVariantIndex =
-    scenery === "boom" ? 2 : game.status === "gameOver" ? 3 : game.combo > 1 ? game.combo : game.piecesPlaced;
+    scenery === "boom" ? "boom" : game.status === "gameOver" ? "gameOver" : "idle";
+  const mascotVariantIndex = scenery === "boom" ? 2 : 0;
 
   return (
     <section
@@ -96,8 +95,7 @@ export function Game({
             <GameHUD
               score={game.score}
               bestScore={game.bestScore}
-              combo={game.combo}
-              piecesLeft={piecesLeft}
+              feedback={game.feedback}
             />
           </div>
         </div>
@@ -129,21 +127,7 @@ export function Game({
             onPlacePiece={game.placePiece}
           />
 
-          {game.feedback.length > 0 && (
-            <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col items-start gap-1.5">
-              {game.feedback.slice(-3).map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-full bg-[#2a2418]/88 px-3 py-1 text-[11px] font-extrabold text-[#fdf6ea] shadow-[0_8px_18px_rgba(42,36,24,0.2)] animate-[fadeScaleIn_0.22s_ease]"
-                  style={{
-                    color: item.type === "combo" || item.type === "boom" ? "#f0b840" : "#fdf6ea",
-                  }}
-                >
-                  {item.text}
-                </div>
-              ))}
-            </div>
-          )}
+          <SlashScoreOverlay items={game.feedback} />
 
           {game.status === "gameOver" && (
             <div className="absolute inset-0 bg-[#2a2418]/80 rounded-[22px] flex flex-col items-center justify-center gap-[12px] z-20 animate-[fadeScaleIn_0.32s_ease]">
