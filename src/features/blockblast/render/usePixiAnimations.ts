@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Ticker, Sprite, Texture } from "pixi.js";
 import type { ClearAnimation, PlacementAnimation } from "@/features/blockblast/hooks/useBlockBlastGame";
+import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import { cellPoint, drawBlock, CELL, colorOf } from "@/features/blockblast/game/pixiDrawUtils";
 
 interface Particle {
@@ -13,6 +14,7 @@ interface Particle {
   vr: number;
   life: number;
   maxLife: number;
+  baseScale: number;
   active: boolean;
 }
 
@@ -50,7 +52,7 @@ export function usePixiAnimations(
         particlesRef.current.push({
           sprite,
           x: 0, y: 0, vx: 0, vy: 0, rotation: 0, vr: 0,
-          life: 0, maxLife: 1, active: false
+          life: 0, maxLife: 1, baseScale: 1, active: false
         });
       }
     }
@@ -79,9 +81,7 @@ export function usePixiAnimations(
         p.sprite.y = p.y;
         p.sprite.rotation = p.rotation;
         p.sprite.alpha = 1 - Math.pow(progress, 2);
-        // p.maxScale is stored in vx temporarily or we can just scale down from whatever it is
-        // Sprite base scale is set during spawn, we just multiply it by (1 - progress * 0.5)
-        p.sprite.scale.set(p.sprite.scale.x * 0.95);
+        p.sprite.scale.set(p.baseScale * Math.max(0, 1 - progress * 0.5));
       }
     };
 
@@ -98,48 +98,10 @@ export function usePixiAnimations(
     };
   }, [ready, app, animationLayer]);
 
-  // Placement Impact
-  useEffect(() => {
-    if (!ready || !app || !animationLayer || !placementAnimation) return;
-    if (placementAnimationIdRef.current === placementAnimation.id) return;
-
-    placementAnimationIdRef.current = placementAnimation.id;
-
-    const group = new Container();
-    group.label = placementAnimation.id;
-    group.eventMode = "none";
-
-    for (const cell of placementAnimation.cells) {
-      const { x, y } = cellPoint(cell.row, cell.col);
-      const flash = new Sprite(Texture.WHITE);
-      flash.width = CELL;
-      flash.height = CELL;
-      flash.x = x;
-      flash.y = y;
-      flash.alpha = 0.6;
-      group.addChild(flash);
-    }
-    animationLayer.addChild(group);
-
-    let age = 0;
-    const tick = (ticker: Ticker) => {
-      age += Math.min(ticker.elapsedMS, 50);
-      const t = Math.min(age / 120, 1); // 120ms flash duration
-      
-      group.alpha = 1 - t;
-      
-      // Simple squash effect on the center of the placement could be done per cell,
-      // but a simple fading flash is very effective for impact.
-
-      if (t >= 1) {
-        app.ticker.remove(tick);
-        animationLayer.removeChild(group);
-        group.destroy({ children: true });
-      }
-    };
-
-    app.ticker.add(tick);
-  }, [placementAnimation, ready, app, animationLayer]);
+  // Placement Impact disabled as requested
+  // useEffect(() => {
+  //  // code removed
+  // }, [placementAnimation, ready, app, animationLayer]);
 
   // Line Clear Animation
   useEffect(() => {
@@ -152,7 +114,7 @@ export function usePixiAnimations(
     group.label = clearAnimation.id;
     group.eventMode = "none";
     
-    performance.mark("clear_spawn_start");
+    const clearSpawnStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
 
     // Create a container for each cell so we can scale from its center
     const cellContainers: Container[] = [];
@@ -184,10 +146,9 @@ export function usePixiAnimations(
       cellContainers.push(c);
     }
     
-    performance.mark("clear_spawn_end");
-    performance.measure("clear_spawn", "clear_spawn_start", "clear_spawn_end");
-    const m = performance.getEntriesByName("clear_spawn").pop();
-    if (m) console.log(`[PERF] clear_spawn: ${m.duration.toFixed(2)}ms`);
+    if (DEBUG_BLOCK_BLAST_PERF) {
+      console.log(`[PERF] clear_spawn: ${(performance.now() - clearSpawnStart).toFixed(2)}ms`);
+    }
     
     animationLayer.addChild(group);
 
@@ -265,6 +226,7 @@ export function usePixiAnimations(
              const size = 6 + Math.random() * 6;
              // Texture.WHITE is typically 16x16, so size/16 gives the correct scale
              const baseScale = size / 16;
+             p.baseScale = baseScale;
              p.sprite.scale.set(baseScale);
            }
         }
