@@ -16,6 +16,7 @@ interface GameProps {
   sfxEnabled: boolean;
   musicEnabled: boolean;
   scenery: "normal" | "boom";
+  paused: boolean;
   onBoom: (event: BoomEvent) => void;
   onDashboard: () => void;
   onSettings: () => void;
@@ -26,6 +27,7 @@ export function Game({
   sfxEnabled,
   musicEnabled,
   scenery,
+  paused,
   onBoom,
   onDashboard,
   onSettings,
@@ -125,6 +127,7 @@ export function Game({
             status={game.status}
             clearAnimation={game.clearAnimation}
             placementAnimation={game.placementAnimation}
+            paused={paused}
             onSelectPiece={game.selectPiece}
             onPlacePiece={game.placePiece}
           />

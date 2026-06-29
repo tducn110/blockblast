@@ -95,6 +95,7 @@ export default function App() {
             sfxEnabled={sfxEnabled} 
             musicEnabled={musicEnabled}
             scenery={scenery}
+            paused={screen !== "game"}
             onBoom={handleBoom}
             onDashboard={() => setScreen("dashboard")} 
             onSettings={() => setScreen("settings")}

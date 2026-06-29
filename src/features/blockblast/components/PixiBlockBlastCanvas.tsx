@@ -12,9 +12,10 @@ interface PixiBlockBlastCanvasProps {
   board: BoardGrid;
   pieces: BlockPiece[];
   selectedPieceId: string | null;
-  status: "playing" | "gameOver";
+  status: "playing" | "resolving" | "gameOver";
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation | null;
+  paused: boolean;
   onSelectPiece: (id: string | null) => void;
   onPlacePiece: (id: string, row: number, col: number) => boolean;
 }
@@ -26,6 +27,7 @@ export function PixiBlockBlastCanvas({
   status,
   clearAnimation,
   placementAnimation,
+  paused,
   onSelectPiece,
   onPlacePiece,
 }: PixiBlockBlastCanvasProps) {
@@ -61,6 +63,18 @@ export function PixiBlockBlastCanvas({
     placementAnimation,
     ready
   );
+
+  useEffect(() => {
+    if (!ready || !appRef.current) return;
+
+    if (paused) {
+      appRef.current.ticker.stop();
+      return;
+    }
+
+    appRef.current.ticker.start();
+    appRef.current.render();
+  }, [paused, ready]);
 
   useEffect(() => {
     if (!DEBUG_BLOCK_BLAST_PERF || !appRef.current) return;
