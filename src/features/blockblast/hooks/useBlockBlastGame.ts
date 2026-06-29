@@ -17,7 +17,7 @@ import type { GameResult } from "@/features/blockblast/lib/localScores";
 export interface FeedbackItem {
   id: string;
   text: string;
-  type: "clear-row" | "clear-col" | "combo" | "invalid" | "placement";
+  type: "clear-row" | "clear-col" | "combo" | "invalid" | "placement" | "boom";
 }
 
 export interface ClearingCell {
@@ -38,6 +38,14 @@ export interface PlacementAnimation {
   cells: ClearingCell[];
 }
 
+export interface BoomEvent {
+  id: string;
+  combo: number;
+  clearedCount: number;
+  clearedCells: number;
+  remainingCells: number;
+}
+
 export interface GameState {
   board: BoardGrid;
   pieces: BlockPiece[];
@@ -56,6 +64,7 @@ export interface GameState {
   musicEnabled: boolean;
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation | null;
+  boomEvent: BoomEvent | null;
 }
 
 export interface GameActions {
@@ -136,6 +145,13 @@ function makePlacementAnimation(
   };
 }
 
+function countFilledCells(board: BoardGrid): number {
+  return board.reduce(
+    (total, row) => total + row.filter((cell) => cell.filled).length,
+    0
+  );
+}
+
 export function useBlockBlastGame({
   bestScore: externalBestScore = 0,
   sfxEnabled: controlledSfxEnabled,
@@ -159,6 +175,7 @@ export function useBlockBlastGame({
   const [internalMusicEnabled, setInternalMusicEnabled] = useState(controlledMusicEnabled ?? false);
   const [clearAnimation, setClearAnimation] = useState<ClearAnimation | null>(null);
   const [placementAnimation, setPlacementAnimation] = useState<PlacementAnimation | null>(null);
+  const [boomEvent, setBoomEvent] = useState<BoomEvent | null>(null);
   const clearAnimationTimers = useRef<number[]>([]);
   const placementAnimationTimers = useRef<number[]>([]);
   const sfxEnabled = controlledSfxEnabled ?? internalSfxEnabled;
@@ -230,6 +247,19 @@ export function useBlockBlastGame({
       const clearScore =
         clearedCount > 0 ? calculateClearScore(clearedCount, newCombo, clearedCells) : 0;
       const totalAdded = placementScore + clearScore;
+      const remainingCells = countFilledCells(clearedBoard);
+      const cleanSweepBoom = clearedCount > 0 && remainingCells === 0 && newCombo >= 2;
+      const multiLineBoom = clearedCount >= 3 && newCombo >= 3;
+      const nextBoomEvent =
+        cleanSweepBoom || multiLineBoom
+          ? {
+              id: `${Date.now()}-${Math.random()}`,
+              combo: newCombo,
+              clearedCount,
+              clearedCells,
+              remainingCells,
+            }
+          : null;
 
       const newScore = score + totalAdded;
       const newBest = Math.max(bestScore, newScore);
@@ -242,6 +272,7 @@ export function useBlockBlastGame({
       clearedCols.forEach(() => feedbackItems.push(makeFeedback("Dọn cột!", "clear-col")));
       if (totalAdded > placementScore) feedbackItems.push(makeFeedback(`+${totalAdded} điểm`, "placement"));
       if (newCombo > 1) feedbackItems.push(makeFeedback(`Combo x${newCombo}!`, "combo"));
+      if (nextBoomEvent) feedbackItems.push(makeFeedback("Bùm! Đổi sân!", "boom"));
 
       const newPieces = pieces.map((p) =>
         p.id === pieceId ? { ...p, placed: true } : p
@@ -262,6 +293,7 @@ export function useBlockBlastGame({
       setPiecesPlaced(newPiecesPlaced);
       setLinesCleared(newLinesCleared);
       setMaxCombo(newMaxCombo);
+      if (nextBoomEvent) setBoomEvent(nextBoomEvent);
       setPlacementAnimation(nextPlacementAnimation);
       const placementTimer = window.setTimeout(() => {
         setPlacementAnimation((current) =>
@@ -282,8 +314,12 @@ export function useBlockBlastGame({
 
       if (sfxEnabled) {
         if (clearedCount > 0) {
-          blockBlastAudio.playLineClear(clearedRows.length, clearedCols.length, newCombo);
-          if (newCombo > 1) blockBlastAudio.playCombo(newCombo);
+          if (nextBoomEvent) {
+            blockBlastAudio.playBoom();
+          } else {
+            blockBlastAudio.playLineClear(clearedRows.length, clearedCols.length, newCombo);
+            if (newCombo > 1) blockBlastAudio.playCombo(newCombo);
+          }
         } else {
           blockBlastAudio.playPlace();
         }
@@ -371,6 +407,7 @@ export function useBlockBlastGame({
     setFeedback([]);
     setClearAnimation(null);
     setPlacementAnimation(null);
+    setBoomEvent(null);
     setPiecesPlaced(0);
     setLinesCleared(0);
     setMaxCombo(0);
@@ -402,6 +439,7 @@ export function useBlockBlastGame({
     musicEnabled,
     clearAnimation,
     placementAnimation,
+    boomEvent,
     selectPiece,
     startDrag,
     endDrag,

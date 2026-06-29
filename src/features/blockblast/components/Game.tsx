@@ -1,5 +1,6 @@
+import { useEffect, useRef } from "react";
 import { Trophy, RotateCcw, Settings } from "lucide-react";
-import { useBlockBlastGame } from "@/features/blockblast/hooks/useBlockBlastGame";
+import { useBlockBlastGame, type BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { LogoBubble } from "@/components/ui/LogoBubble";
@@ -13,25 +14,51 @@ interface GameProps {
   scoreData: ScoreData;
   sfxEnabled: boolean;
   musicEnabled: boolean;
+  scenery: "normal" | "boom";
+  onBoom: (event: BoomEvent) => void;
   onDashboard: () => void;
   onSettings: () => void;
 }
 
-export function Game({ scoreData, sfxEnabled, musicEnabled, onDashboard, onSettings }: GameProps) {
+export function Game({
+  scoreData,
+  sfxEnabled,
+  musicEnabled,
+  scenery,
+  onBoom,
+  onDashboard,
+  onSettings,
+}: GameProps) {
   const game = useBlockBlastGame({
     bestScore: scoreData.bestScore,
     onGameOver: scoreData.handleGameOver,
     sfxEnabled,
     musicEnabled,
   });
+  const lastBoomEventIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!game.boomEvent || lastBoomEventIdRef.current === game.boomEvent.id) return;
+    lastBoomEventIdRef.current = game.boomEvent.id;
+    onBoom(game.boomEvent);
+  }, [game.boomEvent, onBoom]);
   
   const piecesLeft = game.pieces.filter((piece) => !piece.placed).length;
-  const mascotMood = game.status === "gameOver" ? "gameOver" : game.combo > 1 ? "combo" : "idle";
+  const mascotMood =
+    scenery === "boom" ? "boom" : game.status === "gameOver" ? "gameOver" : game.combo > 1 ? "combo" : "idle";
   const mascotVariantIndex =
-    game.status === "gameOver" ? 3 : game.combo > 1 ? game.combo : game.piecesPlaced;
+    scenery === "boom" ? 2 : game.status === "gameOver" ? 3 : game.combo > 1 ? game.combo : game.piecesPlaced;
 
   return (
-    <section className="w-full max-w-[440px] lg:max-w-[860px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[28px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[32px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden">
+    <section
+      className="w-full max-w-[440px] lg:max-w-[860px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[28px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[32px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden"
+      style={{
+        boxShadow:
+          scenery === "boom"
+            ? "0 22px 58px rgba(184,90,34,0.28), 0 0 0 2px rgba(240,184,64,0.42) inset"
+            : undefined,
+      }}
+    >
       
       {/* Left Column: UI Controls (Header, HUD, Instructions) */}
       <div className="flex flex-col gap-[12px] lg:gap-[24px] lg:w-[280px] lg:shrink-0 lg:py-[12px]">
@@ -109,7 +136,7 @@ export function Game({ scoreData, sfxEnabled, musicEnabled, onDashboard, onSetti
                   key={item.id}
                   className="rounded-full bg-[#2a2418]/88 px-3 py-1 text-[11px] font-extrabold text-[#fdf6ea] shadow-[0_8px_18px_rgba(42,36,24,0.2)] animate-[fadeScaleIn_0.22s_ease]"
                   style={{
-                    color: item.type === "combo" ? "#f0b840" : "#fdf6ea",
+                    color: item.type === "combo" || item.type === "boom" ? "#f0b840" : "#fdf6ea",
                   }}
                 >
                   {item.text}
