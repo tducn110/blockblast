@@ -13,6 +13,7 @@ const MASCOT_ASSETS = [
   "/assets/optimized/017_avatar_tiguayel_nobg-180.webp",
   "/assets/optimized/035_avatar_dogoin_nobg-180.webp",
 ];
+const FALLBACK_MASCOT_ASSET = "/assets/optimized/peanut_static-180.webp";
 
 export function Mascot({ size = 120, variantIndex = 0, mood = "idle" }: MascotProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -21,6 +22,21 @@ export function Mascot({ size = 120, variantIndex = 0, mood = "idle" }: MascotPr
   const normalizedIndex = Math.abs(variantIndex) % MASCOT_ASSETS.length;
   const asset = MASCOT_ASSETS[normalizedIndex];
   const scale = mood === "boom" ? 1.3 : mood === "combo" ? 1.22 : mood === "gameOver" ? 1.1 : 1.16;
+
+  useEffect(() => {
+    const preloadedImages = MASCOT_ASSETS.map((src) => {
+      const image = new Image();
+      image.src = src;
+      return image;
+    });
+
+    return () => {
+      preloadedImages.forEach((image) => {
+        image.onload = null;
+        image.onerror = null;
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (!frameRef.current || !imgRef.current || !burstRef.current) return;
@@ -90,6 +106,11 @@ export function Mascot({ size = 120, variantIndex = 0, mood = "idle" }: MascotPr
         src={asset}
         alt=""
         draggable={false}
+        onError={(event) => {
+          const image = event.currentTarget;
+          if (image.currentSrc.endsWith(FALLBACK_MASCOT_ASSET)) return;
+          image.src = FALLBACK_MASCOT_ASSET;
+        }}
         style={{
           width: "100%",
           height: "100%",
