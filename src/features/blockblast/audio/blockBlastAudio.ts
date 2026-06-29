@@ -95,6 +95,28 @@ class BlockBlastAudio {
     });
   }
 
+  playBoom() {
+    this.withRunningContext((context) => {
+      const now = context.currentTime + 0.01;
+      this.noiseBurst(context, now, 0.34, 0.055);
+      this.tone(context, 82.41, now, 0.22, {
+        waveform: "sawtooth",
+        volume: 0.07,
+        release: 0.24,
+      });
+      this.tone(context, 523.25, now + 0.06, 0.2, {
+        waveform: "triangle",
+        volume: 0.045,
+        release: 0.18,
+      });
+      this.tone(context, 783.99, now + 0.13, 0.22, {
+        waveform: "sine",
+        volume: 0.04,
+        release: 0.2,
+      });
+    });
+  }
+
   playGameOver() {
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.02;
@@ -174,6 +196,40 @@ class BlockBlastAudio {
     gain.connect(context.destination);
     oscillator.start(startTime);
     oscillator.stop(stopTime + 0.02);
+  }
+
+  private noiseBurst(
+    context: AudioContext,
+    startTime: number,
+    duration: number,
+    volume: number
+  ) {
+    const sampleCount = Math.max(1, Math.floor(context.sampleRate * duration));
+    const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
+    const output = buffer.getChannelData(0);
+
+    for (let i = 0; i < sampleCount; i += 1) {
+      const fade = 1 - i / sampleCount;
+      output[i] = (Math.random() * 2 - 1) * fade;
+    }
+
+    const source = context.createBufferSource();
+    const filter = context.createBiquadFilter();
+    const gain = context.createGain();
+
+    source.buffer = buffer;
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(1200, startTime);
+    filter.frequency.exponentialRampToValueAtTime(180, startTime + duration);
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.linearRampToValueAtTime(volume, startTime + 0.018);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(context.destination);
+    source.start(startTime);
+    source.stop(startTime + duration + 0.02);
   }
 
   private startMusicLoop() {

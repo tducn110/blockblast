@@ -1,7 +1,10 @@
+import { useEffect, useRef } from "react";
+import gsap from "gsap";
+
 interface MascotProps {
   size?: number;
   variantIndex?: number;
-  mood?: "idle" | "combo" | "gameOver";
+  mood?: "idle" | "combo" | "boom" | "gameOver";
 }
 
 const MASCOT_ASSETS = [
@@ -12,12 +15,53 @@ const MASCOT_ASSETS = [
 ];
 
 export function Mascot({ size = 120, variantIndex = 0, mood = "idle" }: MascotProps) {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const burstRef = useRef<HTMLSpanElement | null>(null);
   const normalizedIndex = Math.abs(variantIndex) % MASCOT_ASSETS.length;
   const asset = MASCOT_ASSETS[normalizedIndex];
-  const scale = mood === "combo" ? 1.22 : mood === "gameOver" ? 1.1 : 1.16;
+  const scale = mood === "boom" ? 1.3 : mood === "combo" ? 1.22 : mood === "gameOver" ? 1.1 : 1.16;
+
+  useEffect(() => {
+    if (!frameRef.current || !imgRef.current || !burstRef.current) return;
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) {
+      gsap.set(imgRef.current, { opacity: 1, rotate: 0, scale, y: 0 });
+      return;
+    }
+
+    const ctx = gsap.context(() => {
+      const timeline = gsap.timeline();
+      timeline.fromTo(
+        imgRef.current,
+        { opacity: 0, rotate: mood === "boom" ? -12 : -5, scale: 0.76, y: 10 },
+        {
+          opacity: 1,
+          rotate: 0,
+          scale,
+          y: 0,
+          duration: mood === "boom" ? 0.5 : 0.34,
+          ease: mood === "boom" ? "back.out(2)" : "power2.out",
+        }
+      );
+
+      if (mood === "boom") {
+        timeline.fromTo(
+          burstRef.current,
+          { opacity: 0.75, scale: 0.35 },
+          { opacity: 0, scale: 1.9, duration: 0.72, ease: "power3.out" },
+          0.04
+        );
+      }
+    }, frameRef);
+
+    return () => ctx.revert();
+  }, [asset, mood, scale]);
 
   return (
     <div
+      ref={frameRef}
       style={{
         position: "relative",
         width: size,
@@ -28,7 +72,21 @@ export function Mascot({ size = 120, variantIndex = 0, mood = "idle" }: MascotPr
       }}
       aria-label="Mascot"
     >
+      <span
+        ref={burstRef}
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: -8,
+          borderRadius: 999,
+          border: "2px solid rgba(240,184,64,0.82)",
+          opacity: 0,
+          transformOrigin: "center",
+          zIndex: 0,
+        }}
+      />
       <img
+        ref={imgRef}
         src={asset}
         alt=""
         draggable={false}
@@ -37,8 +95,8 @@ export function Mascot({ size = 120, variantIndex = 0, mood = "idle" }: MascotPr
           height: "100%",
           objectFit: "contain",
           filter: "drop-shadow(0 5px 4px rgba(40,27,16,0.18))",
-          transform: `scale(${scale})`,
           transformOrigin: "center bottom",
+          zIndex: 1,
         }}
       />
     </div>

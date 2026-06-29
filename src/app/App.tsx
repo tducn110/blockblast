@@ -1,19 +1,41 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CountrysideBackdrop } from "@/components/background/CountrysideBackdrop";
 import { Game } from "@/features/blockblast/components/Game";
 import { DashboardScreen } from "@/features/blockblast/screens/Dashboard";
 import { SettingsScreen } from "@/features/blockblast/screens/Settings";
 import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
+import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 
 type Screen = "game" | "dashboard" | "settings";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("game");
   const scoreData = useScoreData();
+  const [scenery, setScenery] = useState<"normal" | "boom">("normal");
+  const sceneryTimerRef = useRef<number | null>(null);
 
   // Settings state can be stored in localStorage eventually, just local state for now
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
+
+  const handleBoom = useCallback((_event: BoomEvent) => {
+    if (sceneryTimerRef.current !== null) {
+      window.clearTimeout(sceneryTimerRef.current);
+    }
+
+    setScenery("boom");
+    sceneryTimerRef.current = window.setTimeout(() => {
+      setScenery("normal");
+      sceneryTimerRef.current = null;
+    }, 4200);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (sceneryTimerRef.current !== null) window.clearTimeout(sceneryTimerRef.current);
+    },
+    []
+  );
 
   return (
     <div
@@ -31,7 +53,7 @@ export default function App() {
         fontFamily: "'Be Vietnam Pro', sans-serif",
       }}
     >
-      <CountrysideBackdrop />
+      <CountrysideBackdrop scenery={scenery} />
 
       <main
         style={{
@@ -72,6 +94,8 @@ export default function App() {
             scoreData={scoreData} 
             sfxEnabled={sfxEnabled} 
             musicEnabled={musicEnabled}
+            scenery={scenery}
+            onBoom={handleBoom}
             onDashboard={() => setScreen("dashboard")} 
             onSettings={() => setScreen("settings")}
           />
