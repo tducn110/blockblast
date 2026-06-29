@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
-import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent } from "pixi.js";
+import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent, Ticker } from "pixi.js";
 import { BlockPiece, BOARD_SIZE, canPlacePiece } from "@/features/blockblast/game/blockBlastLogic";
+import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import {
   PIECE_SLOT_WIDTH,
   TRAY_Y,
@@ -39,7 +40,18 @@ interface DragContext {
   dragTargetPosition: { x: number; y: number };
   dragRenderPosition: { x: number; y: number };
   candidateCell: { row: number; col: number } | null;
+  lastPreviewKey: string | null;
   animationAge: number;
+}
+
+function boardOccupancyKey(board: GameState["board"]): string {
+  let key = "";
+  for (let row = 0; row < BOARD_SIZE; row += 1) {
+    for (let col = 0; col < BOARD_SIZE; col += 1) {
+      key += board[row][col].filled ? "1" : "0";
+    }
+  }
+  return key;
 }
 
 export function usePixiPieces(
@@ -57,6 +69,7 @@ export function usePixiPieces(
   const latestRef = useRef({ pieces, selectedPieceId, onPlacePiece, onSelectPiece, board });
   const slotsRef = useRef<SlotObjects[]>([]);
   const previewContainerRef = useRef<Container | null>(null);
+  const fitCacheRef = useRef<Map<string, boolean>>(new Map());
 
   const dragCtx = useRef<DragContext>({
     state: "idle",
@@ -71,6 +84,7 @@ export function usePixiPieces(
     dragTargetPosition: { x: 0, y: 0 },
     dragRenderPosition: { x: 0, y: 0 },
     candidateCell: null,
+    lastPreviewKey: null,
     animationAge: 0,
   });
 
@@ -125,6 +139,7 @@ export function usePixiPieces(
       ctx.shadowGraphics = null;
       ctx.pieceGraphics = null;
       ctx.candidateCell = null;
+      ctx.lastPreviewKey = null;
       
       // Re-show tray
       if (ctx.sourceTrayIndex >= 0 && slotsRef.current[ctx.sourceTrayIndex]) {
@@ -158,13 +173,14 @@ export function usePixiPieces(
         if (ctx.ghostContainer) ctx.ghostContainer.scale.set(1.0);
         if (ctx.shadowGraphics) ctx.shadowGraphics.visible = false;
         previewCells.forEach(s => s.visible = false);
+        ctx.lastPreviewKey = null;
       } else {
         // Just cancel
         cleanupDrag();
       }
     };
 
-    const tick = (ticker: any) => {
+    const tick = (ticker: Ticker) => {
       const ctx = dragCtx.current;
       if (ctx.state === "idle") return;
 
@@ -175,9 +191,8 @@ export function usePixiPieces(
           ctx.dragRenderPosition.x += (ctx.dragTargetPosition.x - ctx.dragRenderPosition.x) * (1 - Math.exp(-dt * 0.4));
           ctx.dragRenderPosition.y += (ctx.dragTargetPosition.y - ctx.dragRenderPosition.y) * (1 - Math.exp(-dt * 0.4));
       } else if (ctx.state === "dragging") {
-          // Tight lerp
-          ctx.dragRenderPosition.x += (ctx.dragTargetPosition.x - ctx.dragRenderPosition.x) * (1 - Math.exp(-dt * 0.8));
-          ctx.dragRenderPosition.y += (ctx.dragTargetPosition.y - ctx.dragRenderPosition.y) * (1 - Math.exp(-dt * 0.8));
+          ctx.dragRenderPosition.x = ctx.dragTargetPosition.x;
+          ctx.dragRenderPosition.y = ctx.dragTargetPosition.y;
       } else if (ctx.state === "snapping") {
           // Snap fast
           ctx.dragRenderPosition.x += (ctx.dragTargetPosition.x - ctx.dragRenderPosition.x) * (1 - Math.exp(-dt * 0.95));
@@ -190,18 +205,39 @@ export function usePixiPieces(
           );
 
           if (dist < 1 || ctx.animationAge > 100) {
-              // Impact!
+              // Impact! Visual snap first, logic deferred.
               ctx.state = "committing";
+
+              // Snap ghost to exact board position immediately (visual)
+              ctx.dragRenderPosition.x = ctx.dragTargetPosition.x;
+              ctx.dragRenderPosition.y = ctx.dragTargetPosition.y;
+              if (ctx.ghostContainer) {
+                ctx.ghostContainer.x = ctx.dragRenderPosition.x;
+                ctx.ghostContainer.y = ctx.dragRenderPosition.y;
+              }
+
               if (ctx.activePieceId && ctx.candidateCell) {
-                  const t0 = performance.now();
-                  
-                  // Double rAF to avoid stuttering on the exact impact frame
+                  const capturedPieceId = ctx.activePieceId;
+                  const capturedRow = ctx.candidateCell.row;
+                  const capturedCol = ctx.candidateCell.col;
+
+                  // Defer logic to after this render frame
                   requestAnimationFrame(() => {
-                      requestAnimationFrame(() => {
-                         latestRef.current.onPlacePiece(ctx.activePieceId!, ctx.candidateCell!.row, ctx.candidateCell!.col);
-                         navigator.vibrate?.(10);
-                         cleanupDrag();
-                      });
+                    const placed = latestRef.current.onPlacePiece(
+                      capturedPieceId,
+                      capturedRow,
+                      capturedCol
+                    );
+                    if (placed) {
+                      navigator.vibrate?.(10);
+                      // Keep the ghost block visible for a few frames while React/Pixi update the board.
+                      // Since it perfectly overlaps the final board block, this prevents any 1-frame flicker.
+                      setTimeout(() => {
+                        cleanupDrag();
+                      }, 50);
+                    } else {
+                      cleanupDrag();
+                    }
                   });
               } else {
                   cleanupDrag();
@@ -229,8 +265,14 @@ export function usePixiPieces(
           
           const targetCol = Math.round((pieceLeft - BOARD_X) / (CELL + GAP));
           const targetRow = Math.round((pieceTop - BOARD_Y) / (CELL + GAP));
+          const valid = canPlacePiece(current.board, piece, targetRow, targetCol);
+          const previewKey = `${piece.id}:${targetRow}:${targetCol}:${valid ? 1 : 0}`;
+
+          if (previewKey === ctx.lastPreviewKey) return;
+
+          ctx.lastPreviewKey = previewKey;
           
-          if (canPlacePiece(current.board, piece, targetRow, targetCol)) {
+          if (valid) {
               ctx.candidateCell = { row: targetRow, col: targetCol };
               const bounds = pieceBounds(piece);
               const tex = getBlockTexture(app, CELL, piece.colorId, 0.4);
@@ -372,7 +414,11 @@ export function usePixiPieces(
       }
     }
 
-    performance.mark("tray_render_start");
+    const trayRenderStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
+    const boardKey = boardOccupancyKey(board);
+    const fitCache = fitCacheRef.current;
+    if (fitCache.size > 256) fitCache.clear();
+
     pieces.forEach((piece, index) => {
       const slot = slotsRef.current[index];
       if (!slot) return;
@@ -380,15 +426,22 @@ export function usePixiPieces(
       // Calculate fit
       let canFit = false;
       if (!piece.placed) {
-         for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
-               if (canPlacePiece(board, piece, r, c)) {
-                  canFit = true;
-                  break;
-               }
-            }
-            if (canFit) break;
-         }
+        const cacheKey = `${boardKey}:${piece.id}`;
+        const cached = fitCache.get(cacheKey);
+        if (cached !== undefined) {
+          canFit = cached;
+        } else {
+          for (let r = 0; r < BOARD_SIZE; r++) {
+              for (let c = 0; c < BOARD_SIZE; c++) {
+                if (canPlacePiece(board, piece, r, c)) {
+                    canFit = true;
+                    break;
+                }
+              }
+              if (canFit) break;
+          }
+          fitCache.set(cacheKey, canFit);
+        }
       }
 
       slot.pieceId = piece.id;
@@ -439,10 +492,9 @@ export function usePixiPieces(
       slot.mark.clear();
     });
     
-    performance.mark("tray_render_end");
-    performance.measure("tray_render", "tray_render_start", "tray_render_end");
-    const m = performance.getEntriesByName("tray_render").pop();
-    if (m) console.log(`[PERF] tray_render: ${m.duration.toFixed(2)}ms`);
+    if (DEBUG_BLOCK_BLAST_PERF) {
+      console.log(`[PERF] tray_render: ${(performance.now() - trayRenderStart).toFixed(2)}ms`);
+    }
 
   }, [pieces, selectedPieceId, ready, piecesLayer, dragLayer, board, app]);
 

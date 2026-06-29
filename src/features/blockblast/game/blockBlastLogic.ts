@@ -85,6 +85,31 @@ export function createEmptyBoard(): BoardGrid {
   );
 }
 
+function makePiece(
+  shape: { id: string; cells: Array<{ row: number; col: number }> },
+  colorId: string,
+  index: number,
+  rand: () => number
+): BlockPiece {
+  return {
+    id: `piece-${Date.now()}-${index}-${Math.floor(rand() * 9999)}`,
+    shapeId: shape.id,
+    cells: shape.cells,
+    colorId,
+    placed: false,
+  };
+}
+
+function testPieceForShape(shape: { id: string; cells: Array<{ row: number; col: number }> }): BlockPiece {
+  return {
+    id: `test-${shape.id}`,
+    shapeId: shape.id,
+    cells: shape.cells,
+    colorId: COLOR_IDS[0],
+    placed: false,
+  };
+}
+
 export function createPieces(seed?: number): BlockPiece[] {
   const rand = seed !== undefined ? seededRandom(seed) : Math.random;
   const colors = [...COLOR_IDS];
@@ -95,13 +120,7 @@ export function createPieces(seed?: number): BlockPiece[] {
     const shape = SHAPES[shapeIdx];
     const colorId = colors[colorIdx];
 
-    return {
-      id: `piece-${Date.now()}-${i}-${Math.floor(rand() * 9999)}`,
-      shapeId: shape.id,
-      cells: shape.cells,
-      colorId,
-      placed: false,
-    };
+    return makePiece(shape, colorId, i, rand);
   });
 }
 
@@ -193,6 +212,114 @@ export function clearLines(board: BoardGrid): {
     clearedCount: clearedRows.length + clearedCols.length,
     clearedCells: clearedCellKeys.size,
   };
+}
+
+function getPlacements(
+  board: BoardGrid,
+  piece: BlockPiece
+): Array<{ row: number; col: number }> {
+  const placements: Array<{ row: number; col: number }> = [];
+  for (let r = 0; r < BOARD_SIZE; r += 1) {
+    for (let c = 0; c < BOARD_SIZE; c += 1) {
+      if (canPlacePiece(board, piece, r, c)) placements.push({ row: r, col: c });
+    }
+  }
+  return placements;
+}
+
+export function canPlaceAllInAnyOrder(board: BoardGrid, pieces: BlockPiece[]): boolean {
+  if (pieces.length === 0) return true;
+
+  for (let i = 0; i < pieces.length; i += 1) {
+    const piece = pieces[i];
+    const rest = pieces.filter((_, index) => index !== i);
+    const placements = getPlacements(board, piece);
+
+    for (const placement of placements) {
+      const placedBoard = placePiece(board, piece, placement.row, placement.col);
+      const { board: nextBoard } = clearLines(placedBoard);
+      if (canPlaceAllInAnyOrder(nextBoard, rest)) return true;
+    }
+  }
+
+  return false;
+}
+
+function shapeWeight(shape: { cells: Array<{ row: number; col: number }> }, score: number): number {
+  const difficulty = Math.min(score / 3500, 1);
+  const cellCount = shape.cells.length;
+
+  if (cellCount <= 1) return 1.65 - difficulty * 0.75;
+  if (cellCount === 2) return 1.35 - difficulty * 0.35;
+  if (cellCount === 3) return 1.05;
+  if (cellCount === 4) return 0.72 + difficulty * 0.5;
+  return 0.24 + difficulty * 0.36;
+}
+
+function pickWeightedShape(
+  shapes: typeof SHAPES,
+  score: number,
+  rand: () => number
+): (typeof SHAPES)[number] {
+  const total = shapes.reduce((sum, shape) => sum + shapeWeight(shape, score), 0);
+  let cursor = rand() * total;
+
+  for (const shape of shapes) {
+    cursor -= shapeWeight(shape, score);
+    if (cursor <= 0) return shape;
+  }
+
+  return shapes[shapes.length - 1];
+}
+
+function createEasyFallbackPieces(board: BoardGrid, rand: () => number): BlockPiece[] {
+  const colors = [...COLOR_IDS];
+  const easyShapes = SHAPES.filter((shape) => shape.cells.length <= 2);
+  const viableShapes = easyShapes.filter((shape) =>
+    getPlacements(board, testPieceForShape(shape)).length > 0
+  );
+  const pool = viableShapes.length > 0 ? viableShapes : [SHAPES[0]];
+
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const pieces = Array.from({ length: 3 }, (_, index) => {
+      const shape = pool[Math.floor(rand() * pool.length)];
+      const colorId = colors[Math.floor(rand() * colors.length)];
+      return makePiece(shape, colorId, index, rand);
+    });
+
+    if (canPlaceAllInAnyOrder(board, pieces)) return pieces;
+  }
+
+  return Array.from({ length: 3 }, (_, index) => {
+    const colorId = colors[Math.floor(rand() * colors.length)];
+    return makePiece(SHAPES[0], colorId, index, rand);
+  });
+}
+
+export function createSmartPieces(
+  board: BoardGrid,
+  score: number,
+  seed?: number
+): BlockPiece[] {
+  const rand = seed !== undefined ? seededRandom(seed) : Math.random;
+  const colors = [...COLOR_IDS];
+  const viableShapes = SHAPES.filter((shape) =>
+    getPlacements(board, testPieceForShape(shape)).length > 0
+  );
+
+  if (viableShapes.length === 0) return createEasyFallbackPieces(board, rand);
+
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    const pieces = Array.from({ length: 3 }, (_, index) => {
+      const shape = pickWeightedShape(viableShapes, score, rand);
+      const colorId = colors[Math.floor(rand() * colors.length)];
+      return makePiece(shape, colorId, index, rand);
+    });
+
+    if (canPlaceAllInAnyOrder(board, pieces)) return pieces;
+  }
+
+  return createEasyFallbackPieces(board, rand);
 }
 
 export function canPlaceAnyPiece(board: BoardGrid, pieces: BlockPiece[]): boolean {

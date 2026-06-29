@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { BoardGrid, BlockPiece } from "@/features/blockblast/game/blockBlastLogic";
 import type { ClearAnimation, PlacementAnimation } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { VIEW_WIDTH, VIEW_HEIGHT } from "@/features/blockblast/game/pixiDrawUtils";
+import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import { usePixiApp } from "@/features/blockblast/render/usePixiApp";
 import { usePixiBoard } from "@/features/blockblast/render/usePixiBoard";
 import { usePixiPieces } from "@/features/blockblast/render/usePixiPieces";
@@ -62,7 +63,7 @@ export function PixiBlockBlastCanvas({
   );
 
   useEffect(() => {
-    if (!appRef.current) return;
+    if (!DEBUG_BLOCK_BLAST_PERF || !appRef.current) return;
     const ticker = appRef.current.ticker;
     let lastTime = performance.now();
     

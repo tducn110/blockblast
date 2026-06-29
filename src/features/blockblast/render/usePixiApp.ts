@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Application, Container, Graphics, Rectangle } from "pixi.js";
 import { VIEW_WIDTH, VIEW_HEIGHT, drawBoardBackground } from "@/features/blockblast/game/pixiDrawUtils";
 
+const MAX_PIXI_RESOLUTION = 2;
+
 export function usePixiApp() {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
@@ -16,6 +18,8 @@ export function usePixiApp() {
     const app = new Application();
 
     async function init() {
+      const resolution = Math.min(window.devicePixelRatio || 1, MAX_PIXI_RESOLUTION);
+
       await app.init({
         width: VIEW_WIDTH,
         height: VIEW_HEIGHT,
@@ -23,7 +27,7 @@ export function usePixiApp() {
         antialias: false,
         autoDensity: true,
         preference: "webgl",
-        resolution: window.devicePixelRatio || 2,
+        resolution,
         eventFeatures: {
           click: true,
           globalMove: true,
@@ -61,7 +65,7 @@ export function usePixiApp() {
       animationLayerRef.current = animationLayer;
       dragLayerRef.current = dragLayer;
 
-      app.stage.addChild(boardLayer, animationLayer, piecesLayer, dragLayer);
+      app.stage.addChild(boardLayer, piecesLayer, dragLayer, animationLayer);
       
       setReady(true);
     }

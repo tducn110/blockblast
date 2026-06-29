@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useReducer } from "react";
 import {
   createEmptyBoard,
-  createPieces,
+  createSmartPieces,
   canPlacePiece,
   placePiece,
   clearLines,
@@ -12,6 +12,7 @@ import {
   BlockPiece,
 } from "@/features/blockblast/game/blockBlastLogic";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
+import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import type { GameResult } from "@/features/blockblast/lib/localScores";
 
 export interface FeedbackItem {
@@ -88,6 +89,119 @@ export interface UseBlockBlastGameOptions {
   onGameOver?: (result: GameResult) => void;
 }
 
+type GameCoreState = Omit<GameState, "sfxEnabled" | "musicEnabled">;
+
+interface PlacePiecePayload {
+  board: BoardGrid;
+  pieces: BlockPiece[];
+  score: number;
+  bestScore: number;
+  combo: number;
+  status: "playing" | "gameOver";
+  feedbackItems: FeedbackItem[];
+  piecesPlaced: number;
+  linesCleared: number;
+  maxCombo: number;
+  clearAnimation: ClearAnimation | null;
+  placementAnimation: PlacementAnimation;
+  boomEvent: BoomEvent | null;
+}
+
+type GameAction =
+  | { type: "syncBestScore"; bestScore: number }
+  | { type: "selectPiece"; id: string | null }
+  | { type: "startDrag"; id: string }
+  | { type: "endDrag" }
+  | { type: "setHoverAnchor"; anchor: { row: number; col: number } | null }
+  | { type: "placePiece"; payload: PlacePiecePayload }
+  | { type: "generateNextTray"; pieces: BlockPiece[] }
+  | { type: "reset"; bestScore: number }
+  | { type: "clearPlacementAnimation"; id: string }
+  | { type: "clearClearAnimation"; id: string }
+  | { type: "dismissFeedback"; id: string };
+
+function createInitialCoreState(bestScore: number): GameCoreState {
+  const board = createEmptyBoard();
+
+  return {
+    board,
+    pieces: createSmartPieces(board, 0, Date.now()),
+    selectedPieceId: null,
+    draggingPieceId: null,
+    hoverAnchor: null,
+    score: 0,
+    bestScore,
+    combo: 0,
+    status: "playing",
+    feedback: [],
+    piecesPlaced: 0,
+    linesCleared: 0,
+    maxCombo: 0,
+    clearAnimation: null,
+    placementAnimation: null,
+    boomEvent: null,
+  };
+}
+
+function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
+  switch (action.type) {
+    case "syncBestScore":
+      return { ...state, bestScore: Math.max(state.bestScore, action.bestScore) };
+    case "selectPiece":
+      return { ...state, selectedPieceId: action.id, draggingPieceId: null };
+    case "startDrag":
+      return { ...state, draggingPieceId: action.id, selectedPieceId: null };
+    case "endDrag":
+      return { ...state, draggingPieceId: null, hoverAnchor: null };
+    case "setHoverAnchor":
+      return { ...state, hoverAnchor: action.anchor };
+    case "placePiece": {
+      const { payload } = action;
+      return {
+        ...state,
+        board: payload.board,
+        pieces: payload.pieces,
+        selectedPieceId: null,
+        draggingPieceId: null,
+        hoverAnchor: null,
+        score: payload.score,
+        bestScore: payload.bestScore,
+        combo: payload.combo,
+        status: payload.status,
+        feedback:
+          payload.feedbackItems.length > 0
+            ? [...state.feedback, ...payload.feedbackItems]
+            : state.feedback,
+        piecesPlaced: payload.piecesPlaced,
+        linesCleared: payload.linesCleared,
+        maxCombo: payload.maxCombo,
+        clearAnimation: payload.clearAnimation ?? state.clearAnimation,
+        placementAnimation: payload.placementAnimation,
+        boomEvent: payload.boomEvent ?? state.boomEvent,
+      };
+    }
+    case "generateNextTray":
+      return { ...state, pieces: action.pieces };
+    case "reset":
+      return createInitialCoreState(action.bestScore);
+    case "clearPlacementAnimation":
+      return {
+        ...state,
+        placementAnimation:
+          state.placementAnimation?.id === action.id ? null : state.placementAnimation,
+      };
+    case "clearClearAnimation":
+      return {
+        ...state,
+        clearAnimation: state.clearAnimation?.id === action.id ? null : state.clearAnimation,
+      };
+    case "dismissFeedback":
+      return { ...state, feedback: state.feedback.filter((item) => item.id !== action.id) };
+    default:
+      return state;
+  }
+}
+
 function makeFeedback(text: string, type: FeedbackItem["type"]): FeedbackItem {
   return { id: `${Date.now()}-${Math.random()}`, text, type };
 }
@@ -158,31 +272,22 @@ export function useBlockBlastGame({
   musicEnabled: controlledMusicEnabled,
   onGameOver,
 }: UseBlockBlastGameOptions = {}): GameState & GameActions {
-  const [board, setBoard] = useState<BoardGrid>(createEmptyBoard);
-  const [pieces, setPieces] = useState<BlockPiece[]>(() => createPieces(Date.now()));
-  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
-  const [draggingPieceId, setDraggingPieceId] = useState<string | null>(null);
-  const [hoverAnchor, setHoverAnchor] = useState<{ row: number; col: number } | null>(null);
-  const [score, setScore] = useState(0);
-  const [bestScore, setBestScore] = useState(externalBestScore);
-  const [combo, setCombo] = useState(0);
-  const [status, setStatus] = useState<"playing" | "gameOver">("playing");
-  const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
-  const [piecesPlaced, setPiecesPlaced] = useState(0);
-  const [linesCleared, setLinesCleared] = useState(0);
-  const [maxCombo, setMaxCombo] = useState(0);
+  const [gameState, dispatch] = useReducer(
+    gameReducer,
+    externalBestScore,
+    createInitialCoreState
+  );
   const [internalSfxEnabled, setInternalSfxEnabled] = useState(controlledSfxEnabled ?? true);
   const [internalMusicEnabled, setInternalMusicEnabled] = useState(controlledMusicEnabled ?? false);
-  const [clearAnimation, setClearAnimation] = useState<ClearAnimation | null>(null);
-  const [placementAnimation, setPlacementAnimation] = useState<PlacementAnimation | null>(null);
-  const [boomEvent, setBoomEvent] = useState<BoomEvent | null>(null);
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
   const clearAnimationTimers = useRef<number[]>([]);
   const placementAnimationTimers = useRef<number[]>([]);
   const sfxEnabled = controlledSfxEnabled ?? internalSfxEnabled;
   const musicEnabled = controlledMusicEnabled ?? internalMusicEnabled;
 
   useEffect(() => {
-    setBestScore((current) => Math.max(current, externalBestScore));
+    dispatch({ type: "syncBestScore", bestScore: externalBestScore });
   }, [externalBestScore]);
 
   useEffect(() => {
@@ -208,30 +313,30 @@ export function useBlockBlastGame({
     []
   );
 
-  const addFeedback = useCallback((items: FeedbackItem[]) => {
-    setFeedback((prev) => [...prev, ...items]);
+  const scheduleFeedbackDismissal = useCallback((items: FeedbackItem[]) => {
     items.forEach((item) => {
       setTimeout(() => {
-        setFeedback((prev) => prev.filter((f) => f.id !== item.id));
+        dispatch({ type: "dismissFeedback", id: item.id });
       }, 1800);
     });
   }, []);
 
   const doPlace = useCallback(
     (pieceId: string, row: number, col: number): boolean => {
-      if (status !== "playing") return false;
+      const state = gameStateRef.current;
+      if (state.status !== "playing") return false;
 
-      const piece = pieces.find((p) => p.id === pieceId && !p.placed);
+      const piece = state.pieces.find((p) => p.id === pieceId && !p.placed);
       if (!piece) return false;
 
-      if (!canPlacePiece(board, piece, row, col)) {
+      if (!canPlacePiece(state.board, piece, row, col)) {
         if (sfxEnabled) blockBlastAudio.playInvalid();
         return false;
       }
       
-      const t0 = performance.now();
+      const placeStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
 
-      const newBoard = placePiece(board, piece, row, col);
+      const newBoard = placePiece(state.board, piece, row, col);
       const nextPlacementAnimation = makePlacementAnimation(piece, row, col);
       const placementScore = calculatePlacementScore(piece);
       const {
@@ -243,7 +348,7 @@ export function useBlockBlastGame({
       } = clearLines(newBoard);
       const nextClearAnimation = makeClearAnimation(newBoard, clearedRows, clearedCols);
 
-      const newCombo = clearedCount > 0 ? combo + 1 : 0;
+      const newCombo = clearedCount > 0 ? state.combo + 1 : 0;
       const clearScore =
         clearedCount > 0 ? calculateClearScore(clearedCount, newCombo, clearedCells) : 0;
       const totalAdded = placementScore + clearScore;
@@ -260,51 +365,105 @@ export function useBlockBlastGame({
             }
           : null;
 
-      const newScore = score + totalAdded;
-      const newBest = Math.max(bestScore, newScore);
-      const newPiecesPlaced = piecesPlaced + 1;
-      const newLinesCleared = linesCleared + clearedCount;
-      const newMaxCombo = Math.max(maxCombo, newCombo);
+      const newScore = state.score + totalAdded;
+      const newBest = Math.max(state.bestScore, newScore);
+      const newPiecesPlaced = state.piecesPlaced + 1;
+      const newLinesCleared = state.linesCleared + clearedCount;
+      const newMaxCombo = Math.max(state.maxCombo, newCombo);
 
       const feedbackItems: FeedbackItem[] = [];
       if (totalAdded > placementScore) feedbackItems.push(makeFeedback(`+${totalAdded}`, "placement"));
       if (newCombo > 1) feedbackItems.push(makeFeedback(`x${newCombo} COMBO`, "combo"));
       if (nextBoomEvent) feedbackItems.push(makeFeedback("FULL CLEAR", "boom"));
 
-      const newPieces = pieces.map((p) =>
+      const newPieces = state.pieces.map((p) =>
         p.id === pieceId ? { ...p, placed: true } : p
       );
       const allPlaced = newPieces.every((p) => p.placed);
-      const nextPieces = allPlaced ? createPieces(Date.now()) : newPieces;
 
-      const gameOver = isGameOver(clearedBoard, nextPieces.filter((p) => !p.placed));
+      // When all 3 placed, defer smart generation to next frame.
+      // For now, use newPieces (all marked placed) so the tray shows empty.
+      // gameOver check uses newPieces — if allPlaced, no unplaced remain,
+      // so isGameOver would return true. We handle this after generation.
+      const nextPieces = newPieces;
 
-      setBoard(clearedBoard);
-      setPieces(nextPieces);
-      setSelectedPieceId(null);
-      setDraggingPieceId(null);
-      setHoverAnchor(null);
-      setScore(newScore);
-      setBestScore(newBest);
-      setCombo(newCombo);
-      setPiecesPlaced(newPiecesPlaced);
-      setLinesCleared(newLinesCleared);
-      setMaxCombo(newMaxCombo);
-      if (nextBoomEvent) setBoomEvent(nextBoomEvent);
-      setPlacementAnimation(nextPlacementAnimation);
+      // Only check game over if not all placed (deferred generation handles it later)
+      const gameOver = allPlaced ? false : isGameOver(clearedBoard, nextPieces.filter((p) => !p.placed));
+      const nextStatus = gameOver ? "gameOver" : "playing";
+
+      dispatch({
+        type: "placePiece",
+        payload: {
+          board: clearedBoard,
+          pieces: nextPieces,
+          score: newScore,
+          bestScore: newBest,
+          combo: newCombo,
+          status: nextStatus,
+          feedbackItems,
+          piecesPlaced: newPiecesPlaced,
+          linesCleared: newLinesCleared,
+          maxCombo: newMaxCombo,
+          clearAnimation: nextClearAnimation,
+          placementAnimation: nextPlacementAnimation,
+          boomEvent: nextBoomEvent,
+        },
+      });
+
+      // Defer smart piece generation to next frame when all 3 placed
+      if (allPlaced) {
+        requestAnimationFrame(() => {
+          const genStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
+          const generatedPieces = createSmartPieces(clearedBoard, newScore, Date.now());
+          if (DEBUG_BLOCK_BLAST_PERF) {
+            console.log(`[PERF] createSmartPieces_deferred: ${(performance.now() - genStart).toFixed(2)}ms`);
+          }
+
+          // Check game over with the newly generated pieces
+          const generatedGameOver = isGameOver(clearedBoard, generatedPieces);
+          if (generatedGameOver) {
+            // Dispatch the pieces first, then handle game over
+            dispatch({ type: "generateNextTray", pieces: generatedPieces });
+            // Need to set status to gameOver
+            dispatch({
+              type: "placePiece",
+              payload: {
+                board: clearedBoard,
+                pieces: generatedPieces,
+                score: newScore,
+                bestScore: newBest,
+                combo: newCombo,
+                status: "gameOver",
+                feedbackItems: [],
+                piecesPlaced: newPiecesPlaced,
+                linesCleared: newLinesCleared,
+                maxCombo: newMaxCombo,
+                clearAnimation: null,
+                placementAnimation: nextPlacementAnimation,
+                boomEvent: null,
+              },
+            });
+            if (sfxEnabled) blockBlastAudio.playGameOver();
+            onGameOver?.({
+              score: newScore,
+              maxCombo: newMaxCombo,
+              linesCleared: newLinesCleared,
+              piecesPlaced: newPiecesPlaced,
+            });
+          } else {
+            dispatch({ type: "generateNextTray", pieces: generatedPieces });
+          }
+        });
+      }
+
       const placementTimer = window.setTimeout(() => {
-        setPlacementAnimation((current) =>
-          current?.id === nextPlacementAnimation.id ? null : current
-        );
+        dispatch({ type: "clearPlacementAnimation", id: nextPlacementAnimation.id });
       }, 520);
       placementAnimationTimers.current.push(placementTimer);
-      if (feedbackItems.length > 0) addFeedback(feedbackItems);
+      if (feedbackItems.length > 0) scheduleFeedbackDismissal(feedbackItems);
       if (nextClearAnimation) {
-        setClearAnimation(nextClearAnimation);
         const timer = window.setTimeout(() => {
-          setClearAnimation((current) =>
-            current?.id === nextClearAnimation.id ? null : current
-          );
+          dispatch({ type: "clearClearAnimation", id: nextClearAnimation.id });
         }, 650);
         clearAnimationTimers.current.push(timer);
       }
@@ -322,9 +481,9 @@ export function useBlockBlastGame({
         }
       }
 
-      if (gameOver) {
+      // Game over check for non-allPlaced case (allPlaced handled in deferred rAF)
+      if (!allPlaced && gameOver) {
         if (sfxEnabled) blockBlastAudio.playGameOver();
-        setStatus("gameOver");
         onGameOver?.({
           score: newScore,
           maxCombo: newMaxCombo,
@@ -333,42 +492,30 @@ export function useBlockBlastGame({
         });
       }
       
-      const t1 = performance.now();
-      console.log(`[PERF] onPlacePiece_logic: ${(t1-t0).toFixed(2)}ms`);
-      // Expose to global for board render delay measurement
-      (globalThis as any).__lastPlacePieceTime = performance.now();
+      if (DEBUG_BLOCK_BLAST_PERF) {
+        console.log(`[PERF] onPlacePiece_logic: ${(performance.now() - placeStart).toFixed(2)}ms (allPlaced=${allPlaced})`);
+        (globalThis as any).__lastPlacePieceTime = performance.now();
+      }
 
       return true;
     },
-    [
-      board,
-      pieces,
-      score,
-      bestScore,
-      combo,
-      status,
-      piecesPlaced,
-      linesCleared,
-      maxCombo,
-      sfxEnabled,
-      addFeedback,
-      onGameOver,
-    ]
+    [sfxEnabled, scheduleFeedbackDismissal, onGameOver]
   );
 
   const selectPiece = useCallback((id: string | null) => {
-    setSelectedPieceId(id);
-    setDraggingPieceId(null);
+    dispatch({ type: "selectPiece", id });
   }, []);
 
   const startDrag = useCallback((id: string) => {
-    setDraggingPieceId(id);
-    setSelectedPieceId(null);
+    dispatch({ type: "startDrag", id });
   }, []);
 
   const endDrag = useCallback(() => {
-    setDraggingPieceId(null);
-    setHoverAnchor(null);
+    dispatch({ type: "endDrag" });
+  }, []);
+
+  const setHoverAnchorAction = useCallback((anchor: { row: number; col: number } | null) => {
+    dispatch({ type: "setHoverAnchor", anchor });
   }, []);
 
   const placePieceAction = useCallback(
@@ -378,69 +525,41 @@ export function useBlockBlastGame({
 
   const placeSelectedPiece = useCallback(
     (row: number, col: number): boolean => {
+      const selectedPieceId = gameStateRef.current.selectedPieceId;
       if (!selectedPieceId) return false;
       return doPlace(selectedPieceId, row, col);
     },
-    [selectedPieceId, doPlace]
+    [doPlace]
   );
 
   const placeDraggingPiece = useCallback(
     (row: number, col: number): boolean => {
+      const draggingPieceId = gameStateRef.current.draggingPieceId;
       if (!draggingPieceId) return false;
       return doPlace(draggingPieceId, row, col);
     },
-    [draggingPieceId, doPlace]
+    [doPlace]
   );
 
   const resetGame = useCallback(() => {
-    setBoard(createEmptyBoard());
-    setPieces(createPieces(Date.now()));
-    setSelectedPieceId(null);
-    setDraggingPieceId(null);
-    setHoverAnchor(null);
-    setScore(0);
-    setCombo(0);
-    setStatus("playing");
-    setFeedback([]);
-    setClearAnimation(null);
-    setPlacementAnimation(null);
-    setBoomEvent(null);
-    setPiecesPlaced(0);
-    setLinesCleared(0);
-    setMaxCombo(0);
-    setBestScore(externalBestScore);
+    dispatch({ type: "reset", bestScore: externalBestScore });
   }, [externalBestScore]);
 
   const toggleSfx = useCallback(() => setInternalSfxEnabled((v) => !v), []);
   const toggleMusic = useCallback(() => setInternalMusicEnabled((v) => !v), []);
 
   const dismissFeedback = useCallback((id: string) => {
-    setFeedback((prev) => prev.filter((f) => f.id !== id));
+    dispatch({ type: "dismissFeedback", id });
   }, []);
 
   return {
-    board,
-    pieces,
-    selectedPieceId,
-    draggingPieceId,
-    hoverAnchor,
-    score,
-    bestScore,
-    combo,
-    status,
-    feedback,
-    piecesPlaced,
-    linesCleared,
-    maxCombo,
+    ...gameState,
     sfxEnabled,
     musicEnabled,
-    clearAnimation,
-    placementAnimation,
-    boomEvent,
     selectPiece,
     startDrag,
     endDrag,
-    setHoverAnchor,
+    setHoverAnchor: setHoverAnchorAction,
     placePiece: placePieceAction,
     placeSelectedPiece,
     placeDraggingPiece,
