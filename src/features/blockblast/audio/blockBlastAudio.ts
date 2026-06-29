@@ -8,15 +8,15 @@ type ToneOptions = {
 class BlockBlastAudio {
   private context: AudioContext | null = null;
   private musicEnabled = false;
-  private musicTimer: number | null = null;
-  private musicStep = 0;
+  private musicElement: HTMLAudioElement | null = null;
+  private slashElement: HTMLAudioElement | null = null;
   private unlockListenersBound = false;
 
   private readonly unlock = () => {
     void this.resumeContext().then((context) => {
-      if (!context || context.state !== "running") return;
+      if (context && context.state !== "running") return;
       this.removeUnlockListeners();
-      if (this.musicEnabled) this.startMusicLoop();
+      if (this.musicEnabled) this.startMusicTrack();
     });
   };
 
@@ -24,19 +24,12 @@ class BlockBlastAudio {
     this.musicEnabled = enabled;
 
     if (!enabled) {
-      this.stopMusicLoop();
+      this.stopMusicTrack();
       this.removeUnlockListeners();
       return;
     }
 
-    const context = this.ensureContext();
-    if (!context) return;
-
-    if (context.state === "running") {
-      this.startMusicLoop();
-    } else {
-      this.addUnlockListeners();
-    }
+    void this.startMusicTrack();
   }
 
   playPlace() {
@@ -56,6 +49,7 @@ class BlockBlastAudio {
   }
 
   playLineClear(clearedRows: number, clearedCols: number, combo: number) {
+    this.playSlashSound(Math.min(0.9, 0.5 + (clearedRows + clearedCols) * 0.08), 1 + combo * 0.02);
     this.withRunningContext((context) => {
       const lineCount = clearedRows + clearedCols;
       const now = context.currentTime + 0.01;
@@ -80,6 +74,7 @@ class BlockBlastAudio {
   }
 
   playCombo(combo: number) {
+    this.playSlashSound(0.72, Math.min(1.18, 1.03 + combo * 0.03));
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.02;
       const notes = [523.25, 659.25, 783.99, 1046.5];
@@ -96,6 +91,7 @@ class BlockBlastAudio {
   }
 
   playBoom() {
+    this.playSlashSound(0.95, 0.92);
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
       this.noiseBurst(context, now, 0.34, 0.055);
@@ -115,6 +111,29 @@ class BlockBlastAudio {
         release: 0.2,
       });
     });
+  }
+
+  private ensureMusicElement(): HTMLAudioElement | null {
+    if (typeof window === "undefined") return null;
+    if (this.musicElement) return this.musicElement;
+
+    const audio = new Audio("/assets/audio/music.mp3");
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = 0.22;
+    this.musicElement = audio;
+    return audio;
+  }
+
+  private ensureSlashElement(): HTMLAudioElement | null {
+    if (typeof window === "undefined") return null;
+    if (this.slashElement) return this.slashElement;
+
+    const audio = new Audio("/assets/audio/slash-clear.mp3");
+    audio.preload = "auto";
+    audio.volume = 0.62;
+    this.slashElement = audio;
+    return audio;
   }
 
   playGameOver() {
@@ -158,6 +177,34 @@ class BlockBlastAudio {
     }
 
     return context;
+  }
+
+  private async startMusicTrack() {
+    const audio = this.ensureMusicElement();
+    if (!audio) return;
+
+    try {
+      await audio.play();
+      this.removeUnlockListeners();
+    } catch {
+      this.addUnlockListeners();
+    }
+  }
+
+  private stopMusicTrack() {
+    if (!this.musicElement) return;
+    this.musicElement.pause();
+  }
+
+  private playSlashSound(volume: number, playbackRate: number) {
+    const audio = this.ensureSlashElement();
+    if (!audio) return;
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = Math.max(0, Math.min(1, volume));
+    audio.playbackRate = Math.max(0.75, Math.min(1.35, playbackRate));
+    void audio.play().catch(() => this.addUnlockListeners());
   }
 
   private withRunningContext(callback: (context: AudioContext) => void) {
@@ -230,56 +277,6 @@ class BlockBlastAudio {
     gain.connect(context.destination);
     source.start(startTime);
     source.stop(startTime + duration + 0.02);
-  }
-
-  private startMusicLoop() {
-    const context = this.ensureContext();
-    if (!context || context.state !== "running" || this.musicTimer !== null) return;
-
-    this.scheduleMusicBar();
-    this.musicTimer = window.setInterval(() => {
-      if (!this.musicEnabled || this.context?.state !== "running") return;
-      this.scheduleMusicBar();
-    }, 3200);
-  }
-
-  private stopMusicLoop() {
-    if (this.musicTimer !== null) {
-      window.clearInterval(this.musicTimer);
-      this.musicTimer = null;
-    }
-  }
-
-  private scheduleMusicBar() {
-    if (!this.context) return;
-
-    const melody = [261.63, 329.63, 392, 329.63, 293.66, 349.23, 440, 392];
-    const bass = this.musicStep % 2 === 0 ? 130.81 : 146.83;
-    const start = this.context.currentTime + 0.04;
-
-    melody.forEach((frequency, index) => {
-      this.tone(this.context!, frequency, start + index * 0.34, 0.2, {
-        waveform: "sine",
-        volume: 0.012,
-        attack: 0.025,
-        release: 0.16,
-      });
-    });
-
-    this.tone(this.context, bass, start, 0.72, {
-      waveform: "triangle",
-      volume: 0.012,
-      attack: 0.04,
-      release: 0.34,
-    });
-    this.tone(this.context, bass * 1.5, start + 1.36, 0.72, {
-      waveform: "triangle",
-      volume: 0.01,
-      attack: 0.04,
-      release: 0.34,
-    });
-
-    this.musicStep += 1;
   }
 
   private addUnlockListeners() {
