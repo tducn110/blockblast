@@ -12,24 +12,34 @@ interface PixiBlockBlastCanvasProps {
   board: BoardGrid;
   pieces: BlockPiece[];
   selectedPieceId: string | null;
+  reserveUnlocked: boolean;
+  reservePiece: BlockPiece | null;
+  showMobileReserveSlot: boolean;
   status: "playing" | "resolving" | "gameOver";
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation | null;
   paused: boolean;
   onSelectPiece: (id: string | null) => void;
   onPlacePiece: (id: string, row: number, col: number) => boolean;
+  onUnlockReserve: () => void | Promise<void>;
+  onUseReserveSlot: () => boolean;
 }
 
 export function PixiBlockBlastCanvas({
   board,
   pieces,
   selectedPieceId,
+  reserveUnlocked,
+  reservePiece,
+  showMobileReserveSlot,
   status,
   clearAnimation,
   placementAnimation,
   paused,
   onSelectPiece,
   onPlacePiece,
+  onUnlockReserve,
+  onUseReserveSlot,
 }: PixiBlockBlastCanvasProps) {
   const {
     hostRef,
@@ -51,8 +61,14 @@ export function PixiBlockBlastCanvas({
     board,
     pieces,
     selectedPieceId,
+    reserveUnlocked,
+    reservePiece,
+    showMobileReserveSlot,
+    status,
     onSelectPiece,
     onPlacePiece,
+    onUnlockReserve,
+    onUseReserveSlot,
     ready
   );
   

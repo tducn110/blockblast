@@ -15,7 +15,7 @@ export function GameHUD({ score, bestScore, feedback }: GameHUDProps) {
   );
 
   return (
-    <div className="flex items-center justify-between w-full gap-2 px-1">
+    <div className="flex items-stretch justify-between w-full gap-2 px-1 lg:flex-col lg:px-0">
       <StatBox label="Điểm" value={score.toLocaleString()} accent>
         <ScoreDeltaStack items={scoreDeltaItems} />
       </StatBox>
@@ -37,33 +37,42 @@ function StatBox({
   highlight?: boolean;
   children?: ReactNode;
 }) {
+  const labelColor = accent ? "#8e6e3a" : "#8a7d65";
+  const valueColor = highlight ? "#e87432" : accent ? "#8e4e22" : "#4a4232";
+
   return (
     <div
-      className="relative flex flex-col items-center min-w-0 flex-1 overflow-visible"
+      className={`relative flex min-w-0 flex-1 flex-col items-center overflow-visible rounded-[12px] p-[4px_6px] lg:items-start ${
+        accent
+          ? "lg:min-h-[78px] lg:justify-center lg:rounded-[16px] lg:p-[10px_12px]"
+          : "lg:p-[6px_8px]"
+      }`}
       style={{
         background: "rgba(253,246,234,0.85)",
         border: "1.5px solid rgba(138,125,101,0.3)",
-        borderRadius: 12,
-        padding: "4px 6px",
       }}
     >
       <span
+        className="text-[9px] lg:text-[10px]"
         style={{
-          fontSize: 9,
           fontWeight: 700,
           letterSpacing: 1,
           textTransform: "uppercase",
-          color: "#8a7d65",
+          color: labelColor,
         }}
       >
         {label}
       </span>
       <span
+        className={
+          accent
+            ? "text-[16px] leading-[1.2] lg:text-[34px] lg:leading-[0.98] lg:tracking-[-1.2px]"
+            : "text-[16px] leading-[1.2] lg:text-[20px] lg:leading-[1.05]"
+        }
         style={{
-          fontSize: 16,
           fontWeight: 800,
-          color: highlight ? "#e87432" : accent ? "#2a2418" : "#4a4232",
-          lineHeight: 1.2,
+          color: valueColor,
+          textShadow: accent ? "0 1px 0 rgba(255,250,240,0.8)" : "none",
         }}
       >
         {value}
