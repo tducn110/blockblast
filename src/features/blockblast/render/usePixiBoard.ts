@@ -5,7 +5,6 @@ import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import { cellPoint, CELL, GAP, getBlockTexture } from "@/features/blockblast/game/pixiDrawUtils";
 
 interface CellGraphics {
-  bg: Graphics;
   block: Sprite;
 }
 
@@ -23,8 +22,8 @@ export function usePixiBoard(app: Application, boardLayer: Container | null, boa
         for (let col = 0; col < BOARD_SIZE; col += 1) {
           const { x, y } = cellPoint(row, col);
           grid.roundRect(x, y, CELL, CELL, 9)
-            .fill({ color: 0xfdf6ea, alpha: 0.96 })
-            .stroke({ width: 1.5, color: 0x8a7d65, alpha: 0.18 });
+            .fill({ color: 0xfffbf0, alpha: 0.84 })
+            .stroke({ width: 1.25, color: 0x5f5241, alpha: 0.2 });
         }
       }
       gridRef.current = grid;
@@ -40,21 +39,13 @@ export function usePixiBoard(app: Application, boardLayer: Container | null, boa
         cells[row] = [];
         for (let col = 0; col < BOARD_SIZE; col += 1) {
           const { x, y } = cellPoint(row, col);
-          
-          const bg = new Graphics();
-          bg.roundRect(0, 0, CELL, CELL, 9)
-            .fill({ color: 0xfdf6ea, alpha: 0.96 })
-            .stroke({ width: 1.5, color: 0x8a7d65, alpha: 0.18 });
-          bg.x = x;
-          bg.y = y;
-
           const block = new Sprite();
           block.x = x;
           block.y = y;
           block.visible = false;
           
-          blocksContainer.addChild(bg, block);
-          cells[row][col] = { bg, block };
+          blocksContainer.addChild(block);
+          cells[row][col] = { block };
         }
       }
       cellsRef.current = cells;
@@ -79,10 +70,8 @@ export function usePixiBoard(app: Application, boardLayer: Container | null, boa
         if (cellState.filled) {
           cellG.block.texture = getBlockTexture(app, CELL, cellState.colorId || "peanut");
           cellG.block.visible = true;
-          cellG.bg.alpha = 1;
         } else {
           cellG.block.visible = false;
-          cellG.bg.alpha = 1;
         }
       }
     }

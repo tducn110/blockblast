@@ -32,11 +32,14 @@ export interface ClearAnimation {
   cells: ClearingCell[];
   clearedRows: number[];
   clearedCols: number[];
+  accentColorId?: string;
 }
 
 export interface PlacementAnimation {
   id: string;
   cells: ClearingCell[];
+  score: number;
+  clearedCount: number;
 }
 
 export interface BoomEvent {
@@ -79,6 +82,7 @@ export interface GameActions {
   placeSelectedPiece: (row: number, col: number) => boolean;
   placeDraggingPiece: (row: number, col: number) => boolean;
   resetGame: () => void;
+  clearBoardForReplay: () => boolean;
   unlockReserveSlot: () => void;
   useReserveSlot: () => boolean;
   toggleSfx: () => void;
@@ -109,6 +113,7 @@ interface PlacePiecePayload {
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation;
   boomEvent: BoomEvent | null;
+  reservePiece: BlockPiece | null;
 }
 
 type GameAction =
@@ -126,6 +131,7 @@ type GameAction =
       status: GameCoreState["status"];
     }
   | { type: "unlockReserveSlot" }
+  | { type: "clearBoardForReplay"; animation: ClearAnimation | null }
   | { type: "reset"; bestScore: number }
   | { type: "clearPlacementAnimation"; id: string }
   | { type: "clearClearAnimation"; id: string }
@@ -191,6 +197,7 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
         clearAnimation: payload.clearAnimation ?? state.clearAnimation,
         placementAnimation: payload.placementAnimation,
         boomEvent: payload.boomEvent ?? state.boomEvent,
+        reservePiece: payload.reservePiece,
       };
     }
     case "generateNextTray":
@@ -214,6 +221,18 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
       };
     case "unlockReserveSlot":
       return { ...state, reserveUnlocked: true };
+    case "clearBoardForReplay":
+      return {
+        ...state,
+        board: createEmptyBoard(),
+        pieces: state.pieces.map((piece) => ({ ...piece, placed: true })),
+        selectedPieceId: null,
+        draggingPieceId: null,
+        hoverAnchor: null,
+        status: "resolving",
+        clearAnimation: action.animation ?? state.clearAnimation,
+        placementAnimation: null,
+      };
     case "reset":
       return createInitialCoreState(action.bestScore);
     case "clearPlacementAnimation":
@@ -241,7 +260,8 @@ function makeFeedback(text: string, type: FeedbackItem["type"]): FeedbackItem {
 function makeClearAnimation(
   board: BoardGrid,
   clearedRows: number[],
-  clearedCols: number[]
+  clearedCols: number[],
+  accentColorId?: string
 ): ClearAnimation | null {
   if (clearedRows.length === 0 && clearedCols.length === 0) return null;
 
@@ -253,7 +273,7 @@ function makeClearAnimation(
       const key = `${row}-${col}`;
       if (!seen.has(key)) {
         seen.add(key);
-        cells.push({ row, col, colorId: board[row][col].colorId });
+        cells.push({ row, col, colorId: accentColorId ?? board[row][col].colorId });
       }
     }
   });
@@ -263,7 +283,7 @@ function makeClearAnimation(
       const key = `${row}-${col}`;
       if (!seen.has(key)) {
         seen.add(key);
-        cells.push({ row, col, colorId: board[row][col].colorId });
+        cells.push({ row, col, colorId: accentColorId ?? board[row][col].colorId });
       }
     }
   });
@@ -273,13 +293,35 @@ function makeClearAnimation(
     cells,
     clearedRows,
     clearedCols,
+    accentColorId,
+  };
+}
+
+function makeBoardClearAnimation(board: BoardGrid): ClearAnimation | null {
+  const cells: ClearingCell[] = [];
+
+  board.forEach((row) => {
+    row.forEach((cell) => {
+      if (cell.filled) cells.push({ row: cell.row, col: cell.col, colorId: cell.colorId });
+    });
+  });
+
+  if (cells.length === 0) return null;
+
+  return {
+    id: String(Date.now()) + "-" + String(Math.random()),
+    cells,
+    clearedRows: [],
+    clearedCols: [],
   };
 }
 
 function makePlacementAnimation(
   piece: BlockPiece,
   row: number,
-  col: number
+  col: number,
+  score: number,
+  clearedCount: number
 ): PlacementAnimation {
   return {
     id: `${Date.now()}-${Math.random()}`,
@@ -288,6 +330,8 @@ function makePlacementAnimation(
       col: col + cell.col,
       colorId: piece.colorId,
     })),
+    score,
+    clearedCount,
   };
 }
 
@@ -417,7 +461,12 @@ export function useBlockBlastGame({
       const state = gameStateRef.current;
       if (state.status !== "playing") return false;
 
-      const piece = state.pieces.find((p) => p.id === pieceId && !p.placed);
+      const trayPiece = state.pieces.find((p) => p.id === pieceId && !p.placed);
+      const reservePiece =
+        !trayPiece && state.reservePiece?.id === pieceId && !state.reservePiece.placed
+          ? state.reservePiece
+          : null;
+      const piece = trayPiece ?? reservePiece;
       if (!piece) return false;
 
       if (!canPlacePiece(state.board, piece, row, col)) {
@@ -428,7 +477,6 @@ export function useBlockBlastGame({
       const placeStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
 
       const newBoard = placePiece(state.board, piece, row, col);
-      const nextPlacementAnimation = makePlacementAnimation(piece, row, col);
       const placementScore = calculatePlacementScore(piece);
       const {
         board: clearedBoard,
@@ -437,12 +485,24 @@ export function useBlockBlastGame({
         clearedCount,
         clearedCells,
       } = clearLines(newBoard);
-      const nextClearAnimation = makeClearAnimation(newBoard, clearedRows, clearedCols);
+      const nextClearAnimation = makeClearAnimation(
+        newBoard,
+        clearedRows,
+        clearedCols,
+        piece.colorId
+      );
 
       const newCombo = clearedCount > 0 ? state.combo + 1 : 0;
       const clearScore =
         clearedCount > 0 ? calculateClearScore(clearedCount, newCombo, clearedCells) : 0;
       const totalAdded = placementScore + clearScore;
+      const nextPlacementAnimation = makePlacementAnimation(
+        piece,
+        row,
+        col,
+        totalAdded,
+        clearedCount
+      );
       const remainingCells = countFilledCells(clearedBoard);
       const cleanSweepBoom = clearedCount > 0 && remainingCells === 0 && newCombo >= 2;
       const nextBoomEvent =
@@ -467,9 +527,10 @@ export function useBlockBlastGame({
       if (newCombo > 1) feedbackItems.push(makeFeedback(`x${newCombo} COMBO`, "combo"));
       if (nextBoomEvent) feedbackItems.push(makeFeedback("FULL CLEAR", "boom"));
 
-      const newPieces = state.pieces.map((p) =>
-        p.id === pieceId ? { ...p, placed: true } : p
-      );
+      const newPieces = trayPiece
+        ? state.pieces.map((p) => (p.id === pieceId ? { ...p, placed: true } : p))
+        : state.pieces;
+      const nextReservePiece = reservePiece ? null : state.reservePiece;
       const allPlaced = newPieces.every((p) => p.placed);
 
       // When all 3 placed, defer smart generation to next frame.
@@ -479,8 +540,8 @@ export function useBlockBlastGame({
       const nextPieces = newPieces;
 
       // Only check game over if not all placed (deferred generation handles it later)
-      const gameOverPieces = state.reservePiece
-        ? [...nextPieces.filter((p) => !p.placed), state.reservePiece]
+      const gameOverPieces = nextReservePiece
+        ? [...nextPieces.filter((p) => !p.placed), nextReservePiece]
         : nextPieces.filter((p) => !p.placed);
       const gameOver = allPlaced ? false : isGameOver(clearedBoard, gameOverPieces);
       const nextStatus = allPlaced ? "resolving" : gameOver ? "gameOver" : "playing";
@@ -501,6 +562,7 @@ export function useBlockBlastGame({
           clearAnimation: nextClearAnimation,
           placementAnimation: nextPlacementAnimation,
           boomEvent: nextBoomEvent,
+          reservePiece: nextReservePiece,
         },
       });
 
@@ -610,6 +672,28 @@ export function useBlockBlastGame({
     dispatch({ type: "reset", bestScore: externalBestScore });
   }, [cancelPendingTrayGeneration, externalBestScore]);
 
+  const clearBoardForReplay = useCallback((): boolean => {
+    runIdRef.current += 1;
+    cancelPendingTrayGeneration();
+    clearAnimationTimers.current.forEach((timer) => window.clearTimeout(timer));
+    clearAnimationTimers.current = [];
+    placementAnimationTimers.current.forEach((timer) => window.clearTimeout(timer));
+    placementAnimationTimers.current = [];
+
+    const nextClearAnimation = makeBoardClearAnimation(gameStateRef.current.board);
+    dispatch({ type: "clearBoardForReplay", animation: nextClearAnimation });
+
+    if (nextClearAnimation) {
+      const timer = window.setTimeout(() => {
+        dispatch({ type: "clearClearAnimation", id: nextClearAnimation.id });
+      }, 650);
+      clearAnimationTimers.current.push(timer);
+      if (sfxEnabled) blockBlastAudio.playBoom();
+    }
+
+    return nextClearAnimation !== null;
+  }, [cancelPendingTrayGeneration, sfxEnabled]);
+
   const unlockReserveSlot = useCallback(() => {
     if (gameStateRef.current.status !== "playing") return;
     dispatch({ type: "unlockReserveSlot" });
@@ -638,12 +722,15 @@ export function useBlockBlastGame({
       nextReservePiece = selectedPiece;
     } else if (state.reservePiece) {
       const emptyIndex = state.pieces.findIndex((piece) => piece.placed);
-      if (emptyIndex < 0) return false;
+      const targetIndex =
+        emptyIndex >= 0 ? emptyIndex : state.pieces.findIndex((piece) => !piece.placed);
+      if (targetIndex < 0) return false;
 
+      const outgoingPiece = state.pieces[targetIndex];
       nextPieces = state.pieces.map((piece, index) =>
-        index === emptyIndex ? { ...state.reservePiece!, placed: false } : piece
+        index === targetIndex ? { ...state.reservePiece!, placed: false } : piece
       );
-      nextReservePiece = null;
+      nextReservePiece = emptyIndex >= 0 ? null : { ...outgoingPiece, placed: false };
     } else {
       return false;
     }
@@ -689,6 +776,7 @@ export function useBlockBlastGame({
     placeSelectedPiece,
     placeDraggingPiece,
     resetGame,
+    clearBoardForReplay,
     unlockReserveSlot,
     useReserveSlot,
     toggleSfx,

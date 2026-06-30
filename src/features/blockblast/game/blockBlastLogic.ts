@@ -34,19 +34,19 @@ export const COLOR_IDS = ["peanut", "bamboo", "orange", "brown", "cream"] as con
 export type ColorId = (typeof COLOR_IDS)[number];
 
 export const BLOCK_COLOR_MAP: Record<string, string> = {
-  peanut: "#f0b840",
-  bamboo: "#6b8e3d",
-  orange: "#e87432",
-  brown: "#8e4e22",
-  cream: "#c8aa7a",
+  peanut: "#ffb000",
+  bamboo: "#00b85f",
+  orange: "#ff4d2f",
+  brown: "#7b3cff",
+  cream: "#00a8ff",
 };
 
 export const BLOCK_BORDER_MAP: Record<string, string> = {
-  peanut: "#c8920c",
-  bamboo: "#4c6630",
-  orange: "#b85a22",
-  brown: "#5a3010",
-  cream: "#8e6e3a",
+  peanut: "#b76400",
+  bamboo: "#00723e",
+  orange: "#b82218",
+  brown: "#4519a8",
+  cream: "#0068b8",
 };
 
 const SHAPES: Array<{ id: string; cells: Array<{ row: number; col: number }> }> = [
