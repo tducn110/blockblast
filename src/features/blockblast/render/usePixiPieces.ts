@@ -14,7 +14,9 @@ import {
   GAP,
   BOARD_X,
   BOARD_Y,
-  getBlockTexture
+  getBlockTexture,
+  colorOf,
+  cellPoint
 } from "@/features/blockblast/game/pixiDrawUtils";
 import { GameState } from "@/features/blockblast/hooks/useBlockBlastGame";
 
@@ -111,6 +113,18 @@ function boardOccupancyKey(board: GameState["board"]): string {
   return key;
 }
 
+function findPlayablePiece(
+  pieces: BlockPiece[],
+  reservePiece: BlockPiece | null,
+  pieceId: string | null
+): BlockPiece | null {
+  if (!pieceId) return null;
+  return (
+    pieces.find((piece) => piece.id === pieceId && !piece.placed) ??
+    (reservePiece?.id === pieceId && !reservePiece.placed ? reservePiece : null)
+  );
+}
+
 function canPieceFitBoard(
   board: GameState["board"],
   piece: BlockPiece,
@@ -136,6 +150,58 @@ function canPieceFitBoard(
 
   fitCache.set(cacheKey, canFit);
   return canFit;
+}
+
+function getClearPreviewCells(
+  board: GameState["board"],
+  piece: BlockPiece,
+  row: number,
+  col: number
+): Array<{ row: number; col: number }> {
+  const filled = new Set<string>();
+
+  for (let r = 0; r < BOARD_SIZE; r += 1) {
+    for (let c = 0; c < BOARD_SIZE; c += 1) {
+      if (board[r][c].filled) filled.add(`${r}-${c}`);
+    }
+  }
+
+  for (const cell of piece.cells) {
+    filled.add(`${row + cell.row}-${col + cell.col}`);
+  }
+
+  const clearing = new Set<string>();
+
+  for (let r = 0; r < BOARD_SIZE; r += 1) {
+    let full = true;
+    for (let c = 0; c < BOARD_SIZE; c += 1) {
+      if (!filled.has(`${r}-${c}`)) {
+        full = false;
+        break;
+      }
+    }
+    if (full) {
+      for (let c = 0; c < BOARD_SIZE; c += 1) clearing.add(`${r}-${c}`);
+    }
+  }
+
+  for (let c = 0; c < BOARD_SIZE; c += 1) {
+    let full = true;
+    for (let r = 0; r < BOARD_SIZE; r += 1) {
+      if (!filled.has(`${r}-${c}`)) {
+        full = false;
+        break;
+      }
+    }
+    if (full) {
+      for (let r = 0; r < BOARD_SIZE; r += 1) clearing.add(`${r}-${c}`);
+    }
+  }
+
+  return Array.from(clearing, (key) => {
+    const [r, c] = key.split("-").map(Number);
+    return { row: r, col: c };
+  });
 }
 
 function drawPiecePreview(
@@ -243,6 +309,7 @@ export function usePixiPieces(
   const slotModeRef = useRef<boolean | null>(null);
   const previewContainerRef = useRef<Container | null>(null);
   const fitCacheRef = useRef<Map<string, boolean>>(new Map());
+  const cleanupDragRef = useRef<(() => void) | null>(null);
 
   const dragCtx = useRef<DragContext>({
     state: "idle",
@@ -292,8 +359,11 @@ export function usePixiPieces(
     if (!ready || !app || !dragLayer || !boardLayer) return;
 
     // Create preview container
+    const clearPreview = new Graphics();
+    clearPreview.eventMode = "none";
     const previewContainer = new Container();
     previewContainer.eventMode = "none";
+    boardLayer.addChild(clearPreview);
     boardLayer.addChild(previewContainer);
     previewContainerRef.current = previewContainer;
     
@@ -326,6 +396,7 @@ export function usePixiPieces(
         ctx.ghostContainer.destroy({ children: true });
       }
       previewCells.forEach(s => s.visible = false);
+      clearPreview.clear();
       
       // Reset state
       ctx.state = "idle";
@@ -342,6 +413,7 @@ export function usePixiPieces(
       }
       ctx.sourceTrayIndex = -1;
     };
+    cleanupDragRef.current = cleanupDrag;
 
     const onPointerUp = (event: FederatedPointerEvent) => {
       const ctx = dragCtx.current;
@@ -349,7 +421,11 @@ export function usePixiPieces(
 
       if (ctx.candidateCell) {
         // Snap to board!
-        const piece = latestRef.current.pieces.find(p => p.id === ctx.activePieceId);
+        const piece = findPlayablePiece(
+          latestRef.current.pieces,
+          latestRef.current.reservePiece,
+          ctx.activePieceId
+        );
         if (!piece) {
             cleanupDrag();
             return;
@@ -448,7 +524,7 @@ export function usePixiPieces(
       // Preview logic during drag
       if ((ctx.state === "pickup" || ctx.state === "dragging") && ctx.ghostContainer) {
           const current = latestRef.current;
-          const piece = current.pieces.find(p => p.id === ctx.activePieceId);
+          const piece = findPlayablePiece(current.pieces, current.reservePiece, ctx.activePieceId);
           if (!piece) return;
 
           const bounds = pieceBounds(piece);
@@ -467,10 +543,11 @@ export function usePixiPieces(
 
           ctx.lastPreviewKey = previewKey;
           
-          if (valid) {
+        if (valid) {
               ctx.candidateCell = { row: targetRow, col: targetCol };
               const bounds = pieceBounds(piece);
               const tex = getBlockTexture(app, CELL, piece.colorId, 0.4);
+              const clearCells = getClearPreviewCells(current.board, piece, targetRow, targetCol);
               
               previewCells.forEach(s => s.visible = false);
               let i = 0;
@@ -481,9 +558,26 @@ export function usePixiPieces(
                   s.y = BOARD_Y + (targetRow + cell.row - bounds.minRow) * (CELL + GAP);
                   s.visible = true;
               }
+
+              clearPreview.clear();
+              if (clearCells.length > 0) {
+                const previewColor = colorOf(piece.colorId);
+                for (const cell of clearCells) {
+                  const { x, y } = cellPoint(cell.row, cell.col);
+                  clearPreview
+                    .roundRect(x + 2, y + 4, CELL - 2, CELL - 1, 10)
+                    .fill({ color: 0x000000, alpha: 0.2 })
+                    .roundRect(x, y, CELL - 2, CELL - 2, 10)
+                    .fill({ color: previewColor, alpha: 0.92 })
+                    .stroke({ width: 3, color: previewColor, alpha: 1 })
+                    .roundRect(x + 5, y + 5, CELL - 13, 8, 7)
+                    .fill({ color: 0xffffff, alpha: 0.34 });
+                }
+              }
           } else {
               ctx.candidateCell = null;
               previewCells.forEach(s => s.visible = false);
+              clearPreview.clear();
           }
       }
     };
@@ -499,11 +593,19 @@ export function usePixiPieces(
       app.stage.off("pointerupoutside", onPointerUp);
       app.ticker.remove(tick);
       cleanupDrag();
+      cleanupDragRef.current = null;
 
+      boardLayer.removeChild(clearPreview);
+      clearPreview.destroy();
       boardLayer.removeChild(previewContainer);
       previewContainer.destroy({ children: true });
     };
   }, [ready, app, dragLayer, boardLayer]);
+
+  useEffect(() => {
+    if (dragCtx.current.state === "idle") return;
+    cleanupDragRef.current?.();
+  }, [pieces, reservePiece, status]);
 
   // Setup and update tray pieces
   useEffect(() => {
@@ -572,11 +674,10 @@ export function usePixiPieces(
             const hasSelectedPiece =
               current.selectedPieceId !== null &&
               current.pieces.some((piece) => piece.id === current.selectedPieceId && !piece.placed);
-            const hasPlacedTraySlot = current.pieces.some((piece) => piece.placed);
             const actionable =
               !current.reserveUnlocked ||
               hasSelectedPiece ||
-              (current.reservePiece !== null && hasPlacedTraySlot);
+              current.reservePiece !== null;
 
             if (!actionable || dragCtx.current.state !== "idle") return;
             if (!current.reserveUnlocked) {
@@ -708,12 +809,9 @@ export function usePixiPieces(
         const hasSelectedPiece =
           selectedPieceId !== null &&
           pieces.some((piece) => piece.id === selectedPieceId && !piece.placed);
-        const hasPlacedTraySlot = pieces.some((piece) => piece.placed);
         const canUseReserve =
           status === "playing" &&
-          (!reserveUnlocked ||
-            hasSelectedPiece ||
-            (reservePiece !== null && hasPlacedTraySlot));
+          (!reserveUnlocked || hasSelectedPiece || reservePiece !== null);
         const isActiveTarget = reserveUnlocked && hasSelectedPiece;
 
         slot.pieceId = reservePiece?.id ?? null;
@@ -743,7 +841,7 @@ export function usePixiPieces(
             .roundRect(0, 0, layout.slotWidth, layout.slotHeight, layout.slotRadius)
             .fill({ color: 0xf5ecd7, alpha: 0.5 });
           drawLockIcon(slot.mark, layout.slotWidth / 2 - 14, 18, 0x7c6c55, 0.82);
-          slot.label.text = "Xem QC";
+          slot.label.text = "Mock ads";
           slot.label.style.fill = 0x5f5241;
           slot.label.x = layout.slotWidth / 2;
           slot.label.y = layout.slotHeight - 22;

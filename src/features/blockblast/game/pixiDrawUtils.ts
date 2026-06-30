@@ -42,15 +42,15 @@ export function getBlockTexture(app: Application, size: number, colorId: string,
   const color = colorOf(colorId);
   const border = borderOf(colorId);
 
-  g.roundRect(1, 2, size - 2, size - 2, radius)
-    .fill({ color: 0x000000, alpha: 0.13 * alpha });
+  g.roundRect(2, 4, size - 2, size - 1, radius)
+    .fill({ color: 0x000000, alpha: 0.2 * alpha });
   g.roundRect(0, 0, size - 2, size - 2, radius)
     .fill({ color, alpha })
-    .stroke({ width: 2, color: border, alpha: 0.92 * alpha });
+    .stroke({ width: 3, color: border, alpha: 1 * alpha });
   g.roundRect(5, 5, size - 13, Math.max(5, size * 0.18), radius * 0.7)
-    .fill({ color: 0xffffff, alpha: 0.24 * alpha });
+    .fill({ color: 0xffffff, alpha: 0.34 * alpha });
   g.roundRect(5, size - 11, size - 13, 4, radius * 0.5)
-    .fill({ color: border, alpha: 0.16 * alpha });
+    .fill({ color: border, alpha: 0.28 * alpha });
 
   const texture = app.renderer.generateTexture(g);
   textureCache.set(key, texture);
@@ -73,15 +73,15 @@ export function drawBlock(
   const color = colorOf(colorId);
   const border = borderOf(colorId);
 
-  g.roundRect(x + 1, y + 2, size - 2, size - 2, radius)
-    .fill({ color: 0x000000, alpha: 0.13 * alpha });
+  g.roundRect(x + 2, y + 4, size - 2, size - 1, radius)
+    .fill({ color: 0x000000, alpha: 0.2 * alpha });
   g.roundRect(x, y, size - 2, size - 2, radius)
     .fill({ color, alpha })
-    .stroke({ width: 2, color: border, alpha: 0.92 * alpha });
+    .stroke({ width: 3, color: border, alpha: 1 * alpha });
   g.roundRect(x + 5, y + 5, size - 13, Math.max(5, size * 0.18), radius * 0.7)
-    .fill({ color: 0xffffff, alpha: 0.24 * alpha });
+    .fill({ color: 0xffffff, alpha: 0.34 * alpha });
   g.roundRect(x + 5, y + size - 11, size - 13, 4, radius * 0.5)
-    .fill({ color: border, alpha: 0.16 * alpha });
+    .fill({ color: border, alpha: 0.28 * alpha });
 }
 
 export function drawBoardBackground(g: Graphics) {

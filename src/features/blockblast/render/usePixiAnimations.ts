@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
-import { Application, Container, Graphics, Ticker, Sprite, Texture } from "pixi.js";
+import { Application, Container, Graphics, Ticker, Sprite, Texture, Text } from "pixi.js";
 import type { ClearAnimation, PlacementAnimation } from "@/features/blockblast/hooks/useBlockBlastGame";
+import { BOARD_SIZE } from "@/features/blockblast/game/blockBlastLogic";
 import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
-import { cellPoint, drawBlock, CELL, colorOf } from "@/features/blockblast/game/pixiDrawUtils";
+import { cellPoint, CELL, GAP, colorOf } from "@/features/blockblast/game/pixiDrawUtils";
 
 interface Particle {
   sprite: Sprite;
@@ -98,10 +99,107 @@ export function usePixiAnimations(
     };
   }, [ready, app, animationLayer]);
 
-  // Placement Impact disabled as requested
-  // useEffect(() => {
-  //  // code removed
-  // }, [placementAnimation, ready, app, animationLayer]);
+  useEffect(() => {
+    if (!ready || !app || !animationLayer || !placementAnimation) return;
+    if (placementAnimationIdRef.current === placementAnimation.id) return;
+
+    placementAnimationIdRef.current = placementAnimation.id;
+
+    const group = new Container();
+    group.label = `placement-${placementAnimation.id}`;
+    group.eventMode = "none";
+
+    const cellPulses: Container[] = [];
+    let sumX = 0;
+    let sumY = 0;
+    let minY = Number.POSITIVE_INFINITY;
+
+    for (const cell of placementAnimation.cells) {
+      const { x, y } = cellPoint(cell.row, cell.col);
+      const pulse = new Container();
+      pulse.x = x + CELL / 2;
+      pulse.y = y + CELL / 2;
+      pulse.pivot.set(CELL / 2);
+
+      const ring = new Graphics();
+      ring
+        .roundRect(0, 0, CELL, CELL, 10)
+        .stroke({ width: 4, color: colorOf(cell.colorId), alpha: 0.95 });
+      const flash = new Graphics();
+      flash
+        .roundRect(3, 3, CELL - 6, CELL - 6, 8)
+        .fill({ color: 0xffffff, alpha: 0.28 });
+
+      pulse.addChild(ring, flash);
+      group.addChild(pulse);
+      cellPulses.push(pulse);
+      sumX += x + CELL / 2;
+      sumY += y + CELL / 2;
+      minY = Math.min(minY, y);
+    }
+
+    const centerX = sumX / placementAnimation.cells.length;
+    const centerY = sumY / placementAnimation.cells.length;
+    const shouldShowScore = placementAnimation.clearedCount > 0;
+    const scoreText = shouldShowScore
+      ? new Text({
+          text: `+${placementAnimation.score}`,
+          style: {
+            fontFamily: "Be Vietnam Pro, Arial, sans-serif",
+            fontSize: 28,
+            fontWeight: "900",
+            fill: 0xfff1a8,
+            stroke: { color: 0x2a2418, width: 4 },
+            dropShadow: {
+              color: 0x000000,
+              alpha: 0.32,
+              blur: 5,
+              distance: 3,
+            },
+          },
+        })
+      : null;
+    if (scoreText) {
+      scoreText.anchor.set(0.5);
+      scoreText.x = centerX;
+      scoreText.y = Math.min(centerY, minY + 8);
+      scoreText.scale.set(0.65);
+      group.addChild(scoreText);
+    }
+
+    animationLayer.addChild(group);
+
+    let age = 0;
+    const totalDuration = 760;
+
+    const tick = (ticker: Ticker) => {
+      age += Math.min(ticker.elapsedMS, 50);
+      const t = Math.min(age / totalDuration, 1);
+      const pop = Math.min(age / 160, 1);
+      const easeOut = 1 - Math.pow(1 - pop, 3);
+
+      cellPulses.forEach((pulse, index) => {
+        const delay = index * 0.035;
+        const localT = Math.max(0, Math.min((t - delay) / 0.55, 1));
+        pulse.scale.set(0.84 + easeOut * 0.28 + localT * 0.16);
+        pulse.alpha = Math.max(0, 1 - localT * 1.25);
+      });
+
+      if (scoreText) {
+        scoreText.y = Math.min(centerY, minY + 8) - 46 * (1 - Math.pow(1 - t, 2));
+        scoreText.scale.set(0.65 + easeOut * 0.45);
+        scoreText.alpha = t < 0.68 ? 1 : Math.max(0, 1 - (t - 0.68) / 0.32);
+      }
+
+      if (age >= totalDuration) {
+        app.ticker.remove(tick);
+        animationLayer.removeChild(group);
+        group.destroy({ children: true });
+      }
+    };
+
+    app.ticker.add(tick);
+  }, [placementAnimation, ready, app, animationLayer]);
 
   // Line Clear Animation
   useEffect(() => {
@@ -118,6 +216,33 @@ export function usePixiAnimations(
 
     // Create a container for each cell so we can scale from its center
     const cellContainers: Container[] = [];
+    const lineBeams: Graphics[] = [];
+    const beamColor = colorOf(clearAnimation.accentColorId ?? clearAnimation.cells[0]?.colorId);
+    const boardSpan = BOARD_SIZE * CELL + (BOARD_SIZE - 1) * GAP;
+
+    clearAnimation.clearedRows.forEach((row) => {
+      const { x, y } = cellPoint(row, 0);
+      const beam = new Graphics();
+      beam
+        .roundRect(x - 6, y + CELL / 2 - 9, boardSpan + 12, 18, 9)
+        .fill({ color: beamColor, alpha: 0.38 })
+        .stroke({ width: 2, color: 0xffffff, alpha: 0.68 });
+      beam.alpha = 0;
+      group.addChild(beam);
+      lineBeams.push(beam);
+    });
+
+    clearAnimation.clearedCols.forEach((col) => {
+      const { x, y } = cellPoint(0, col);
+      const beam = new Graphics();
+      beam
+        .roundRect(x + CELL / 2 - 9, y - 6, 18, boardSpan + 12, 9)
+        .fill({ color: beamColor, alpha: 0.38 })
+        .stroke({ width: 2, color: 0xffffff, alpha: 0.68 });
+      beam.alpha = 0;
+      group.addChild(beam);
+      lineBeams.push(beam);
+    });
     
     for (const cell of clearAnimation.cells) {
       const { x, y } = cellPoint(cell.row, cell.col);
@@ -183,6 +308,18 @@ export function usePixiAnimations(
            c.alpha = 1 - easeIn;
         } else {
            c.alpha = 0;
+        }
+      }
+
+      for (const beam of lineBeams) {
+        if (age <= phase1Duration) {
+          const t = age / phase1Duration;
+          beam.alpha = Math.sin(t * Math.PI) * 1;
+        } else if (age <= totalDuration) {
+          const t = (age - phase1Duration) / phase2Duration;
+          beam.alpha = Math.max(0, 0.72 * (1 - t));
+        } else {
+          beam.alpha = 0;
         }
       }
 

@@ -124,7 +124,6 @@ export function PixiBlockBlastCanvas({
         aspectRatio: `${VIEW_WIDTH} / ${VIEW_HEIGHT}`,
         borderRadius: 24,
         overflow: "hidden",
-        boxShadow: "inset 0 0 0 1px rgba(138,125,101,0.24)",
       }}
     />
   );

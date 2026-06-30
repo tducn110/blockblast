@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Application, Container, Graphics, Rectangle } from "pixi.js";
-import { VIEW_WIDTH, VIEW_HEIGHT, drawBoardBackground } from "@/features/blockblast/game/pixiDrawUtils";
+import { Application, Container, Rectangle } from "pixi.js";
+import { VIEW_WIDTH, VIEW_HEIGHT } from "@/features/blockblast/game/pixiDrawUtils";
 
 const MAX_PIXI_RESOLUTION = 2;
 
@@ -47,10 +47,6 @@ export function usePixiApp() {
       app.canvas.style.display = "block";
       app.canvas.style.touchAction = "none";
       hostRef.current.appendChild(app.canvas);
-
-      const background = new Graphics();
-      drawBoardBackground(background);
-      app.stage.addChild(background);
 
       const boardLayer = new Container();
       const animationLayer = new Container();

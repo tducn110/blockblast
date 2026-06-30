@@ -44,12 +44,22 @@ export function Game({
     musicEnabled,
   });
   const lastBoomEventIdRef = useRef<string | null>(null);
+  const adReplayTimerRef = useRef<number | null>(null);
+  const [adReplayStatus, setAdReplayStatus] = useState<"idle" | "loading" | "clearing">("idle");
+  const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
 
   useEffect(() => {
     if (!game.boomEvent || lastBoomEventIdRef.current === game.boomEvent.id) return;
     lastBoomEventIdRef.current = game.boomEvent.id;
     onBoom(game.boomEvent);
   }, [game.boomEvent, onBoom]);
+
+  useEffect(
+    () => () => {
+      if (adReplayTimerRef.current !== null) window.clearTimeout(adReplayTimerRef.current);
+    },
+    []
+  );
 
   const mascotMood =
     scenery === "boom" ? "boom" : game.status === "gameOver" ? "gameOver" : "idle";
@@ -62,22 +72,47 @@ export function Game({
         ? "Đổi khối"
         : game.selectedPieceId
           ? "Cất khối"
-        : game.reservePiece && game.pieces.some((piece) => piece.placed)
+        : game.reservePiece
           ? "Lấy ra"
           : "Cất khối";
   const reserveStoreDisabled =
     game.status !== "playing" ||
     !game.reserveUnlocked ||
-    !game.selectedPieceId &&
-    !(game.reservePiece && game.pieces.some((piece) => piece.placed));
-  const adActionDisabled = game.status !== "playing" || game.reserveUnlocked;
+    (!game.selectedPieceId && !game.reservePiece);
+  const adActionDisabled = game.status !== "playing" || game.reserveUnlocked || isReserveAdLoading;
   const handleUnlockReserve = useCallback(async () => {
-    const rewardGranted = await Promise.resolve(true);
-    if (rewardGranted) game.unlockReserveSlot();
-  }, [game.unlockReserveSlot]);
+    if (adActionDisabled) return;
+
+    setIsReserveAdLoading(true);
+    const reward = await playMockAd();
+    setIsReserveAdLoading(false);
+
+    if (reward.granted) {
+      game.unlockReserveSlot();
+    }
+  }, [adActionDisabled, game.unlockReserveSlot]);
   const handleReserveAction = () => {
     game.useReserveSlot();
   };
+  const handleAdReplay = useCallback(async () => {
+    if (adReplayStatus !== "idle") return;
+
+    setAdReplayStatus("loading");
+    const reward = await playMockAd();
+
+    if (!reward.granted) {
+      setAdReplayStatus("idle");
+      return;
+    }
+
+    setAdReplayStatus("clearing");
+    const hasClearAnimation = game.clearBoardForReplay();
+    adReplayTimerRef.current = window.setTimeout(() => {
+      adReplayTimerRef.current = null;
+      setAdReplayStatus("idle");
+      game.resetGame();
+    }, hasClearAnimation ? 780 : 120);
+  }, [adReplayStatus, game.clearBoardForReplay, game.resetGame]);
 
   return (
     <section
@@ -156,12 +191,12 @@ export function Game({
             <div className="flex min-w-0 flex-col justify-center gap-[10px] rounded-[20px] border border-[#f0b840]/22 bg-[#f5ecd7]/64 p-[14px]">
               <div>
                 <div className="text-[13px] font-black uppercase tracking-[0.8px] text-[#8e4e22]">
-                  Quảng cáo
+                  Mock ads
                 </div>
                 <div className="mt-[2px] text-[12px] font-bold leading-[1.4] text-[#8a7d65]">
                   {game.reserveUnlocked
                     ? "Kho phụ đã mở. Chọn khối rồi cất bên dưới."
-                    : "Xem quảng cáo để mở thêm 1 ô cất khối."}
+                    : "Xem mock ads để mở thêm 1 ô cất khối."}
                 </div>
               </div>
 
@@ -172,7 +207,7 @@ export function Game({
                 onClick={handleUnlockReserve}
                 style={{ alignSelf: "flex-start", minWidth: 132, minHeight: 38, paddingLeft: 14, paddingRight: 14 }}
               >
-                {game.reserveUnlocked ? "Đã mở kho" : "Xem quảng cáo"}
+                {isReserveAdLoading ? GAME_TEXT.BTN_AD_LOADING : game.reserveUnlocked ? "Đã mở kho" : "Xem mock ads"}
               </Button>
             </div>
           </div>
@@ -225,10 +260,40 @@ export function Game({
           <SlashScoreOverlay items={game.feedback} />
 
           {game.status === "gameOver" && (
-            <div className="absolute inset-0 bg-[#2a2418]/80 rounded-[22px] flex flex-col items-center justify-center gap-[12px] z-20 animate-[fadeScaleIn_0.32s_ease]">
+            <div className="absolute inset-0 bg-[#2a2418]/82 rounded-[22px] flex flex-col items-center justify-center gap-[12px] z-20 px-[18px] text-center animate-[fadeScaleIn_0.32s_ease]">
               <div className="text-[26px] font-black text-[#f0b840]">{GAME_TEXT.GAME_OVER_TITLE}</div>
               <div className="text-[15px] text-[#efe3c4]">
                 {GAME_TEXT.RESULT} <strong>{game.score.toLocaleString()}</strong> {GAME_TEXT.POINTS}
+              </div>
+              <div className="w-full max-w-[270px] rounded-[20px] border border-[#f0b840]/35 bg-[#fff3cf]/12 p-[10px] shadow-[0_10px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.12)]">
+                <div className="text-[11px] font-black uppercase tracking-[0.7px] text-[#f7d77c]">
+                  {GAME_TEXT.AD_REPLAY_LABEL}
+                </div>
+                <div className="mt-[3px] text-[11px] font-bold leading-[1.35] text-[#efe3c4]/86">
+                  {GAME_TEXT.AD_REPLAY_HINT}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  disabled={adReplayStatus !== "idle"}
+                  onClick={handleAdReplay}
+                  style={{
+                    width: "100%",
+                    minHeight: 52,
+                    marginTop: 10,
+                    paddingLeft: 18,
+                    paddingRight: 18,
+                    fontSize: 14,
+                    boxShadow:
+                      "0 12px 24px rgba(240,184,64,0.34), inset 0 1px 0 rgba(255,255,255,0.46)",
+                  }}
+                >
+                  {adReplayStatus === "loading"
+                    ? GAME_TEXT.BTN_AD_LOADING
+                    : adReplayStatus === "clearing"
+                      ? GAME_TEXT.BTN_AD_CLEARING
+                      : GAME_TEXT.BTN_AD_REPLAY}
+                </Button>
               </div>
               <div className="flex gap-2">
                 <Button onClick={game.resetGame} size="sm">
@@ -244,6 +309,12 @@ export function Game({
       </div>
     </section>
   );
+}
+
+function playMockAd(): Promise<{ granted: boolean }> {
+  return new Promise((resolve) => {
+    window.setTimeout(() => resolve({ granted: true }), 900);
+  });
 }
 
 function useIsMobileReserveTray() {
