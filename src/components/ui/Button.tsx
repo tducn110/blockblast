@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from "react";
+import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
@@ -42,33 +43,54 @@ const sizes: Record<ButtonSize, CSSProperties> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = "primary", size = "md", style, children, type = "button", ...props }, ref) => (
-    <button
-      ref={ref}
-      type={type}
-      style={{
-        borderRadius: 999,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        fontFamily: "'Be Vietnam Pro', sans-serif",
-        fontWeight: 800,
-        letterSpacing: 0,
-        cursor: props.disabled ? "not-allowed" : "pointer",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease",
-        opacity: props.disabled ? 0.6 : 1,
-        whiteSpace: "nowrap",
-        touchAction: "manipulation",
-        ...variants[variant],
-        ...sizes[size],
-        ...style,
-      }}
-      {...props}
-    >
-      {children}
-    </button>
-  )
+  (
+    {
+      variant = "primary",
+      size = "md",
+      style,
+      children,
+      type = "button",
+      disabled,
+      onClick,
+      ...props
+    },
+    ref
+  ) => {
+    const handleClick: ButtonHTMLAttributes<HTMLButtonElement>["onClick"] = (event) => {
+      if (!disabled) blockBlastAudio.playButtonClick();
+      onClick?.(event);
+    };
+
+    return (
+      <button
+        ref={ref}
+        type={type}
+        disabled={disabled}
+        style={{
+          borderRadius: 999,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          fontFamily: "'Be Vietnam Pro', sans-serif",
+          fontWeight: 800,
+          letterSpacing: 0,
+          cursor: disabled ? "not-allowed" : "pointer",
+          transition: "transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease",
+          opacity: disabled ? 0.6 : 1,
+          whiteSpace: "nowrap",
+          touchAction: "manipulation",
+          ...variants[variant],
+          ...sizes[size],
+          ...style,
+        }}
+        {...props}
+        onClick={handleClick}
+      >
+        {children}
+      </button>
+    );
+  }
 );
 
 Button.displayName = "Button";

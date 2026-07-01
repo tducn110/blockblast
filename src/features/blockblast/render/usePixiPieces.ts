@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent, Ticker, Text } from "pixi.js";
+import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import { BlockPiece, BOARD_SIZE, canPlacePiece } from "@/features/blockblast/game/blockBlastLogic";
 import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import {
@@ -680,6 +681,7 @@ export function usePixiPieces(
               current.reservePiece !== null;
 
             if (!actionable || dragCtx.current.state !== "idle") return;
+            blockBlastAudio.playButtonClick();
             if (!current.reserveUnlocked) {
               void current.onUnlockReserve();
             } else {
@@ -698,6 +700,7 @@ export function usePixiPieces(
           if (ctx.state !== "idle") return;
 
           ctx.state = "pickup";
+          blockBlastAudio.playButtonClick();
           ctx.activePieceId = piece.id;
           ctx.sourceTrayIndex = index;
           ctx.pointerGlobal = { x: event.global.x, y: event.global.y };

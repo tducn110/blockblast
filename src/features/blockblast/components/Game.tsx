@@ -110,9 +110,9 @@ export function Game({
     adReplayTimerRef.current = window.setTimeout(() => {
       adReplayTimerRef.current = null;
       setAdReplayStatus("idle");
-      game.resetGame();
+      game.continueAfterReplay();
     }, hasClearAnimation ? 780 : 120);
-  }, [adReplayStatus, game.clearBoardForReplay, game.resetGame]);
+  }, [adReplayStatus, game.clearBoardForReplay, game.continueAfterReplay]);
 
   return (
     <section
@@ -250,6 +250,7 @@ export function Game({
             status={game.status}
             clearAnimation={game.clearAnimation}
             placementAnimation={game.placementAnimation}
+            comboShakeEvent={game.comboShakeEvent}
             paused={paused}
             onSelectPiece={game.selectPiece}
             onPlacePiece={game.placePiece}

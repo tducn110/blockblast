@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Ticker, Sprite, Texture, Text } from "pixi.js";
-import type { ClearAnimation, PlacementAnimation } from "@/features/blockblast/hooks/useBlockBlastGame";
+import type {
+  ClearAnimation,
+  ComboShakeEvent,
+  PlacementAnimation,
+} from "@/features/blockblast/hooks/useBlockBlastGame";
 import { BOARD_SIZE } from "@/features/blockblast/game/blockBlastLogic";
 import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import { cellPoint, CELL, GAP, colorOf } from "@/features/blockblast/game/pixiDrawUtils";
@@ -24,10 +28,12 @@ export function usePixiAnimations(
   animationLayer: Container | null,
   clearAnimation: ClearAnimation | null,
   placementAnimation: PlacementAnimation | null,
+  comboShakeEvent: ComboShakeEvent | null,
   ready: boolean
 ) {
   const placementAnimationIdRef = useRef<string | null>(null);
   const clearAnimationIdRef = useRef<string | null>(null);
+  const comboShakeEventIdRef = useRef<string | null>(null);
 
   // Particle pool
   const maxParticles = 150;
@@ -200,6 +206,45 @@ export function usePixiAnimations(
 
     app.ticker.add(tick);
   }, [placementAnimation, ready, app, animationLayer]);
+
+  useEffect(() => {
+    if (!ready || !app || !comboShakeEvent) return;
+    if (comboShakeEventIdRef.current === comboShakeEvent.id) return;
+
+    comboShakeEventIdRef.current = comboShakeEvent.id;
+
+    const stage = app.stage;
+    const baseX = stage.x;
+    const baseY = stage.y;
+    const duration = 240 + Math.min(comboShakeEvent.combo, 6) * 18;
+    const baseIntensity = comboShakeEvent.intensity;
+    let age = 0;
+
+    const tick = (ticker: Ticker) => {
+      age += Math.min(ticker.elapsedMS, 50);
+      const progress = Math.min(age / duration, 1);
+      const decay = Math.pow(1 - progress, 2);
+      const intensity = baseIntensity * decay;
+      const wave = Math.sin(progress * Math.PI * (7 + comboShakeEvent.combo));
+
+      stage.x = baseX + wave * intensity + (Math.random() - 0.5) * intensity * 0.75;
+      stage.y = baseY + Math.cos(progress * Math.PI * 9) * intensity * 0.45;
+
+      if (progress >= 1) {
+        stage.x = baseX;
+        stage.y = baseY;
+        app.ticker.remove(tick);
+      }
+    };
+
+    app.ticker.add(tick);
+
+    return () => {
+      app.ticker.remove(tick);
+      stage.x = baseX;
+      stage.y = baseY;
+    };
+  }, [comboShakeEvent, ready, app]);
 
   // Line Clear Animation
   useEffect(() => {
