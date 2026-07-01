@@ -8,6 +8,7 @@ type ToneOptions = {
 class BlockBlastAudio {
   private context: AudioContext | null = null;
   private musicEnabled = false;
+  private sfxEnabled = true;
   private musicElement: HTMLAudioElement | null = null;
   private slashElement: HTMLAudioElement | null = null;
   private unlockListenersBound = false;
@@ -32,7 +33,33 @@ class BlockBlastAudio {
     void this.startMusicTrack();
   }
 
+  setSfxEnabled(enabled: boolean) {
+    this.sfxEnabled = enabled;
+  }
+
+  playButtonClick() {
+    if (!this.sfxEnabled) return;
+
+    this.withRunningContext((context) => {
+      const now = context.currentTime + 0.006;
+      this.tone(context, 587.33, now, 0.055, {
+        waveform: "triangle",
+        volume: 0.045,
+        attack: 0.006,
+        release: 0.045,
+      });
+      this.tone(context, 880, now + 0.028, 0.05, {
+        waveform: "sine",
+        volume: 0.032,
+        attack: 0.004,
+        release: 0.04,
+      });
+    });
+  }
+
   playPlace() {
+    if (!this.sfxEnabled) return;
+
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
       this.tone(context, 329.63, now, 0.08, { waveform: "triangle", volume: 0.05 });
@@ -41,6 +68,8 @@ class BlockBlastAudio {
   }
 
   playInvalid() {
+    if (!this.sfxEnabled) return;
+
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
       this.tone(context, 132, now, 0.11, { waveform: "sawtooth", volume: 0.025, release: 0.05 });
@@ -49,6 +78,8 @@ class BlockBlastAudio {
   }
 
   playLineClear(clearedRows: number, clearedCols: number, combo: number) {
+    if (!this.sfxEnabled) return;
+
     this.playSlashSound(Math.min(0.9, 0.5 + (clearedRows + clearedCols) * 0.08), 1 + combo * 0.02);
     this.withRunningContext((context) => {
       const lineCount = clearedRows + clearedCols;
@@ -74,6 +105,8 @@ class BlockBlastAudio {
   }
 
   playCombo(combo: number) {
+    if (!this.sfxEnabled) return;
+
     this.playSlashSound(0.72, Math.min(1.18, 1.03 + combo * 0.03));
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.02;
@@ -91,6 +124,8 @@ class BlockBlastAudio {
   }
 
   playBoom() {
+    if (!this.sfxEnabled) return;
+
     this.playSlashSound(0.95, 0.92);
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
@@ -120,7 +155,7 @@ class BlockBlastAudio {
     const audio = new Audio("/assets/audio/music.mp3");
     audio.loop = true;
     audio.preload = "auto";
-    audio.volume = 0.22;
+    audio.volume = 0.04;
     this.musicElement = audio;
     return audio;
   }
@@ -137,6 +172,8 @@ class BlockBlastAudio {
   }
 
   playGameOver() {
+    if (!this.sfxEnabled) return;
+
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.02;
       [392, 329.63, 261.63].forEach((frequency, index) => {

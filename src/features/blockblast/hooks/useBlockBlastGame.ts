@@ -50,6 +50,12 @@ export interface BoomEvent {
   remainingCells: number;
 }
 
+export interface ComboShakeEvent {
+  id: string;
+  combo: number;
+  intensity: number;
+}
+
 export interface GameState {
   board: BoardGrid;
   pieces: BlockPiece[];
@@ -69,6 +75,7 @@ export interface GameState {
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation | null;
   boomEvent: BoomEvent | null;
+  comboShakeEvent: ComboShakeEvent | null;
   reserveUnlocked: boolean;
   reservePiece: BlockPiece | null;
 }
@@ -83,6 +90,7 @@ export interface GameActions {
   placeDraggingPiece: (row: number, col: number) => boolean;
   resetGame: () => void;
   clearBoardForReplay: () => boolean;
+  continueAfterReplay: () => void;
   unlockReserveSlot: () => void;
   useReserveSlot: () => boolean;
   toggleSfx: () => void;
@@ -113,6 +121,7 @@ interface PlacePiecePayload {
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation;
   boomEvent: BoomEvent | null;
+  comboShakeEvent: ComboShakeEvent | null;
   reservePiece: BlockPiece | null;
 }
 
@@ -132,6 +141,7 @@ type GameAction =
     }
   | { type: "unlockReserveSlot" }
   | { type: "clearBoardForReplay"; animation: ClearAnimation | null }
+  | { type: "continueAfterReplay"; board: BoardGrid; pieces: BlockPiece[] }
   | { type: "reset"; bestScore: number }
   | { type: "clearPlacementAnimation"; id: string }
   | { type: "clearClearAnimation"; id: string }
@@ -157,6 +167,7 @@ function createInitialCoreState(bestScore: number): GameCoreState {
     clearAnimation: null,
     placementAnimation: null,
     boomEvent: null,
+    comboShakeEvent: null,
     reserveUnlocked: false,
     reservePiece: null,
   };
@@ -197,6 +208,7 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
         clearAnimation: payload.clearAnimation ?? state.clearAnimation,
         placementAnimation: payload.placementAnimation,
         boomEvent: payload.boomEvent ?? state.boomEvent,
+        comboShakeEvent: payload.comboShakeEvent ?? state.comboShakeEvent,
         reservePiece: payload.reservePiece,
       };
     }
@@ -232,6 +244,25 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
         status: "resolving",
         clearAnimation: action.animation ?? state.clearAnimation,
         placementAnimation: null,
+        comboShakeEvent: null,
+      };
+    case "continueAfterReplay":
+      return {
+        ...state,
+        board: action.board,
+        pieces: action.pieces,
+        selectedPieceId: null,
+        draggingPieceId: null,
+        hoverAnchor: null,
+        combo: 0,
+        status: "playing",
+        feedback: [],
+        clearAnimation: null,
+        placementAnimation: null,
+        boomEvent: null,
+        comboShakeEvent: null,
+        reserveUnlocked: false,
+        reservePiece: null,
       };
     case "reset":
       return createInitialCoreState(action.bestScore);
@@ -383,6 +414,10 @@ export function useBlockBlastGame({
   }, [controlledMusicEnabled]);
 
   useEffect(() => {
+    blockBlastAudio.setSfxEnabled(sfxEnabled);
+  }, [sfxEnabled]);
+
+  useEffect(() => {
     blockBlastAudio.setMusicEnabled(musicEnabled);
     return () => blockBlastAudio.setMusicEnabled(false);
   }, [musicEnabled]);
@@ -515,6 +550,14 @@ export function useBlockBlastGame({
               remainingCells,
             }
           : null;
+      const nextComboShakeEvent =
+        newCombo >= 2
+          ? {
+              id: `${Date.now()}-${Math.random()}`,
+              combo: newCombo,
+              intensity: Math.min(18, 6 + newCombo * 2.2 + clearedCount * 1.2),
+            }
+          : null;
 
       const newScore = state.score + totalAdded;
       const newBest = Math.max(state.bestScore, newScore);
@@ -562,6 +605,7 @@ export function useBlockBlastGame({
           clearAnimation: nextClearAnimation,
           placementAnimation: nextPlacementAnimation,
           boomEvent: nextBoomEvent,
+          comboShakeEvent: nextComboShakeEvent,
           reservePiece: nextReservePiece,
         },
       });
@@ -694,6 +738,17 @@ export function useBlockBlastGame({
     return nextClearAnimation !== null;
   }, [cancelPendingTrayGeneration, sfxEnabled]);
 
+  const continueAfterReplay = useCallback(() => {
+    runIdRef.current += 1;
+    cancelPendingTrayGeneration();
+    const nextBoard = createEmptyBoard();
+    dispatch({
+      type: "continueAfterReplay",
+      board: nextBoard,
+      pieces: createSmartPieces(nextBoard, gameStateRef.current.score, Date.now()),
+    });
+  }, [cancelPendingTrayGeneration]);
+
   const unlockReserveSlot = useCallback(() => {
     if (gameStateRef.current.status !== "playing") return;
     dispatch({ type: "unlockReserveSlot" });
@@ -777,6 +832,7 @@ export function useBlockBlastGame({
     placeDraggingPiece,
     resetGame,
     clearBoardForReplay,
+    continueAfterReplay,
     unlockReserveSlot,
     useReserveSlot,
     toggleSfx,

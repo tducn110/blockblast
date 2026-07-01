@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { BoardGrid, BlockPiece } from "@/features/blockblast/game/blockBlastLogic";
-import type { ClearAnimation, PlacementAnimation } from "@/features/blockblast/hooks/useBlockBlastGame";
+import type {
+  ClearAnimation,
+  ComboShakeEvent,
+  PlacementAnimation,
+} from "@/features/blockblast/hooks/useBlockBlastGame";
 import { VIEW_WIDTH, VIEW_HEIGHT } from "@/features/blockblast/game/pixiDrawUtils";
 import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import { usePixiApp } from "@/features/blockblast/render/usePixiApp";
@@ -18,6 +22,7 @@ interface PixiBlockBlastCanvasProps {
   status: "playing" | "resolving" | "gameOver";
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation | null;
+  comboShakeEvent: ComboShakeEvent | null;
   paused: boolean;
   onSelectPiece: (id: string | null) => void;
   onPlacePiece: (id: string, row: number, col: number) => boolean;
@@ -35,6 +40,7 @@ export function PixiBlockBlastCanvas({
   status,
   clearAnimation,
   placementAnimation,
+  comboShakeEvent,
   paused,
   onSelectPiece,
   onPlacePiece,
@@ -77,6 +83,7 @@ export function PixiBlockBlastCanvas({
     animationLayerRef.current,
     clearAnimation,
     placementAnimation,
+    comboShakeEvent,
     ready
   );
 
