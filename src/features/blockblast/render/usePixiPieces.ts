@@ -20,6 +20,10 @@ import {
   cellPoint
 } from "@/features/blockblast/game/pixiDrawUtils";
 import { GameState } from "@/features/blockblast/hooks/useBlockBlastGame";
+import {
+  rendererPointToWorld,
+  type GameWorldTransform,
+} from "@/features/blockblast/layout/gameViewport";
 
 interface SlotObjects {
   container: Container;
@@ -257,6 +261,24 @@ function drawLockIcon(graphics: Graphics, x: number, y: number, color: number, a
     .fill({ color: 0xfdf6ea, alpha: 0.85 });
 }
 
+function drawAdBadge(graphics: Graphics, x: number, y: number, color: number, alpha: number) {
+  graphics
+    .roundRect(x, y, 28, 18, 5)
+    .fill({ color: 0xfdf6ea, alpha: 0.9 })
+    .stroke({ width: 1.5, color, alpha });
+
+  graphics
+    .moveTo(x + 11, y + 5)
+    .lineTo(x + 11, y + 13)
+    .lineTo(x + 18, y + 9)
+    .closePath()
+    .fill({ color, alpha });
+
+  graphics
+    .circle(x + 23, y + 5, 2.4)
+    .fill({ color: 0xd66a2f, alpha: 0.78 });
+}
+
 function clearSlot(slot: SlotObjects) {
   slot.pieceId = null;
   slot.container.eventMode = "none";
@@ -292,6 +314,7 @@ export function usePixiPieces(
   onPlacePiece: (id: string, row: number, col: number) => boolean,
   onUnlockReserve: () => void | Promise<void>,
   onUseReserveSlot: () => boolean,
+  worldTransform: GameWorldTransform,
   ready: boolean
 ) {
   const latestRef = useRef({
@@ -305,6 +328,7 @@ export function usePixiPieces(
     onUnlockReserve,
     onUseReserveSlot,
     board,
+    worldTransform,
   });
   const slotsRef = useRef<SlotObjects[]>([]);
   const slotModeRef = useRef<boolean | null>(null);
@@ -341,6 +365,7 @@ export function usePixiPieces(
       onUnlockReserve,
       onUseReserveSlot,
       board,
+      worldTransform,
     };
   }, [
     pieces,
@@ -353,6 +378,7 @@ export function usePixiPieces(
     onUnlockReserve,
     onUseReserveSlot,
     board,
+    worldTransform,
   ]);
 
   // Global Drag Pipeline
@@ -381,7 +407,7 @@ export function usePixiPieces(
       const ctx = dragCtx.current;
       if (ctx.state === "idle" || ctx.state === "snapping" || ctx.state === "committing") return;
 
-      ctx.pointerGlobal = { x: event.global.x, y: event.global.y };
+      ctx.pointerGlobal = rendererPointToWorld(event.global, latestRef.current.worldTransform);
       ctx.state = "dragging";
       
       ctx.dragTargetPosition = {
@@ -608,6 +634,11 @@ export function usePixiPieces(
     cleanupDragRef.current?.();
   }, [pieces, reservePiece, status]);
 
+  useEffect(() => {
+    if (dragCtx.current.state === "idle") return;
+    cleanupDragRef.current?.();
+  }, [worldTransform.scale, worldTransform.x, worldTransform.y]);
+
   // Setup and update tray pieces
   useEffect(() => {
     if (!ready || !app || !piecesLayer || !dragLayer) return;
@@ -703,7 +734,7 @@ export function usePixiPieces(
           blockBlastAudio.playButtonClick();
           ctx.activePieceId = piece.id;
           ctx.sourceTrayIndex = index;
-          ctx.pointerGlobal = { x: event.global.x, y: event.global.y };
+          ctx.pointerGlobal = rendererPointToWorld(event.global, latestRef.current.worldTransform);
           ctx.originalTrayPosition = { x: slotX, y: layout.trayY };
 
           const bounds = pieceBounds(piece);
@@ -843,12 +874,8 @@ export function usePixiPieces(
           slot.mark
             .roundRect(0, 0, layout.slotWidth, layout.slotHeight, layout.slotRadius)
             .fill({ color: 0xf5ecd7, alpha: 0.5 });
-          drawLockIcon(slot.mark, layout.slotWidth / 2 - 14, 18, 0x7c6c55, 0.82);
-          slot.label.text = "Mock ads";
-          slot.label.style.fill = 0x5f5241;
-          slot.label.x = layout.slotWidth / 2;
-          slot.label.y = layout.slotHeight - 22;
-          slot.label.visible = true;
+          drawLockIcon(slot.mark, layout.slotWidth / 2 - 14, 15, 0x7c6c55, 0.82);
+          drawAdBadge(slot.mark, layout.slotWidth / 2 - 14, layout.slotHeight - 30, 0x8a7d65, 0.78);
         } else if (reservePiece) {
           const canFit = canPieceFitBoard(board, reservePiece, boardKey, fitCache);
           drawPiecePreview(app, slot.pieceGraphic, reservePiece, layout, canFit ? 1 : 0.35);
