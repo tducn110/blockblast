@@ -302,7 +302,17 @@ export function Game({
                   ? GAME_TEXT.BTN_AD_CLEARING
                   : "Xem mock ads để chơi tiếp"}
             </Button>
-            <Button onClick={game.resetGame} size="md" variant="ghost">
+            <Button 
+              onClick={game.resetGame} 
+              size="md" 
+              variant="primary"
+              style={{
+                width: "100%",
+                maxWidth: "280px",
+                minHeight: 48,
+                fontSize: 15,
+              }}
+            >
               Chơi lại
             </Button>
           </div>
