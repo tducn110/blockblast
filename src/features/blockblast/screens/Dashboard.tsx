@@ -17,11 +17,11 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
 
   return (
     <div
-      className="bg-[#fdf6ea] rounded-[24px] p-[26px_20px] border-[2px] border-[#8a7d65]/15 shadow-[0_14px_40px_rgba(42,36,24,0.18),0_2px_0_rgba(255,255,255,0.6)_inset] flex flex-col gap-[14px] relative w-full max-h-[90vh] box-border text-center font-['Be_Vietnam_Pro',sans-serif]"
+      className="bg-[#fdf6ea] rounded-[32px] p-[32px_24px] border-[2px] border-[#8a7d65]/15 shadow-[0_14px_40px_rgba(42,36,24,0.18),0_2px_0_rgba(255,255,255,0.6)_inset] flex flex-col gap-[24px] relative w-full max-h-[92vh] box-border text-center font-['Be_Vietnam_Pro',sans-serif]"
     >
-      <div className="bg-[#8a7d65]/10 p-[17px_20px] rounded-[14px] flex flex-col items-center gap-[6px]">
-        <div className="text-[12px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">Kỷ Lục Của Bạn</div>
-        <div className="text-[32px] leading-[1.05] font-extrabold text-[#e87432]">
+      <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px]">
+        <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">Kỷ Lục Của Bạn</div>
+        <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">
           {bestScore.toLocaleString("vi-VN")}
         </div>
         <div className="text-[11px] text-[#2a2418] font-extrabold">
@@ -29,20 +29,20 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
         </div>
       </div>
 
-      <section className="flex flex-col gap-[10px] text-left flex-1 min-h-0">
+      <section className="flex flex-col gap-[14px] text-left flex-1 min-h-0">
         <div className="flex items-center justify-between gap-[12px] shrink-0">
           <div className="flex items-center gap-[8px]">
-            <Trophy size={19} className="text-[#e87432]" />
-            <h2 className="m-0 text-[16px] leading-[1.2] text-[#2a2418] font-extrabold">
+            <Trophy size={22} className="text-[#e87432]" />
+            <h2 className="m-0 text-[18px] leading-[1.2] text-[#2a2418] font-extrabold">
               Ranking 1-10
             </h2>
           </div>
-          <span className="text-[10px] font-extrabold text-[#8a7d65] uppercase tracking-[0.08em]">
+          <span className="text-[12px] font-extrabold text-[#8a7d65] uppercase tracking-[0.08em]">
             Top điểm
           </span>
         </div>
 
-        <div className="flex flex-col gap-[6px] overflow-y-auto pr-1">
+        <div className="flex flex-col gap-[10px] overflow-y-auto pr-1">
           {topEntries.map((entry) => (
             <RankingRow key={`${entry.name}-${entry.rank}`} entry={entry} highlight={entry.isLocal} />
           ))}
@@ -51,7 +51,7 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
 
       {playerRow && (
         <section
-          className="flex flex-col gap-[8px] text-left shrink-0 p-[12px] rounded-[16px] border-[2px]"
+          className="flex flex-col gap-[12px] text-left shrink-0 p-[16px] rounded-[20px] border-[2px]"
           style={{
             background: "linear-gradient(180deg, rgba(232,116,50,0.14) 0%, rgba(240,184,64,0.12) 100%)",
             borderColor: "rgba(232,116,50,0.28)",
@@ -86,7 +86,7 @@ function RankingRow({
 
   return (
     <div
-      className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-[9px] rounded-[12px] p-[8px_10px]"
+      className="grid grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-[12px] rounded-[16px] p-[12px_16px]"
       style={{
         background: highlight
           ? "rgba(232,116,50,0.16)"
