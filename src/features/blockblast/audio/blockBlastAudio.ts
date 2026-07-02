@@ -13,7 +13,7 @@ export const DESKTOP_AUDIO = {
 
 export const MOBILE_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.08,
+  musicVolume: 0.2,
   sfxVolume: 2.2,
 };
 
