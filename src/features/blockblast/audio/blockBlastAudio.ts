@@ -241,7 +241,6 @@ class BlockBlastAudio {
     const audio = new Audio("/assets/audio/music.mp3");
     audio.loop = true;
     audio.preload = "auto";
-    audio.volume = this.musicVolume();
     this.musicElement = audio;
     this.setupWebAudioRouting();
     return audio;
@@ -253,7 +252,6 @@ class BlockBlastAudio {
 
     const audio = new Audio("/assets/audio/slash-clear.mp3");
     audio.preload = "auto";
-    audio.volume = this.sfxSlashVolume(0.62);
     this.slashElement = audio;
     this.setupWebAudioRouting();
     return audio;
@@ -323,7 +321,6 @@ class BlockBlastAudio {
     this.setupWebAudioRouting();
     
     const vol = this.musicVolume();
-    audio.volume = vol;
     if (this.musicGainNode) {
       this.musicGainNode.gain.value = vol;
     }
@@ -359,9 +356,7 @@ class BlockBlastAudio {
     this.setupWebAudioRouting();
 
     const vol = this.sfxSlashVolume(volume);
-    audio.pause();
     audio.currentTime = 0;
-    audio.volume = vol;
     if (this.slashGainNode) {
       this.slashGainNode.gain.value = vol;
     }
@@ -404,8 +399,6 @@ class BlockBlastAudio {
     oscillator.connect(gain);
     if (this.masterSfxGain) {
       gain.connect(this.masterSfxGain);
-    } else {
-      gain.connect(context.destination);
     }
     oscillator.start(startTime);
     oscillator.stop(stopTime + 0.02);
@@ -442,8 +435,6 @@ class BlockBlastAudio {
     filter.connect(gain);
     if (this.masterSfxGain) {
       gain.connect(this.masterSfxGain);
-    } else {
-      gain.connect(context.destination);
     }
     source.start(startTime);
     source.stop(startTime + duration + 0.02);
@@ -505,9 +496,6 @@ class BlockBlastAudio {
   private applyAudioVolumes() {
     const vol = this.musicVolume();
     console.log("[Audio] applyAudioVolumes setting music volume to:", vol);
-    if (this.musicElement) {
-      this.musicElement.volume = vol;
-    }
     if (this.musicGainNode) {
       this.musicGainNode.gain.value = vol;
     }
