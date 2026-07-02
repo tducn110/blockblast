@@ -17,7 +17,7 @@ export const MOBILE_AUDIO = {
   sfxVolume: 2.2,
 };
 
-const MUSIC_ASSET_GAIN = 0.14;
+const MUSIC_ASSET_GAIN = 0.45;
 const TONE_SFX_GAIN = 1.35;
 const SLASH_SFX_GAIN = 1.18;
 
@@ -512,6 +512,29 @@ class BlockBlastAudio {
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.visibilityListenerBound = false;
     this.wasMusicPlayingBeforeHidden = false;
+  }
+
+  dispose() {
+    this.removeUnlockListeners();
+    this.removeVisibilityListener();
+    if (this.musicElement) {
+      this.musicElement.pause();
+      this.musicElement.currentTime = 0;
+    }
+    if (this.slashElement) {
+      this.slashElement.pause();
+      this.slashElement.currentTime = 0;
+    }
+    if (this.context && this.context.state !== "closed") {
+      void this.context.close();
+    }
+    this.context = null;
+    this.masterBgmGain = null;
+    this.masterSfxGain = null;
+    this.musicGainNode = null;
+    this.slashGainNode = null;
+    this.musicSourceNode = null;
+    this.slashSourceNode = null;
   }
 }
 
