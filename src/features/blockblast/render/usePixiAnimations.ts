@@ -24,6 +24,61 @@ interface Particle {
   active: boolean;
 }
 
+function createShardTextures(app: Application): Texture[] {
+  const paths = [
+    [
+      [3, 4],
+      [28, 2],
+      [19, 27],
+      [5, 23],
+    ],
+    [
+      [5, 3],
+      [29, 9],
+      [24, 30],
+      [8, 25],
+      [2, 12],
+    ],
+    [
+      [2, 6],
+      [17, 2],
+      [30, 18],
+      [15, 30],
+      [4, 22],
+    ],
+    [
+      [8, 2],
+      [30, 5],
+      [22, 20],
+      [28, 30],
+      [7, 26],
+      [2, 12],
+    ],
+    [
+      [4, 10],
+      [18, 2],
+      [30, 12],
+      [24, 28],
+      [7, 30],
+      [2, 19],
+    ],
+  ];
+
+  return paths.map((points) => {
+    const g = new Graphics();
+    const [first, ...rest] = points;
+    g.moveTo(first[0], first[1]);
+    rest.forEach(([x, y]) => g.lineTo(x, y));
+    g.closePath()
+      .fill({ color: 0xffffff, alpha: 1 })
+      .stroke({ width: 2, color: 0xffffff, alpha: 0.68 });
+
+    const texture = app.renderer.generateTexture(g);
+    g.destroy();
+    return texture;
+  });
+}
+
 export function usePixiAnimations(
   app: Application | null,
   animationLayer: Container | null,
@@ -40,6 +95,7 @@ export function usePixiAnimations(
   const maxParticles = 400;
   const particlesRef = useRef<Particle[]>([]);
   const particleContainerRef = useRef<Container | null>(null);
+  const shardTexturesRef = useRef<Texture[]>([]);
 
   useEffect(() => {
     if (!ready || !app || !animationLayer) return;
@@ -50,9 +106,13 @@ export function usePixiAnimations(
       particleContainerRef.current = container;
       animationLayer.addChild(container);
 
+      if (shardTexturesRef.current.length === 0) {
+        shardTexturesRef.current = createShardTextures(app);
+      }
+
       // Initialize pool
       for (let i = 0; i < maxParticles; i++) {
-        const sprite = new Sprite(Texture.WHITE);
+        const sprite = new Sprite(shardTexturesRef.current[i % shardTexturesRef.current.length] ?? Texture.WHITE);
         sprite.anchor.set(0.5);
         sprite.eventMode = "none";
         sprite.visible = false;
@@ -103,6 +163,8 @@ export function usePixiAnimations(
         particleContainerRef.current = null;
       }
       particlesRef.current = [];
+      shardTexturesRef.current.forEach((texture) => texture.destroy(true));
+      shardTexturesRef.current = [];
     };
   }, [ready, app, animationLayer]);
 
@@ -346,57 +408,43 @@ export function usePixiAnimations(
       tl.to(flash, { alpha: 0, duration: 0.1, ease: "power2.out" }, 0);
       tl.to(c.scale, { x: 1.15, y: 1.15, duration: 0.1, ease: "power2.out" }, 0);
       
-      // Prepare shatter parameters
-      const fragCount = 3;
-      const fragSize = CELL / fragCount;
-      
-      // At 0.1s, hide main cell, show fragments from pool, and explode!
+      // At 0.1s, hide main cell, show pooled shard sprites, and explode.
       tl.call(() => {
         g.visible = false;
         flash.visible = false;
         
         // Spawn particles from pool instead of creating new ones
         const particles = particlesRef.current;
+        const shardTextures = shardTexturesRef.current;
         let pIndex = 0;
+        const shardCount = clearAnimation.cells.length > 42 ? 5 : 7;
         
-        for (let i = 0; i < fragCount; i++) {
-          for (let j = 0; j < fragCount; j++) {
-            // Find next inactive particle
-            while (pIndex < particles.length && particles[pIndex].active) pIndex++;
-            if (pIndex >= particles.length) break; // limit reached
-            
-            const p = particles[pIndex];
-            p.active = true;
-            
-            // Position relative to cell center in world space
-            const fx = c.x + (i - 1) * fragSize;
-            const fy = c.y + (j - 1) * fragSize;
-            p.x = fx;
-            p.y = fy;
-            
-            // Blast outward from center of cell
-            const dx = (i - 1);
-            const dy = (j - 1);
-            const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.5;
-            const dist = 0.5 + Math.random() * 0.8;
-            
-            p.vx = Math.cos(angle) * dist;
-            p.vy = Math.sin(angle) * dist - 0.2; // slight upward bias
-            
-            p.rotation = (Math.random() - 0.5) * Math.PI;
-            p.vr = (Math.random() - 0.5) * 0.04;
-            
-            p.maxLife = 350 + Math.random() * 200; // longer life for shatter pieces
-            p.life = p.maxLife;
-            
-            p.sprite.visible = true;
-            p.sprite.tint = g.tint;
-            // Texture.WHITE is typically 16x16, so fragSize/16 gives the correct scale
-            const baseScale = fragSize / 16;
-            p.baseScale = baseScale;
-            p.sprite.scale.set(baseScale);
-            p.sprite.alpha = 1;
-          }
+        for (let i = 0; i < shardCount; i++) {
+          while (pIndex < particles.length && particles[pIndex].active) pIndex++;
+          if (pIndex >= particles.length) break;
+
+          const p = particles[pIndex];
+          const angle = (Math.PI * 2 * i) / shardCount + (Math.random() - 0.5) * 0.7;
+          const radius = 4 + Math.random() * 12;
+          const speed = 0.46 + Math.random() * 0.72;
+          const stretch = 0.74 + Math.random() * 0.5;
+
+          p.active = true;
+          p.x = c.x + Math.cos(angle) * radius;
+          p.y = c.y + Math.sin(angle) * radius;
+          p.vx = Math.cos(angle) * speed;
+          p.vy = Math.sin(angle) * speed - 0.18;
+          p.rotation = angle + (Math.random() - 0.5) * Math.PI;
+          p.vr = (Math.random() - 0.5) * 0.055;
+          p.maxLife = 330 + Math.random() * 170;
+          p.life = p.maxLife;
+          p.baseScale = (0.42 + Math.random() * 0.32) * stretch;
+
+          p.sprite.texture = shardTextures[(i + Math.floor(Math.random() * shardTextures.length)) % shardTextures.length] ?? Texture.WHITE;
+          p.sprite.visible = true;
+          p.sprite.tint = g.tint;
+          p.sprite.scale.set(p.baseScale);
+          p.sprite.alpha = 1;
         }
       }, undefined, 0.1);
     }
