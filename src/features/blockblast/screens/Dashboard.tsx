@@ -67,7 +67,7 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
 
       <div className="flex flex-col gap-[12px] shrink-0">
         <Button onClick={onPlay} size="lg" variant="primary">
-          ▶ Chơi tiếp
+          ▶ Quay lại
         </Button>
       </div>
     </div>
