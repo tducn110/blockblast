@@ -176,9 +176,7 @@ export function Game({
           </div>
 
           <div className="flex flex-col gap-2">
-            <p className="blockblast-instruction text-[11px] lg:text-[12px] text-[#8a7d65] text-center lg:text-left m-0 lg:leading-[1.45]">
-              {GAME_TEXT.INSTRUCTION}
-            </p>
+
 
             {scoreData.saveError && (
               <p className="m-0 text-[#b85a22] text-[11px] lg:text-[13px] font-bold text-center lg:text-left">
