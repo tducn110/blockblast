@@ -37,8 +37,8 @@ function StatBox({
   highlight?: boolean;
   children?: ReactNode;
 }) {
-  const labelColor = "#c49000"; // Golden Yellow
-  const valueColor = "#4a4232"; // Dark black/brown
+  const labelColor = "#4a4232"; // Black-ish for labels
+  const valueColor = "#e87432"; // Orange for score values
 
   return (
     <div
@@ -70,7 +70,7 @@ function StatBox({
             : "text-[16px] leading-[1.2] lg:text-[20px] lg:leading-[1.05]"
         }
         style={{
-          fontWeight: 800,
+          fontWeight: 900,
           color: valueColor,
           textShadow: accent ? "0 1px 0 rgba(255,250,240,0.8)" : "none",
         }}
