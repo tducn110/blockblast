@@ -13,8 +13,8 @@ export const DESKTOP_AUDIO = {
 
 export const MOBILE_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.002,
-  sfxVolume: 5.0,
+  musicVolume: 0.08,
+  sfxVolume: 2.2,
 };
 
 const MUSIC_ASSET_GAIN = 0.14;
@@ -33,9 +33,42 @@ class BlockBlastAudio {
   private mobileAudioMode = false;
   private musicElement: HTMLAudioElement | null = null;
   private slashElement: HTMLAudioElement | null = null;
+  private musicSourceNode: MediaElementAudioSourceNode | null = null;
+  private musicGainNode: GainNode | null = null;
+  private slashSourceNode: MediaElementAudioSourceNode | null = null;
+  private slashGainNode: GainNode | null = null;
   private unlockListenersBound = false;
   private visibilityListenerBound = false;
   private wasMusicPlayingBeforeHidden = false;
+
+  private setupWebAudioRouting() {
+    const context = this.ensureContext();
+    if (!context) return;
+
+    if (this.musicElement && !this.musicSourceNode) {
+      try {
+        this.musicSourceNode = context.createMediaElementSource(this.musicElement);
+        this.musicGainNode = context.createGain();
+        this.musicGainNode.gain.value = this.musicVolume();
+        this.musicSourceNode.connect(this.musicGainNode);
+        this.musicGainNode.connect(context.destination);
+      } catch (e) {
+        console.warn("Failed to route music element", e);
+      }
+    }
+
+    if (this.slashElement && !this.slashSourceNode) {
+      try {
+        this.slashSourceNode = context.createMediaElementSource(this.slashElement);
+        this.slashGainNode = context.createGain();
+        this.slashGainNode.gain.value = this.sfxSlashVolume(0.62);
+        this.slashSourceNode.connect(this.slashGainNode);
+        this.slashGainNode.connect(context.destination);
+      } catch (e) {
+        console.warn("Failed to route slash element", e);
+      }
+    }
+  }
 
   private readonly handleVisibilityChange = () => {
     if (typeof document === "undefined") return;
@@ -206,6 +239,7 @@ class BlockBlastAudio {
     audio.preload = "auto";
     audio.volume = this.musicVolume();
     this.musicElement = audio;
+    this.setupWebAudioRouting();
     return audio;
   }
 
@@ -217,6 +251,7 @@ class BlockBlastAudio {
     audio.preload = "auto";
     audio.volume = this.sfxSlashVolume(0.62);
     this.slashElement = audio;
+    this.setupWebAudioRouting();
     return audio;
   }
 
@@ -270,7 +305,15 @@ class BlockBlastAudio {
 
     const audio = this.ensureMusicElement();
     if (!audio) return;
-    audio.volume = this.musicVolume();
+    
+    void this.resumeContext();
+    this.setupWebAudioRouting();
+    
+    const vol = this.musicVolume();
+    audio.volume = vol;
+    if (this.musicGainNode) {
+      this.musicGainNode.gain.value = vol;
+    }
 
     if (!audio.paused && !audio.ended) {
       this.removeUnlockListeners();
@@ -294,9 +337,16 @@ class BlockBlastAudio {
     const audio = this.ensureSlashElement();
     if (!audio) return;
 
+    void this.resumeContext();
+    this.setupWebAudioRouting();
+
+    const vol = this.sfxSlashVolume(volume);
     audio.pause();
     audio.currentTime = 0;
-    audio.volume = this.sfxSlashVolume(volume);
+    audio.volume = vol;
+    if (this.slashGainNode) {
+      this.slashGainNode.gain.value = vol;
+    }
     audio.playbackRate = Math.max(0.75, Math.min(1.35, playbackRate));
     void audio.play().catch(() => this.addUnlockListeners());
   }
@@ -431,6 +481,9 @@ class BlockBlastAudio {
     console.log("[Audio] applyAudioVolumes setting music volume to:", vol);
     if (this.musicElement) {
       this.musicElement.volume = vol;
+    }
+    if (this.musicGainNode) {
+      this.musicGainNode.gain.value = vol;
     }
   }
 
