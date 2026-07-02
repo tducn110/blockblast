@@ -419,7 +419,7 @@ export function useBlockBlastGame({
 
   useEffect(() => {
     blockBlastAudio.setMusicEnabled(musicEnabled);
-    return () => blockBlastAudio.setMusicEnabled(false);
+    return () => blockBlastAudio.dispose();
   }, [musicEnabled]);
 
   useEffect(
