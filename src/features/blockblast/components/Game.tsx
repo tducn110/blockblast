@@ -51,6 +51,7 @@ export function Game({
   const [adReplayStatus, setAdReplayStatus] = useState<
     "idle" | "loading" | "clearing"
   >("idle");
+  const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
 
   const { topEntries } = buildLeaderboardModel(scoreData.stats, "Người chơi");
 
