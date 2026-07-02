@@ -856,18 +856,21 @@ export function usePixiPieces(
         slot.label.visible = false;
         slot.pieceGraphic.visible = true;
 
+        const isUnlockedAndEmpty = reserveUnlocked && !reservePiece;
         const borderColor = !reserveUnlocked
           ? 0xd66a2f
           : isActiveTarget
             ? 0x6b8e3d
-            : 0x93ad72;
+            : isUnlockedAndEmpty
+              ? 0xe87432
+              : 0x93ad72;
 
         slot.shell.roundRect(0, 0, layout.slotWidth, layout.slotHeight, layout.slotRadius)
           .fill({ color: 0xfdf6ea, alpha: reserveUnlocked ? 0.92 : 0.82 })
           .stroke({
-            width: isActiveTarget ? 2 : 1.5,
+            width: isActiveTarget || isUnlockedAndEmpty ? 2 : 1.5,
             color: borderColor,
-            alpha: isActiveTarget ? 0.82 : 0.58,
+            alpha: isActiveTarget ? 0.82 : isUnlockedAndEmpty ? 0.6 : 0.58,
           });
 
         if (!reserveUnlocked) {

@@ -224,7 +224,7 @@ export function Game({
 
           <div className="flex items-center justify-between gap-[14px] rounded-[20px] border border-[#8a7d65]/16 bg-[#fdf6ea]/78 p-[12px]">
             <div className="flex items-center gap-[12px]">
-              <ReservePiecePreview piece={game.reserveUnlocked ? game.reservePiece : null} />
+              <ReservePiecePreview piece={game.reserveUnlocked ? game.reservePiece : null} unlocked={game.reserveUnlocked} />
               <div>
                 <div className="text-[12px] font-black uppercase tracking-[0.7px] text-[#8e4e22]">
                   Ô cất khối
@@ -356,7 +356,7 @@ function useIsMobileReserveTray() {
   return isMobileReserveTray;
 }
 
-function ReservePiecePreview({ piece }: { piece: BlockPiece | null }) {
+function ReservePiecePreview({ piece, unlocked }: { piece: BlockPiece | null; unlocked: boolean }) {
   const cells = piece?.cells ?? [];
   const minRow = cells.length > 0 ? Math.min(...cells.map((cell) => cell.row)) : 0;
   const minCol = cells.length > 0 ? Math.min(...cells.map((cell) => cell.col)) : 0;
@@ -366,7 +366,7 @@ function ReservePiecePreview({ piece }: { piece: BlockPiece | null }) {
   const borderColor = BLOCK_BORDER_MAP[piece?.colorId ?? "peanut"] ?? BLOCK_BORDER_MAP.peanut;
 
   return (
-    <div className="grid h-[70px] w-[70px] place-items-center rounded-[18px] border border-[#8a7d65]/22 bg-[#fdf6ea]/88">
+    <div className={`grid h-[70px] w-[70px] place-items-center rounded-[18px] bg-[#fdf6ea]/88 ${unlocked && !piece ? "border-2 border-dashed border-[#e87432]/60 bg-[#e87432]/5" : "border border-[#8a7d65]/22"}`}>
       {piece ? (
         <div
           className="grid gap-[4px]"
