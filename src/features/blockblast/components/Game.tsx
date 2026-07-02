@@ -269,72 +269,77 @@ export function Game({
             onUseReserveSlot={game.useReserveSlot}
           />
           <SlashScoreOverlay items={game.feedback} />
+          {game.status === "gameOver" && (
+            <div className="absolute inset-0 z-30 backdrop-blur-[6px] bg-white/10 rounded-[12px] animate-[fadeScaleIn_0.32s_ease] pointer-events-none" />
+          )}
         </div>
       </div>
       {game.status === "gameOver" && (
-        <div className="absolute inset-0 bg-white/85 backdrop-blur-md z-50 flex flex-col p-[32px_24px] overflow-y-auto gap-[24px] animate-[fadeScaleIn_0.32s_ease]">
-          {/* Header: Score */}
-          <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px] shrink-0">
-            <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">ĐIỂM</div>
-            <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">
-              {game.score.toLocaleString("vi-VN")}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col gap-3 shrink-0 px-2 items-center">
-            <Button
-              variant="secondary"
-              size="lg"
-              disabled={adReplayStatus !== "idle"}
-              onClick={handleAdReplay}
-              style={{
-                width: "100%",
-                maxWidth: "340px",
-                minHeight: 56,
-                fontSize: 16,
-                boxShadow: "0 12px 24px rgba(240,184,64,0.34), inset 0 1px 0 rgba(255,255,255,0.46)",
-              }}
-            >
-              {adReplayStatus === "loading"
-                ? GAME_TEXT.BTN_AD_LOADING
-                : adReplayStatus === "clearing"
-                  ? GAME_TEXT.BTN_AD_CLEARING
-                  : "Xem mock ads để chơi tiếp"}
-            </Button>
-            <Button 
-              onClick={game.resetGame} 
-              size="md" 
-              variant="primary"
-              style={{
-                width: "100%",
-                maxWidth: "280px",
-                minHeight: 48,
-                fontSize: 15,
-              }}
-            >
-              Chơi lại
-            </Button>
-          </div>
-
-          {/* Leaderboard Section */}
-          <section className="flex flex-col gap-[14px] text-left flex-1 min-h-0 w-full max-w-[480px] mx-auto">
-            <div className="flex items-center justify-between gap-[12px] shrink-0">
-              <div className="flex items-center gap-[8px]">
-                <Trophy size={22} className="text-[#e87432]" />
-                <h2 className="m-0 text-[18px] leading-[1.2] text-[#2a2418] font-extrabold">
-                  Thành tích của bạn
-                </h2>
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
+          <div className="absolute inset-0 bg-[#2a2418]/40" />
+          
+          <div className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[32px_24px] flex flex-col gap-[24px] w-full max-w-[420px] border-2 border-[#8a7d65]/20">
+            {/* Header: Score */}
+            <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px] shrink-0">
+              <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">ĐIỂM</div>
+              <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">
+                {game.score.toLocaleString("vi-VN")}
               </div>
-              <span className="text-[12px] font-extrabold text-[#8a7d65] uppercase tracking-[0.08em]">
-                Xếp hạng
-              </span>
             </div>
 
-            <div className="flex flex-col gap-[10px] pr-1">
-              {currentPlayer && <RankingRow key={`${currentPlayer.name}-${currentPlayer.rank}`} entry={currentPlayer} highlight={true} />}
+            {/* Leaderboard Section */}
+            <section className="flex flex-col gap-[14px] text-left shrink-0 w-full mx-auto">
+              <div className="flex items-center justify-between gap-[12px]">
+                <div className="flex items-center gap-[8px]">
+                  <Trophy size={22} className="text-[#e87432]" />
+                  <h2 className="m-0 text-[18px] leading-[1.2] text-[#2a2418] font-extrabold">
+                    Thành tích
+                  </h2>
+                </div>
+                <span className="text-[12px] font-extrabold text-[#8a7d65] uppercase tracking-[0.08em]">
+                  Xếp hạng
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-[10px]">
+                {currentPlayer && <RankingRow key={`${currentPlayer.name}-${currentPlayer.rank}`} entry={currentPlayer} highlight={true} />}
+              </div>
+            </section>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-3 shrink-0 items-center mt-2">
+              <Button
+                variant="secondary"
+                size="lg"
+                disabled={adReplayStatus !== "idle"}
+                onClick={handleAdReplay}
+                style={{
+                  width: "100%",
+                  minHeight: 56,
+                  fontSize: 16,
+                  boxShadow: "0 12px 24px rgba(240,184,64,0.34), inset 0 1px 0 rgba(255,255,255,0.46)",
+                }}
+              >
+                {adReplayStatus === "loading"
+                  ? GAME_TEXT.BTN_AD_LOADING
+                  : adReplayStatus === "clearing"
+                    ? GAME_TEXT.BTN_AD_CLEARING
+                    : "Xem mock ads để chơi tiếp"}
+              </Button>
+              <Button 
+                onClick={game.resetGame} 
+                size="md" 
+                variant="primary"
+                style={{
+                  width: "100%",
+                  minHeight: 48,
+                  fontSize: 15,
+                }}
+              >
+                Chơi lại
+              </Button>
             </div>
-          </section>
+          </div>
         </div>
       )}
     </section>

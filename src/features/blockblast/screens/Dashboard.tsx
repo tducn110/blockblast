@@ -108,14 +108,15 @@ export function RankingRow({
       }}
     >
       <div
-        className="w-[34px] h-[34px] rounded-[10px] grid place-items-center text-[12px] font-extrabold"
+        className="h-[34px] rounded-[10px] grid place-items-center text-[12px] font-extrabold px-[6px]"
         style={{
           background: medal?.bg ?? "rgba(42,36,24,0.1)",
           border: `2px solid ${medal?.border ?? "rgba(42,36,24,0.08)"}`,
           color: medal?.text ?? "var(--pencil-gray)",
+          minWidth: "34px",
         }}
       >
-        {entry.rank ? `#${entry.rank}` : "--"}
+        {entry.rank ? `#${entry.rank}` : "Unrank"}
       </div>
 
       <div className="min-w-0">
