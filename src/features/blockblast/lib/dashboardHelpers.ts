@@ -73,6 +73,6 @@ export function buildLeaderboardModel(stats: LocalStats, playerName = "Người 
 
   return {
     topEntries,
-    currentPlayer: currentPlayer && !topEntries.some((entry) => entry.isLocal) ? currentPlayer : null,
+    currentPlayer,
   };
 }

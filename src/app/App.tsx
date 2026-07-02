@@ -72,7 +72,7 @@ export default function App() {
           alignItems: "center",
           justifyContent: "center",
           boxSizing: "border-box",
-          overflowY: screen === "game" ? "hidden" : "auto",
+          overflowY: "hidden",
           overscrollBehavior: "none",
         }}
       >

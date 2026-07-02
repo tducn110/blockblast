@@ -278,7 +278,7 @@ export function Game({
         <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
           <div className="absolute inset-0 bg-[#2a2418]/40" />
           
-          <div className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[32px_24px] flex flex-col gap-[24px] w-full max-w-[420px] border-2 border-[#8a7d65]/20">
+          <div className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col gap-[18px] w-full max-w-[420px] border-2 border-[#8a7d65]/20">
             {/* Header: Score */}
             <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px] shrink-0">
               <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">ĐIỂM</div>
@@ -288,7 +288,7 @@ export function Game({
             </div>
 
             {/* Leaderboard Section */}
-            <section className="flex flex-col gap-[14px] text-left shrink-0 w-full mx-auto">
+            <section className="flex flex-col gap-[10px] text-left shrink-0 w-full mx-auto">
               <div className="flex items-center justify-between gap-[12px]">
                 <div className="flex items-center gap-[8px]">
                   <Trophy size={22} className="text-[#e87432]" />
@@ -301,13 +301,19 @@ export function Game({
                 </span>
               </div>
 
-              <div className="flex flex-col gap-[10px]">
-                {currentPlayer && <RankingRow key={`${currentPlayer.name}-${currentPlayer.rank}`} entry={currentPlayer} highlight={true} />}
+              <div className="flex flex-col gap-[8px]">
+                {currentPlayer ? (
+                  <RankingRow key={`${currentPlayer.name}-${currentPlayer.rank ?? "new"}`} entry={currentPlayer} highlight={true} />
+                ) : (
+                  <div className="rounded-[16px] border-2 border-[#e87432]/30 bg-[#e87432]/10 p-[12px_14px] text-[13px] font-extrabold text-[#4a4232]">
+                    Người chơi chưa có điểm lưu.
+                  </div>
+                )}
               </div>
             </section>
 
             {/* Action Buttons */}
-            <div className="flex flex-col gap-3 shrink-0 items-center mt-2">
+            <div className="flex flex-col gap-3 shrink-0 items-center mt-1">
               <Button
                 variant="secondary"
                 size="lg"
