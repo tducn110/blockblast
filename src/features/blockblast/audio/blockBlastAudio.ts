@@ -3,6 +3,7 @@ type ToneOptions = {
   volume?: number;
   attack?: number;
   release?: number;
+  freqEnd?: number;
 };
 
 export const DESKTOP_AUDIO = {
@@ -170,18 +171,26 @@ class BlockBlastAudio {
     this.withRunningContext((context) => {
       const lineCount = clearedRows + clearedCols;
       const now = context.currentTime + 0.01;
+      
+      // Add a physical "crunch" sound (short noise burst)
+      this.noiseBurst(context, now, 0.12, 0.045 * Math.min(4, lineCount));
+
       const base = clearedRows > 0 && clearedCols > 0 ? 392 : clearedRows > 0 ? 349.23 : 329.63;
 
       for (let i = 0; i < Math.max(1, lineCount); i += 1) {
-        this.tone(context, base * (1 + i * 0.16), now + i * 0.055, 0.16, {
+        // Percussive synth hit with frequency drop
+        const freq = base * (1 + i * 0.16);
+        this.tone(context, freq * 1.5, now + i * 0.055, 0.16, {
           waveform: "triangle",
-          volume: this.sfxToneVolume(0.055),
+          freqEnd: freq * 0.8, // Pitch slide down for punchiness
+          volume: this.sfxToneVolume(0.065), // slightly louder to compensate for drop
           release: 0.12,
         });
       }
 
       if (combo > 1) {
-        this.tone(context, 659.25 + combo * 18, now + 0.13, 0.18, {
+        const finisherFreq = 659.25 + combo * 18;
+        this.tone(context, finisherFreq, now + 0.13, 0.18, {
           waveform: "sine",
           volume: this.sfxToneVolume(0.04),
           release: 0.14,
@@ -391,6 +400,9 @@ class BlockBlastAudio {
 
     oscillator.type = options.waveform ?? "sine";
     oscillator.frequency.setValueAtTime(frequency, startTime);
+    if (options.freqEnd) {
+      oscillator.frequency.exponentialRampToValueAtTime(options.freqEnd, startTime + attack + 0.05);
+    }
 
     gain.gain.setValueAtTime(0.0001, startTime);
     gain.gain.linearRampToValueAtTime(volume, startTime + attack);
