@@ -17,8 +17,14 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
 
   return (
     <div
-      className="bg-[#fdf6ea] rounded-[32px] p-[32px_24px] border-[2px] border-[#8a7d65]/15 shadow-[0_14px_40px_rgba(42,36,24,0.18),0_2px_0_rgba(255,255,255,0.6)_inset] flex flex-col gap-[24px] relative w-full max-h-[92vh] box-border text-center font-['Be_Vietnam_Pro',sans-serif]"
+      className="bg-[#fdf6ea] rounded-[24px] p-[32px_24px] border-[2px] border-[#8a7d65]/15 shadow-[0_14px_40px_rgba(42,36,24,0.18),0_2px_0_rgba(255,255,255,0.6)_inset] flex flex-col gap-[24px] relative w-full box-border text-center"
     >
+      <div className="flex items-center justify-center gap-3">
+        <Trophy size={28} className="text-[#e87432]" />
+        <h1 className="font-['Be_Vietnam_Pro',sans-serif] font-extrabold text-[clamp(24px,5vw,28px)] text-[#2a2418] m-0 leading-[1.2]">
+          Kỷ Lục
+        </h1>
+      </div>
       <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px]">
         <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">Kỷ Lục Của Bạn</div>
         <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">

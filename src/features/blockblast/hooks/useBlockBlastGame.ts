@@ -145,7 +145,8 @@ type GameAction =
   | { type: "reset"; bestScore: number }
   | { type: "clearPlacementAnimation"; id: string }
   | { type: "clearClearAnimation"; id: string }
-  | { type: "dismissFeedback"; id: string };
+  | { type: "dismissFeedback"; id: string }
+  | { type: "debugGameOver" };
 
 function createInitialCoreState(bestScore: number): GameCoreState {
   const board = createEmptyBoard();
@@ -175,6 +176,8 @@ function createInitialCoreState(bestScore: number): GameCoreState {
 
 function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
   switch (action.type) {
+    case "debugGameOver":
+      return { ...state, status: "gameOver" };
     case "syncBestScore":
       return { ...state, bestScore: Math.max(state.bestScore, action.bestScore) };
     case "selectPiece":
@@ -394,6 +397,15 @@ export function useBlockBlastGame({
   const runIdRef = useRef(0);
   const sfxEnabled = controlledSfxEnabled ?? internalSfxEnabled;
   const musicEnabled = controlledMusicEnabled ?? internalMusicEnabled;
+
+  useEffect(() => {
+    // @ts-ignore
+    window.debugGameOver = () => dispatch({ type: "debugGameOver" });
+    return () => {
+      // @ts-ignore
+      delete window.debugGameOver;
+    };
+  }, []);
 
   const cancelPendingTrayGeneration = useCallback(() => {
     if (generationRafRef.current === null) return;
