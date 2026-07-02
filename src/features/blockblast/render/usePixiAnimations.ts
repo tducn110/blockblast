@@ -7,6 +7,7 @@ import type {
 } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { BOARD_SIZE } from "@/features/blockblast/game/blockBlastLogic";
 import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
+import { gsap } from "gsap";
 import { cellPoint, CELL, GAP, colorOf } from "@/features/blockblast/game/pixiDrawUtils";
 
 interface Particle {
@@ -293,23 +294,22 @@ export function usePixiAnimations(
       const { x, y } = cellPoint(cell.row, cell.col);
       const c = new Container();
       
-      // Set pivot to center so scaling squashes from the middle
+      // Position container at cell center
       c.x = x + CELL / 2;
       c.y = y + CELL / 2;
-      c.pivot.x = CELL / 2;
-      c.pivot.y = CELL / 2;
       
       const g = new Sprite(Texture.WHITE);
       g.width = CELL;
       g.height = CELL;
       g.tint = colorOf(cell.colorId);
+      g.anchor.set(0.5);
       
       // Draw white flash overlay
       const flash = new Sprite(Texture.WHITE);
       flash.width = CELL;
       flash.height = CELL;
       flash.alpha = 0.8;
-      flash.name = "flash";
+      flash.anchor.set(0.5);
       
       c.addChild(g, flash);
       group.addChild(c);
@@ -322,106 +322,74 @@ export function usePixiAnimations(
     
     animationLayer.addChild(group);
 
-    let age = 0;
-    let particlesSpawned = false;
+    const tl = gsap.timeline({
+      onComplete: () => {
+        if (animationLayer && !group.destroyed) {
+          animationLayer.removeChild(group);
+          group.destroy({ children: true });
+        }
+      }
+    });
 
-    const tick = (ticker: Ticker) => {
-      const dt = Math.min(ticker.elapsedMS, 50);
-      age += dt;
+    // 1. Line beams sweep animation
+    for (const beam of lineBeams) {
+      tl.to(beam, { alpha: 1, duration: 0.1, ease: "power1.inOut" }, 0);
+      tl.to(beam, { alpha: 0, duration: 0.2, ease: "power1.out" }, 0.1);
+    }
+
+    // 2. Cells flash, scale up, then shatter into pieces
+    for (const c of cellContainers) {
+      const g = c.children[0] as Sprite;
+      const flash = c.children[1] as Sprite;
       
-      // Sequence:
-      // 0 - 60ms: Flash overlay fades out, cell scales up slightly (1.0 -> 1.1)
-      // 60 - 180ms: Cell scales down to 0 and fades out
-      // 180ms: Spawn particles
+      // Flash fade out and initial pop scale
+      tl.to(flash, { alpha: 0, duration: 0.1, ease: "power2.out" }, 0);
+      tl.to(c.scale, { x: 1.15, y: 1.15, duration: 0.1, ease: "power2.out" }, 0);
       
-      const phase1Duration = 60;
-      const phase2Duration = 120;
-      const totalDuration = phase1Duration + phase2Duration;
-
-      for (const c of cellContainers) {
-        const flash = c.getChildByName("flash");
-        
-        if (age <= phase1Duration) {
-           const t = age / phase1Duration;
-           if (flash) flash.alpha = 0.8 * (1 - t);
-           c.scale.set(1 + t * 0.1);
-        } else if (age <= totalDuration) {
-           if (flash) flash.alpha = 0;
-           const t = (age - phase1Duration) / phase2Duration;
-           const easeIn = t * t;
-           c.scale.set(1.1 * (1 - easeIn));
-           c.alpha = 1 - easeIn;
-        } else {
-           c.alpha = 0;
+      // Prepare shatter fragments (3x3 grid)
+      const fragCount = 3;
+      const fragSize = CELL / fragCount;
+      const fragments: Sprite[] = [];
+      
+      for (let i = 0; i < fragCount; i++) {
+        for (let j = 0; j < fragCount; j++) {
+          const frag = new Sprite(Texture.WHITE);
+          frag.width = fragSize;
+          frag.height = fragSize;
+          frag.tint = g.tint;
+          frag.anchor.set(0.5);
+          // Position relative to cell center
+          frag.x = (i - 1) * fragSize;
+          frag.y = (j - 1) * fragSize;
+          frag.visible = false;
+          c.addChild(frag);
+          fragments.push(frag);
         }
       }
-
-      for (const beam of lineBeams) {
-        if (age <= phase1Duration) {
-          const t = age / phase1Duration;
-          beam.alpha = Math.sin(t * Math.PI) * 1;
-        } else if (age <= totalDuration) {
-          const t = (age - phase1Duration) / phase2Duration;
-          beam.alpha = Math.max(0, 0.72 * (1 - t));
-        } else {
-          beam.alpha = 0;
-        }
-      }
-
-      if (age >= totalDuration && !particlesSpawned) {
-        particlesSpawned = true;
-        // Spawn particles
-        const particles = particlesRef.current;
-        let pIndex = 0;
-        
-        for (const cell of clearAnimation.cells) {
-           const { x, y } = cellPoint(cell.row, cell.col);
-           const cx = x + CELL / 2;
-           const cy = y + CELL / 2;
-           
-           // Spawn 4-6 particles per cell
-           const spawnCount = 4 + Math.random() * 2;
-           for (let i = 0; i < spawnCount; i++) {
-             // Find next inactive particle
-             while (pIndex < particles.length && particles[pIndex].active) pIndex++;
-             if (pIndex >= particles.length) break; // limit reached
-             
-             const p = particles[pIndex];
-             p.active = true;
-             p.x = cx;
-             p.y = cy;
-             
-             // Random burst velocity
-             const angle = Math.random() * Math.PI * 2;
-             const speed = 0.2 + Math.random() * 0.4;
-             p.vx = Math.cos(angle) * speed;
-             p.vy = Math.sin(angle) * speed;
-             
-             p.rotation = Math.random() * Math.PI * 2;
-             p.vr = (Math.random() - 0.5) * 0.02;
-             
-             p.maxLife = 200 + Math.random() * 200; // 200-400ms life
-             p.life = p.maxLife;
-             
-             p.sprite.visible = true;
-             p.sprite.tint = colorOf(cell.colorId);
-             const size = 6 + Math.random() * 6;
-             // Texture.WHITE is typically 16x16, so size/16 gives the correct scale
-             const baseScale = size / 16;
-             p.baseScale = baseScale;
-             p.sprite.scale.set(baseScale);
-           }
-        }
-      }
-
-      if (age > totalDuration + 50) {
-        // Allow some extra time before cleanup just in case
-        app.ticker.remove(tick);
-        animationLayer.removeChild(group);
-        group.destroy({ children: true });
-      }
-    };
-
-    app.ticker.add(tick);
+      
+      // At 0.1s, hide main cell, show fragments, and explode!
+      tl.call(() => {
+        g.visible = false;
+        flash.visible = false;
+        fragments.forEach(f => { f.visible = true; });
+      }, undefined, 0.1);
+      
+      // Animate fragments outward
+      fragments.forEach(frag => {
+        // Random outward angle and distance
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 30 + Math.random() * 50;
+        tl.to(frag, {
+          x: frag.x + Math.cos(angle) * dist,
+          y: frag.y + Math.sin(angle) * dist,
+          rotation: (Math.random() - 0.5) * Math.PI * 4, // spin
+          alpha: 0,
+          scaleX: 0.1,
+          scaleY: 0.1,
+          duration: 0.35 + Math.random() * 0.2,
+          ease: "power2.out"
+        }, 0.1);
+      });
+    }
   }, [clearAnimation, ready, app, animationLayer]);
 }
