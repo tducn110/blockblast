@@ -37,13 +37,15 @@ class BlockBlastAudio {
   private musicGainNode: GainNode | null = null;
   private slashSourceNode: MediaElementAudioSourceNode | null = null;
   private slashGainNode: GainNode | null = null;
+  private masterBgmGain: GainNode | null = null;
+  private masterSfxGain: GainNode | null = null;
   private unlockListenersBound = false;
   private visibilityListenerBound = false;
   private wasMusicPlayingBeforeHidden = false;
 
   private setupWebAudioRouting() {
     const context = this.ensureContext();
-    if (!context) return;
+    if (!context || !this.masterBgmGain || !this.masterSfxGain) return;
 
     if (this.musicElement && !this.musicSourceNode) {
       try {
@@ -51,7 +53,7 @@ class BlockBlastAudio {
         this.musicGainNode = context.createGain();
         this.musicGainNode.gain.value = this.musicVolume();
         this.musicSourceNode.connect(this.musicGainNode);
-        this.musicGainNode.connect(context.destination);
+        this.musicGainNode.connect(this.masterBgmGain);
       } catch (e) {
         console.warn("Failed to route music element", e);
       }
@@ -63,7 +65,7 @@ class BlockBlastAudio {
         this.slashGainNode = context.createGain();
         this.slashGainNode.gain.value = this.sfxSlashVolume(0.62);
         this.slashSourceNode.connect(this.slashGainNode);
-        this.slashGainNode.connect(context.destination);
+        this.slashGainNode.connect(this.masterSfxGain);
       } catch (e) {
         console.warn("Failed to route slash element", e);
       }
@@ -73,17 +75,13 @@ class BlockBlastAudio {
   private readonly handleVisibilityChange = () => {
     if (typeof document === "undefined") return;
 
-    const audio = this.musicElement;
     if (document.hidden) {
-      this.wasMusicPlayingBeforeHidden = !!audio && !audio.paused;
-      audio?.pause();
-      return;
+      if (this.masterBgmGain) this.masterBgmGain.gain.value = 0;
+    } else {
+      if (this.masterBgmGain && this.musicEnabled) {
+        this.masterBgmGain.gain.value = 1;
+      }
     }
-
-    if (this.wasMusicPlayingBeforeHidden && this.musicEnabled) {
-      void this.startMusicTrack();
-    }
-    this.wasMusicPlayingBeforeHidden = false;
   };
 
   private readonly unlock = () => {
@@ -97,8 +95,11 @@ class BlockBlastAudio {
   setMusicEnabled(enabled: boolean) {
     this.musicEnabled = enabled;
 
+    if (this.masterBgmGain) {
+      this.masterBgmGain.gain.value = enabled ? 1 : 0;
+    }
+
     if (!enabled) {
-      this.stopMusicTrack();
       this.removeUnlockListeners();
       this.removeVisibilityListener();
       return;
@@ -110,6 +111,9 @@ class BlockBlastAudio {
 
   setSfxEnabled(enabled: boolean) {
     this.sfxEnabled = enabled;
+    if (this.masterSfxGain) {
+      this.masterSfxGain.gain.value = enabled ? 1 : 0;
+    }
   }
 
   setMobileAudioMode(enabled: boolean) {
@@ -282,6 +286,15 @@ class BlockBlastAudio {
     if (!AudioCtor) return null;
 
     this.context = new AudioCtor();
+    this.masterBgmGain = this.context.createGain();
+    this.masterSfxGain = this.context.createGain();
+    
+    this.masterBgmGain.gain.value = this.musicEnabled ? 1 : 0;
+    this.masterSfxGain.gain.value = this.sfxEnabled ? 1 : 0;
+    
+    this.masterBgmGain.connect(this.context.destination);
+    this.masterSfxGain.connect(this.context.destination);
+
     return this.context;
   }
 
@@ -315,6 +328,10 @@ class BlockBlastAudio {
       this.musicGainNode.gain.value = vol;
     }
 
+    if (this.masterBgmGain) {
+      this.masterBgmGain.gain.value = this.musicEnabled && !document.hidden ? 1 : 0;
+    }
+
     if (!audio.paused && !audio.ended) {
       this.removeUnlockListeners();
       return;
@@ -329,8 +346,9 @@ class BlockBlastAudio {
   }
 
   private stopMusicTrack() {
-    if (!this.musicElement) return;
-    this.musicElement.pause();
+    if (this.masterBgmGain) {
+      this.masterBgmGain.gain.value = 0;
+    }
   }
 
   private playSlashSound(volume: number, playbackRate: number) {
@@ -384,7 +402,11 @@ class BlockBlastAudio {
     gain.gain.exponentialRampToValueAtTime(0.0001, stopTime);
 
     oscillator.connect(gain);
-    gain.connect(context.destination);
+    if (this.masterSfxGain) {
+      gain.connect(this.masterSfxGain);
+    } else {
+      gain.connect(context.destination);
+    }
     oscillator.start(startTime);
     oscillator.stop(stopTime + 0.02);
   }
@@ -418,7 +440,11 @@ class BlockBlastAudio {
 
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(context.destination);
+    if (this.masterSfxGain) {
+      gain.connect(this.masterSfxGain);
+    } else {
+      gain.connect(context.destination);
+    }
     source.start(startTime);
     source.stop(startTime + duration + 0.02);
   }
