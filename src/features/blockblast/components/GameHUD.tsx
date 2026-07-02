@@ -38,7 +38,7 @@ function StatBox({
   children?: ReactNode;
 }) {
   const labelColor = "#c49000"; // Golden Yellow
-  const valueColor = "#e87432"; // Orange
+  const valueColor = "#4a4232"; // Dark black/brown
 
   return (
     <div
