@@ -72,7 +72,7 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
   );
 }
 
-function RankingRow({
+export function RankingRow({
   entry,
   highlight = false,
   label,
