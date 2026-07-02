@@ -65,11 +65,9 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
         </section>
       )}
 
-      <div className="flex flex-col gap-[12px] shrink-0">
-        <Button onClick={onPlay} size="lg" variant="primary">
-          ▶ Quay lại
-        </Button>
-      </div>
+      <Button onClick={onPlay} size="md" variant="secondary" className="mt-2">
+        ← Quay lại
+      </Button>
     </div>
   );
 }
