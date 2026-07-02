@@ -7,8 +7,8 @@ type ToneOptions = {
 
 export const DESKTOP_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.32,
-  sfxVolume: 0.82,
+  musicVolume: 0.08,
+  sfxVolume: 2.2,
 };
 
 export const MOBILE_AUDIO = {
@@ -22,7 +22,8 @@ const TONE_SFX_GAIN = 1.35;
 const SLASH_SFX_GAIN = 1.18;
 
 function clampVolume(volume: number) {
-  return Math.min(1, Math.max(0, volume));
+  const clamped = Math.min(1, Math.max(0, volume));
+  return clamped;
 }
 
 class BlockBlastAudio {
@@ -79,6 +80,7 @@ class BlockBlastAudio {
   }
 
   setMobileAudioMode(enabled: boolean) {
+    console.log("[Audio] setMobileAudioMode invoked with:", enabled, "current mode:", this.mobileAudioMode);
     if (this.mobileAudioMode === enabled) return;
     this.mobileAudioMode = enabled;
     this.applyAudioVolumes();
@@ -390,26 +392,46 @@ class BlockBlastAudio {
   }
 
   private audioConfig() {
-    return this.mobileAudioMode ? MOBILE_AUDIO : DESKTOP_AUDIO;
+    const isMobile = () => {
+      if (typeof window === "undefined") return false;
+      const uaMatch = /Mobi|Android|iPhone|iPad|iPod|IEMobile|BlackBerry|Opera Mini/i.test(navigator.userAgent);
+      const widthMatch = window.matchMedia("(max-width: 1024px)").matches;
+      const touchMatch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      return uaMatch || widthMatch || touchMatch;
+    };
+    const forceMobile = this.mobileAudioMode || isMobile();
+    const config = forceMobile ? MOBILE_AUDIO : DESKTOP_AUDIO;
+    console.log("[Audio] Config selected:", forceMobile ? "MOBILE" : "DESKTOP", config);
+    return config;
   }
 
   private musicVolume() {
     const config = this.audioConfig();
-    return clampVolume(config.masterVolume * config.musicVolume * MUSIC_ASSET_GAIN);
+    const calculated = clampVolume(config.masterVolume * config.musicVolume * MUSIC_ASSET_GAIN);
+    console.log("[Audio] calculated musicVolume:", calculated);
+    return calculated;
   }
 
   private sfxToneVolume(volume: number) {
     const config = this.audioConfig();
-    return clampVolume(config.masterVolume * config.sfxVolume * volume * TONE_SFX_GAIN);
+    const calculated = clampVolume(config.masterVolume * config.sfxVolume * volume * TONE_SFX_GAIN);
+    console.log("[Audio] calculated sfxToneVolume for base", volume, "is:", calculated);
+    return calculated;
   }
 
   private sfxSlashVolume(volume: number) {
     const config = this.audioConfig();
-    return clampVolume(config.masterVolume * config.sfxVolume * volume * SLASH_SFX_GAIN);
+    const calculated = clampVolume(config.masterVolume * config.sfxVolume * volume * SLASH_SFX_GAIN);
+    console.log("[Audio] calculated sfxSlashVolume for base", volume, "is:", calculated);
+    return calculated;
   }
 
   private applyAudioVolumes() {
-    if (this.musicElement) this.musicElement.volume = this.musicVolume();
+    const vol = this.musicVolume();
+    console.log("[Audio] applyAudioVolumes setting music volume to:", vol);
+    if (this.musicElement) {
+      this.musicElement.volume = vol;
+    }
   }
 
   private addVisibilityListener() {
