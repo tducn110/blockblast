@@ -53,7 +53,7 @@ export function Game({
   >("idle");
   const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
 
-  const { topEntries } = buildLeaderboardModel(scoreData.stats, "Người chơi");
+  const { currentPlayer } = buildLeaderboardModel(scoreData.stats, "Người chơi");
 
 
   useEffect(() => {
@@ -199,7 +199,7 @@ export function Game({
               <Mascot size={112} variantIndex={mascotVariantIndex} mood={mascotMood} />
             </div>
 
-            <div className="flex min-w-0 flex-col justify-center gap-[10px] rounded-[20px] border border-[#f0b840]/22 bg-[#f5ecd7]/64 p-[14px]">
+            <div className="flex min-w-0 flex-col justify-center gap-[10px] rounded-[20px] border-[2px] border-[#e87432]/40 bg-[#f5ecd7]/64 p-[14px]">
               <div>
                 <div className="text-[13px] font-black uppercase tracking-[0.8px] text-[#8e4e22]">
                   Mock ads
@@ -223,7 +223,7 @@ export function Game({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-[14px] rounded-[20px] border border-[#8a7d65]/16 bg-[#fdf6ea]/78 p-[12px]">
+          <div className={`flex items-center justify-between gap-[14px] rounded-[20px] border-[2px] ${game.reserveUnlocked ? "border-[#e87432]/30 bg-[#fdf6ea]" : "border-[#8a7d65]/16 bg-[#fdf6ea]/78"} p-[12px]`}>
             <div className="flex items-center gap-[12px]">
               <ReservePiecePreview piece={game.reserveUnlocked ? game.reservePiece : null} unlocked={game.reserveUnlocked} />
               <div>
@@ -272,7 +272,7 @@ export function Game({
         </div>
       </div>
       {game.status === "gameOver" && (
-        <div className="absolute inset-0 bg-[#fdf6ea] z-50 flex flex-col p-[32px_24px] overflow-y-auto gap-[24px] animate-[fadeScaleIn_0.32s_ease]">
+        <div className="absolute inset-0 bg-white/85 backdrop-blur-md z-50 flex flex-col p-[32px_24px] overflow-y-auto gap-[24px] animate-[fadeScaleIn_0.32s_ease]">
           {/* Header: Score */}
           <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px] shrink-0">
             <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">ĐIỂM</div>
@@ -323,18 +323,16 @@ export function Game({
               <div className="flex items-center gap-[8px]">
                 <Trophy size={22} className="text-[#e87432]" />
                 <h2 className="m-0 text-[18px] leading-[1.2] text-[#2a2418] font-extrabold">
-                  Ranking 1-10
+                  Thành tích của bạn
                 </h2>
               </div>
               <span className="text-[12px] font-extrabold text-[#8a7d65] uppercase tracking-[0.08em]">
-                Top điểm
+                Xếp hạng
               </span>
             </div>
 
-            <div className="flex flex-col gap-[10px] overflow-y-auto pr-1">
-              {topEntries.map((entry) => (
-                <RankingRow key={`${entry.name}-${entry.rank}`} entry={entry} highlight={entry.isLocal} />
-              ))}
+            <div className="flex flex-col gap-[10px] pr-1">
+              {currentPlayer && <RankingRow key={`${currentPlayer.name}-${currentPlayer.rank}`} entry={currentPlayer} highlight={true} />}
             </div>
           </section>
         </div>
@@ -377,7 +375,7 @@ function ReservePiecePreview({ piece, unlocked }: { piece: BlockPiece | null; un
   const borderColor = BLOCK_BORDER_MAP[piece?.colorId ?? "peanut"] ?? BLOCK_BORDER_MAP.peanut;
 
   return (
-    <div className={`grid h-[70px] w-[70px] place-items-center rounded-[18px] bg-[#fdf6ea]/88 ${unlocked && !piece ? "border-2 border-dashed border-[#e87432]/60 bg-[#e87432]/5" : "border border-[#8a7d65]/22"}`}>
+    <div className={`grid h-[70px] w-[70px] place-items-center rounded-[18px] bg-[#fdf6ea]/88 ${unlocked && !piece ? "border-[3px] border-dashed border-[#e87432]/60 bg-[#e87432]/5" : "border-[2px] border-[#8a7d65]/22"}`}>
       {piece ? (
         <div
           className="grid gap-[4px]"
