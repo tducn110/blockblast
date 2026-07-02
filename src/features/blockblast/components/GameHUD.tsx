@@ -37,8 +37,8 @@ function StatBox({
   highlight?: boolean;
   children?: ReactNode;
 }) {
-  const labelColor = accent ? "#8e6e3a" : "#8a7d65";
-  const valueColor = highlight ? "#e87432" : accent ? "#8e4e22" : "#4a4232";
+  const labelColor = "#c49000"; // Golden Yellow
+  const valueColor = "#e87432"; // Orange
 
   return (
     <div
