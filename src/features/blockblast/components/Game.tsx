@@ -10,6 +10,8 @@ import { PixiBlockBlastCanvas } from "@/features/blockblast/components/PixiBlock
 import { SlashScoreOverlay } from "@/features/blockblast/components/SlashScoreOverlay";
 import { GAME_TEXT } from "@/features/blockblast/lib/gameText";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
+import { buildLeaderboardModel } from "@/features/blockblast/lib/dashboardHelpers";
+import { RankingRow } from "@/features/blockblast/screens/Dashboard";
 import type { ScoreData } from "@/features/blockblast/hooks/useScoreData";
 import {
   BLOCK_BORDER_MAP,
@@ -46,8 +48,12 @@ export function Game({
   });
   const lastBoomEventIdRef = useRef<string | null>(null);
   const adReplayTimerRef = useRef<number | null>(null);
-  const [adReplayStatus, setAdReplayStatus] = useState<"idle" | "loading" | "clearing">("idle");
-  const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
+  const [adReplayStatus, setAdReplayStatus] = useState<
+    "idle" | "loading" | "clearing"
+  >("idle");
+
+  const { topEntries } = buildLeaderboardModel(scoreData.stats, "Người chơi");
+
 
   useEffect(() => {
     if (!game.boomEvent || lastBoomEventIdRef.current === game.boomEvent.id) return;
@@ -261,57 +267,67 @@ export function Game({
             onUnlockReserve={handleUnlockReserve}
             onUseReserveSlot={game.useReserveSlot}
           />
-
           <SlashScoreOverlay items={game.feedback} />
-
-          {game.status === "gameOver" && (
-            <div className="absolute inset-0 bg-[#2a2418]/82 rounded-[22px] flex flex-col items-center justify-center gap-[12px] z-20 px-[18px] text-center animate-[fadeScaleIn_0.32s_ease]">
-              <div className="text-[26px] font-black text-[#f0b840]">{GAME_TEXT.GAME_OVER_TITLE}</div>
-              <div className="text-[15px] text-[#efe3c4]">
-                {GAME_TEXT.RESULT} <strong>{game.score.toLocaleString()}</strong> {GAME_TEXT.POINTS}
-              </div>
-              <div className="w-full max-w-[270px] rounded-[20px] border border-[#f0b840]/35 bg-[#fff3cf]/12 p-[10px] shadow-[0_10px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.12)]">
-                <div className="text-[11px] font-black uppercase tracking-[0.7px] text-[#f7d77c]">
-                  {GAME_TEXT.AD_REPLAY_LABEL}
-                </div>
-                <div className="mt-[3px] text-[11px] font-bold leading-[1.35] text-[#efe3c4]/86">
-                  {GAME_TEXT.AD_REPLAY_HINT}
-                </div>
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  disabled={adReplayStatus !== "idle"}
-                  onClick={handleAdReplay}
-                  style={{
-                    width: "100%",
-                    minHeight: 52,
-                    marginTop: 10,
-                    paddingLeft: 18,
-                    paddingRight: 18,
-                    fontSize: 14,
-                    boxShadow:
-                      "0 12px 24px rgba(240,184,64,0.34), inset 0 1px 0 rgba(255,255,255,0.46)",
-                  }}
-                >
-                  {adReplayStatus === "loading"
-                    ? GAME_TEXT.BTN_AD_LOADING
-                    : adReplayStatus === "clearing"
-                      ? GAME_TEXT.BTN_AD_CLEARING
-                      : GAME_TEXT.BTN_AD_REPLAY}
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={game.resetGame} size="sm">
-                  {GAME_TEXT.BTN_PLAY_AGAIN}
-                </Button>
-                <Button variant="ghost" onClick={onDashboard} size="sm">
-                  {GAME_TEXT.BTN_LEADERBOARD}
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
+      {game.status === "gameOver" && (
+        <div className="absolute inset-0 bg-[#fdf6ea] z-50 flex flex-col p-[32px_24px] overflow-y-auto gap-[24px] animate-[fadeScaleIn_0.32s_ease]">
+          {/* Header: Score */}
+          <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px] shrink-0">
+            <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">ĐIỂM</div>
+            <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">
+              {game.score.toLocaleString("vi-VN")}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-3 shrink-0 px-2 items-center">
+            <Button
+              variant="secondary"
+              size="lg"
+              disabled={adReplayStatus !== "idle"}
+              onClick={handleAdReplay}
+              style={{
+                width: "100%",
+                maxWidth: "340px",
+                minHeight: 56,
+                fontSize: 16,
+                boxShadow: "0 12px 24px rgba(240,184,64,0.34), inset 0 1px 0 rgba(255,255,255,0.46)",
+              }}
+            >
+              {adReplayStatus === "loading"
+                ? GAME_TEXT.BTN_AD_LOADING
+                : adReplayStatus === "clearing"
+                  ? GAME_TEXT.BTN_AD_CLEARING
+                  : "Xem mock ads để chơi tiếp"}
+            </Button>
+            <Button onClick={game.resetGame} size="md" variant="ghost">
+              Chơi lại
+            </Button>
+          </div>
+
+          {/* Leaderboard Section */}
+          <section className="flex flex-col gap-[14px] text-left flex-1 min-h-0 w-full max-w-[480px] mx-auto">
+            <div className="flex items-center justify-between gap-[12px] shrink-0">
+              <div className="flex items-center gap-[8px]">
+                <Trophy size={22} className="text-[#e87432]" />
+                <h2 className="m-0 text-[18px] leading-[1.2] text-[#2a2418] font-extrabold">
+                  Ranking 1-10
+                </h2>
+              </div>
+              <span className="text-[12px] font-extrabold text-[#8a7d65] uppercase tracking-[0.08em]">
+                Top điểm
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-[10px] overflow-y-auto pr-1">
+              {topEntries.map((entry) => (
+                <RankingRow key={`${entry.name}-${entry.rank}`} entry={entry} highlight={entry.isLocal} />
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
