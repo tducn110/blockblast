@@ -37,7 +37,7 @@ export function usePixiAnimations(
   const comboShakeEventIdRef = useRef<string | null>(null);
 
   // Particle pool
-  const maxParticles = 150;
+  const maxParticles = 400;
   const particlesRef = useRef<Particle[]>([]);
   const particleContainerRef = useRef<Container | null>(null);
 
@@ -346,50 +346,59 @@ export function usePixiAnimations(
       tl.to(flash, { alpha: 0, duration: 0.1, ease: "power2.out" }, 0);
       tl.to(c.scale, { x: 1.15, y: 1.15, duration: 0.1, ease: "power2.out" }, 0);
       
-      // Prepare shatter fragments (3x3 grid)
+      // Prepare shatter parameters
       const fragCount = 3;
       const fragSize = CELL / fragCount;
-      const fragments: Sprite[] = [];
       
-      for (let i = 0; i < fragCount; i++) {
-        for (let j = 0; j < fragCount; j++) {
-          const frag = new Sprite(Texture.WHITE);
-          frag.width = fragSize;
-          frag.height = fragSize;
-          frag.tint = g.tint;
-          frag.anchor.set(0.5);
-          // Position relative to cell center
-          frag.x = (i - 1) * fragSize;
-          frag.y = (j - 1) * fragSize;
-          frag.visible = false;
-          c.addChild(frag);
-          fragments.push(frag);
-        }
-      }
-      
-      // At 0.1s, hide main cell, show fragments, and explode!
+      // At 0.1s, hide main cell, show fragments from pool, and explode!
       tl.call(() => {
         g.visible = false;
         flash.visible = false;
-        fragments.forEach(f => { f.visible = true; });
+        
+        // Spawn particles from pool instead of creating new ones
+        const particles = particlesRef.current;
+        let pIndex = 0;
+        
+        for (let i = 0; i < fragCount; i++) {
+          for (let j = 0; j < fragCount; j++) {
+            // Find next inactive particle
+            while (pIndex < particles.length && particles[pIndex].active) pIndex++;
+            if (pIndex >= particles.length) break; // limit reached
+            
+            const p = particles[pIndex];
+            p.active = true;
+            
+            // Position relative to cell center in world space
+            const fx = c.x + (i - 1) * fragSize;
+            const fy = c.y + (j - 1) * fragSize;
+            p.x = fx;
+            p.y = fy;
+            
+            // Blast outward from center of cell
+            const dx = (i - 1);
+            const dy = (j - 1);
+            const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.5;
+            const dist = 0.5 + Math.random() * 0.8;
+            
+            p.vx = Math.cos(angle) * dist;
+            p.vy = Math.sin(angle) * dist - 0.2; // slight upward bias
+            
+            p.rotation = (Math.random() - 0.5) * Math.PI;
+            p.vr = (Math.random() - 0.5) * 0.04;
+            
+            p.maxLife = 350 + Math.random() * 200; // longer life for shatter pieces
+            p.life = p.maxLife;
+            
+            p.sprite.visible = true;
+            p.sprite.tint = g.tint;
+            // Texture.WHITE is typically 16x16, so fragSize/16 gives the correct scale
+            const baseScale = fragSize / 16;
+            p.baseScale = baseScale;
+            p.sprite.scale.set(baseScale);
+            p.sprite.alpha = 1;
+          }
+        }
       }, undefined, 0.1);
-      
-      // Animate fragments outward
-      fragments.forEach(frag => {
-        // Random outward angle and distance
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 30 + Math.random() * 50;
-        tl.to(frag, {
-          x: frag.x + Math.cos(angle) * dist,
-          y: frag.y + Math.sin(angle) * dist,
-          rotation: (Math.random() - 0.5) * Math.PI * 4, // spin
-          alpha: 0,
-          scaleX: 0.1,
-          scaleY: 0.1,
-          duration: 0.35 + Math.random() * 0.2,
-          ease: "power2.out"
-        }, 0.1);
-      });
     }
   }, [clearAnimation, ready, app, animationLayer]);
 }
