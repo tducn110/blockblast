@@ -5,13 +5,52 @@ type ToneOptions = {
   release?: number;
 };
 
+export const DESKTOP_AUDIO = {
+  masterVolume: 1,
+  musicVolume: 0.32,
+  sfxVolume: 0.82,
+};
+
+export const MOBILE_AUDIO = {
+  masterVolume: 1,
+  musicVolume: 0.18,
+  sfxVolume: 0.92,
+};
+
+const MUSIC_ASSET_GAIN = 0.14;
+const TONE_SFX_GAIN = 1.35;
+const SLASH_SFX_GAIN = 1.18;
+
+function clampVolume(volume: number) {
+  return Math.min(1, Math.max(0, volume));
+}
+
 class BlockBlastAudio {
   private context: AudioContext | null = null;
   private musicEnabled = false;
   private sfxEnabled = true;
+  private mobileAudioMode = false;
   private musicElement: HTMLAudioElement | null = null;
   private slashElement: HTMLAudioElement | null = null;
   private unlockListenersBound = false;
+  private visibilityListenerBound = false;
+  private wasMusicPlayingBeforeHidden = false;
+
+  private readonly handleVisibilityChange = () => {
+    if (typeof document === "undefined") return;
+
+    const audio = this.musicElement;
+    if (document.hidden) {
+      this.wasMusicPlayingBeforeHidden = !!audio && !audio.paused;
+      audio?.pause();
+      return;
+    }
+
+    if (this.wasMusicPlayingBeforeHidden && this.musicEnabled) {
+      void this.startMusicTrack();
+    }
+    this.wasMusicPlayingBeforeHidden = false;
+  };
 
   private readonly unlock = () => {
     void this.resumeContext().then((context) => {
@@ -27,14 +66,22 @@ class BlockBlastAudio {
     if (!enabled) {
       this.stopMusicTrack();
       this.removeUnlockListeners();
+      this.removeVisibilityListener();
       return;
     }
 
+    this.addVisibilityListener();
     void this.startMusicTrack();
   }
 
   setSfxEnabled(enabled: boolean) {
     this.sfxEnabled = enabled;
+  }
+
+  setMobileAudioMode(enabled: boolean) {
+    if (this.mobileAudioMode === enabled) return;
+    this.mobileAudioMode = enabled;
+    this.applyAudioVolumes();
   }
 
   playButtonClick() {
@@ -44,13 +91,13 @@ class BlockBlastAudio {
       const now = context.currentTime + 0.006;
       this.tone(context, 587.33, now, 0.055, {
         waveform: "triangle",
-        volume: 0.045,
+        volume: this.sfxToneVolume(0.045),
         attack: 0.006,
         release: 0.045,
       });
       this.tone(context, 880, now + 0.028, 0.05, {
         waveform: "sine",
-        volume: 0.032,
+        volume: this.sfxToneVolume(0.032),
         attack: 0.004,
         release: 0.04,
       });
@@ -62,8 +109,8 @@ class BlockBlastAudio {
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
-      this.tone(context, 329.63, now, 0.08, { waveform: "triangle", volume: 0.05 });
-      this.tone(context, 493.88, now + 0.045, 0.09, { waveform: "sine", volume: 0.035 });
+      this.tone(context, 329.63, now, 0.08, { waveform: "triangle", volume: this.sfxToneVolume(0.05) });
+      this.tone(context, 493.88, now + 0.045, 0.09, { waveform: "sine", volume: this.sfxToneVolume(0.035) });
     });
   }
 
@@ -72,8 +119,8 @@ class BlockBlastAudio {
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
-      this.tone(context, 132, now, 0.11, { waveform: "sawtooth", volume: 0.025, release: 0.05 });
-      this.tone(context, 118, now + 0.035, 0.1, { waveform: "sawtooth", volume: 0.018, release: 0.05 });
+      this.tone(context, 132, now, 0.11, { waveform: "sawtooth", volume: this.sfxToneVolume(0.025), release: 0.05 });
+      this.tone(context, 118, now + 0.035, 0.1, { waveform: "sawtooth", volume: this.sfxToneVolume(0.018), release: 0.05 });
     });
   }
 
@@ -89,7 +136,7 @@ class BlockBlastAudio {
       for (let i = 0; i < Math.max(1, lineCount); i += 1) {
         this.tone(context, base * (1 + i * 0.16), now + i * 0.055, 0.16, {
           waveform: "triangle",
-          volume: 0.055,
+          volume: this.sfxToneVolume(0.055),
           release: 0.12,
         });
       }
@@ -97,7 +144,7 @@ class BlockBlastAudio {
       if (combo > 1) {
         this.tone(context, 659.25 + combo * 18, now + 0.13, 0.18, {
           waveform: "sine",
-          volume: 0.04,
+          volume: this.sfxToneVolume(0.04),
           release: 0.14,
         });
       }
@@ -116,7 +163,7 @@ class BlockBlastAudio {
       for (let i = 0; i < count; i += 1) {
         this.tone(context, notes[i] + combo * 8, now + i * 0.05, 0.16, {
           waveform: "sine",
-          volume: 0.035,
+          volume: this.sfxToneVolume(0.035),
           release: 0.12,
         });
       }
@@ -132,17 +179,17 @@ class BlockBlastAudio {
       this.noiseBurst(context, now, 0.34, 0.055);
       this.tone(context, 82.41, now, 0.22, {
         waveform: "sawtooth",
-        volume: 0.07,
+        volume: this.sfxToneVolume(0.07),
         release: 0.24,
       });
       this.tone(context, 523.25, now + 0.06, 0.2, {
         waveform: "triangle",
-        volume: 0.045,
+        volume: this.sfxToneVolume(0.045),
         release: 0.18,
       });
       this.tone(context, 783.99, now + 0.13, 0.22, {
         waveform: "sine",
-        volume: 0.04,
+        volume: this.sfxToneVolume(0.04),
         release: 0.2,
       });
     });
@@ -155,7 +202,7 @@ class BlockBlastAudio {
     const audio = new Audio("/assets/audio/music.mp3");
     audio.loop = true;
     audio.preload = "auto";
-    audio.volume = 0.04;
+    audio.volume = this.musicVolume();
     this.musicElement = audio;
     return audio;
   }
@@ -166,7 +213,7 @@ class BlockBlastAudio {
 
     const audio = new Audio("/assets/audio/slash-clear.mp3");
     audio.preload = "auto";
-    audio.volume = 0.62;
+    audio.volume = this.sfxSlashVolume(0.62);
     this.slashElement = audio;
     return audio;
   }
@@ -179,7 +226,7 @@ class BlockBlastAudio {
       [392, 329.63, 261.63].forEach((frequency, index) => {
         this.tone(context, frequency, now + index * 0.1, 0.18, {
           waveform: "triangle",
-          volume: 0.035,
+          volume: this.sfxToneVolume(0.035),
           release: 0.18,
         });
       });
@@ -217,8 +264,16 @@ class BlockBlastAudio {
   }
 
   private async startMusicTrack() {
+    if (!this.musicEnabled) return;
+
     const audio = this.ensureMusicElement();
     if (!audio) return;
+    audio.volume = this.musicVolume();
+
+    if (!audio.paused && !audio.ended) {
+      this.removeUnlockListeners();
+      return;
+    }
 
     try {
       await audio.play();
@@ -239,7 +294,7 @@ class BlockBlastAudio {
 
     audio.pause();
     audio.currentTime = 0;
-    audio.volume = Math.max(0, Math.min(1, volume));
+    audio.volume = this.sfxSlashVolume(volume);
     audio.playbackRate = Math.max(0.75, Math.min(1.35, playbackRate));
     void audio.play().catch(() => this.addUnlockListeners());
   }
@@ -306,7 +361,7 @@ class BlockBlastAudio {
     filter.frequency.setValueAtTime(1200, startTime);
     filter.frequency.exponentialRampToValueAtTime(180, startTime + duration);
     gain.gain.setValueAtTime(0.0001, startTime);
-    gain.gain.linearRampToValueAtTime(volume, startTime + 0.018);
+    gain.gain.linearRampToValueAtTime(this.sfxToneVolume(volume), startTime + 0.018);
     gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
     source.connect(filter);
@@ -320,6 +375,7 @@ class BlockBlastAudio {
     if (typeof window === "undefined" || this.unlockListenersBound) return;
 
     window.addEventListener("pointerdown", this.unlock, { passive: true });
+    window.addEventListener("touchstart", this.unlock, { passive: true });
     window.addEventListener("keydown", this.unlock);
     this.unlockListenersBound = true;
   }
@@ -328,8 +384,45 @@ class BlockBlastAudio {
     if (typeof window === "undefined" || !this.unlockListenersBound) return;
 
     window.removeEventListener("pointerdown", this.unlock);
+    window.removeEventListener("touchstart", this.unlock);
     window.removeEventListener("keydown", this.unlock);
     this.unlockListenersBound = false;
+  }
+
+  private audioConfig() {
+    return this.mobileAudioMode ? MOBILE_AUDIO : DESKTOP_AUDIO;
+  }
+
+  private musicVolume() {
+    const config = this.audioConfig();
+    return clampVolume(config.masterVolume * config.musicVolume * MUSIC_ASSET_GAIN);
+  }
+
+  private sfxToneVolume(volume: number) {
+    const config = this.audioConfig();
+    return clampVolume(config.masterVolume * config.sfxVolume * volume * TONE_SFX_GAIN);
+  }
+
+  private sfxSlashVolume(volume: number) {
+    const config = this.audioConfig();
+    return clampVolume(config.masterVolume * config.sfxVolume * volume * SLASH_SFX_GAIN);
+  }
+
+  private applyAudioVolumes() {
+    if (this.musicElement) this.musicElement.volume = this.musicVolume();
+  }
+
+  private addVisibilityListener() {
+    if (typeof document === "undefined" || this.visibilityListenerBound) return;
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    this.visibilityListenerBound = true;
+  }
+
+  private removeVisibilityListener() {
+    if (typeof document === "undefined" || !this.visibilityListenerBound) return;
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    this.visibilityListenerBound = false;
+    this.wasMusicPlayingBeforeHidden = false;
   }
 }
 

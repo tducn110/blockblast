@@ -5,7 +5,14 @@ import type {
   ComboShakeEvent,
   PlacementAnimation,
 } from "@/features/blockblast/hooks/useBlockBlastGame";
-import { VIEW_WIDTH, VIEW_HEIGHT } from "@/features/blockblast/game/pixiDrawUtils";
+import {
+  BOARD_PIXELS,
+  BOARD_X,
+  BOARD_Y,
+  TRAY_Y,
+  VIEW_WIDTH,
+  VIEW_HEIGHT,
+} from "@/features/blockblast/game/pixiDrawUtils";
 import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import { usePixiApp } from "@/features/blockblast/render/usePixiApp";
 import { usePixiBoard } from "@/features/blockblast/render/usePixiBoard";
@@ -54,6 +61,9 @@ export function PixiBlockBlastCanvas({
     piecesLayerRef,
     animationLayerRef,
     dragLayerRef,
+    viewport,
+    layoutMode,
+    worldTransform,
     ready,
   } = usePixiApp();
 
@@ -75,6 +85,7 @@ export function PixiBlockBlastCanvas({
     onPlacePiece,
     onUnlockReserve,
     onUseReserveSlot,
+    worldTransform,
     ready
   );
   
@@ -124,14 +135,93 @@ export function PixiBlockBlastCanvas({
 
   return (
     <div
-      ref={hostRef}
-      aria-label="Bảng chơi Xếp Khối"
       style={{
+        position: "relative",
         width: "100%",
-        aspectRatio: `${VIEW_WIDTH} / ${VIEW_HEIGHT}`,
-        borderRadius: 24,
-        overflow: "hidden",
+        height: "100%",
+        minHeight: 0,
       }}
-    />
+    >
+      <div
+        ref={hostRef}
+        aria-label="Bảng chơi Xếp Khối"
+        style={{
+          width: "100%",
+          height: "100%",
+          minHeight: 0,
+          aspectRatio: `${VIEW_WIDTH} / ${VIEW_HEIGHT}`,
+          borderRadius: 24,
+          overflow: "hidden",
+          touchAction: "none",
+          overscrollBehavior: "none",
+        }}
+      />
+      <ViewportDebug
+        layoutMode={layoutMode}
+        viewport={viewport}
+        rendererWidth={appRef.current?.renderer.screen.width ?? 0}
+        rendererHeight={appRef.current?.renderer.screen.height ?? 0}
+        worldScale={worldTransform.scale}
+        worldX={worldTransform.x}
+        worldY={worldTransform.y}
+      />
+    </div>
+  );
+}
+
+function ViewportDebug({
+  layoutMode,
+  viewport,
+  rendererWidth,
+  rendererHeight,
+  worldScale,
+  worldX,
+  worldY,
+}: {
+  layoutMode: string;
+  viewport: { width: number; height: number };
+  rendererWidth: number;
+  rendererHeight: number;
+  worldScale: number;
+  worldX: number;
+  worldY: number;
+}) {
+  if (typeof window === "undefined") return null;
+  if (new URLSearchParams(window.location.search).get("viewportDebug") !== "1") return null;
+
+  const visualViewport = window.visualViewport;
+  const lines = [
+    `layoutMode ${layoutMode}`,
+    `container ${viewport.width}x${viewport.height}`,
+    `window ${window.innerWidth}x${window.innerHeight}`,
+    `visual ${Math.round(visualViewport?.width ?? 0)}x${Math.round(visualViewport?.height ?? 0)}`,
+    `dpr ${window.devicePixelRatio}`,
+    `renderer ${rendererWidth}x${rendererHeight}`,
+    `world s${worldScale.toFixed(3)} x${worldX} y${worldY}`,
+    `board ${BOARD_X},${BOARD_Y},${BOARD_PIXELS}`,
+    `trayY ${TRAY_Y}`,
+  ];
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 6,
+        left: 6,
+        zIndex: 30,
+        maxWidth: 220,
+        padding: "6px 7px",
+        borderRadius: 8,
+        background: "rgba(42,36,24,0.78)",
+        color: "#fff7df",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        fontSize: 10,
+        lineHeight: 1.35,
+        pointerEvents: "none",
+        whiteSpace: "pre-wrap",
+      }}
+    >
+      {lines.join("\n")}
+    </div>
   );
 }

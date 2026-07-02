@@ -9,6 +9,7 @@ import { Mascot } from "@/features/blockblast/components/Mascot";
 import { PixiBlockBlastCanvas } from "@/features/blockblast/components/PixiBlockBlastCanvas";
 import { SlashScoreOverlay } from "@/features/blockblast/components/SlashScoreOverlay";
 import { GAME_TEXT } from "@/features/blockblast/lib/gameText";
+import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { ScoreData } from "@/features/blockblast/hooks/useScoreData";
 import {
   BLOCK_BORDER_MAP,
@@ -65,6 +66,11 @@ export function Game({
     scenery === "boom" ? "boom" : game.status === "gameOver" ? "gameOver" : "idle";
   const mascotVariantIndex = scenery === "boom" ? 2 : 0;
   const showMobileReserveSlot = useIsMobileReserveTray();
+
+  useEffect(() => {
+    blockBlastAudio.setMobileAudioMode(showMobileReserveSlot);
+  }, [showMobileReserveSlot]);
+
   const reserveStoreLabel =
     game.selectedPieceId === game.reservePiece?.id
       ? "Bỏ chọn"
@@ -116,7 +122,7 @@ export function Game({
 
   return (
     <section
-      className="w-full max-w-[440px] lg:max-w-[1080px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[30px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[38px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden"
+      className="blockblast-game-shell w-full h-full min-h-0 max-w-[440px] lg:h-auto lg:max-w-[1080px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[30px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[38px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden"
       style={{
         boxShadow:
           scenery === "boom"
@@ -126,7 +132,7 @@ export function Game({
     >
       
       {/* Left Column: UI Controls (Header, HUD, Instructions) */}
-      <div className="flex flex-col gap-[12px] lg:gap-[18px] lg:w-[340px] lg:shrink-0 lg:py-[8px]">
+      <div className="blockblast-game-controls flex shrink-0 flex-col gap-[12px] lg:gap-[18px] lg:w-[340px] lg:shrink-0 lg:py-[8px]">
         {/* Header Row (Mobile) / Stack (PC) */}
         <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:gap-4">
           <div className="flex items-center gap-2 min-w-0">
@@ -154,7 +160,7 @@ export function Game({
           </div>
         </div>
 
-        <div className="flex flex-col gap-[10px] lg:gap-[14px] lg:rounded-[24px] lg:border lg:border-[#8a7d65]/18 lg:bg-[#efe3c4]/38 lg:p-[16px] lg:shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+        <div className="blockblast-info-panel flex flex-col gap-[10px] lg:gap-[14px] lg:rounded-[24px] lg:border lg:border-[#8a7d65]/18 lg:bg-[#efe3c4]/38 lg:p-[16px] lg:shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
           {/* HUD row */}
           <div className="flex items-center gap-3 lg:gap-4">
             <div className="lg:hidden">
@@ -170,7 +176,7 @@ export function Game({
           </div>
 
           <div className="flex flex-col gap-2">
-            <p className="text-[11px] lg:text-[12px] text-[#8a7d65] text-center lg:text-left m-0 lg:leading-[1.45]">
+            <p className="blockblast-instruction text-[11px] lg:text-[12px] text-[#8a7d65] text-center lg:text-left m-0 lg:leading-[1.45]">
               {GAME_TEXT.INSTRUCTION}
             </p>
 
@@ -238,8 +244,8 @@ export function Game({
       </div>
 
       {/* Right Column: Canvas Board */}
-      <div className="relative flex-1 flex flex-col items-center justify-center">
-        <div className="w-full relative max-w-[590px]">
+      <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center">
+        <div className="w-full h-full min-h-0 relative max-w-[590px] lg:h-auto">
           <PixiBlockBlastCanvas
             board={game.board}
             pieces={game.pieces}

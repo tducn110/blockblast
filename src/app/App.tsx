@@ -41,16 +41,19 @@ export default function App() {
     <div
       style={{
         position: "relative",
+        height: "100dvh",
         minHeight: "100dvh",
-        width: "100vw",
-        overflowX: "hidden",
-        overflowY: "auto",
+        width: "100%",
+        overflow: "hidden",
         background: "#f5ecd7",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         flexDirection: "column",
         fontFamily: "'Be Vietnam Pro', sans-serif",
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+        boxSizing: "border-box",
       }}
     >
       <CountrysideBackdrop scenery={scenery} />
@@ -61,13 +64,16 @@ export default function App() {
           zIndex: 1,
           width: "100%",
           maxWidth: screen === "dashboard" ? 520 : (screen === "settings" ? 460 : 860),
-          minHeight: "100dvh",
+          height: "100%",
+          minHeight: 0,
           padding: "16px 12px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           boxSizing: "border-box",
+          overflowY: screen === "game" ? "hidden" : "auto",
+          overscrollBehavior: "none",
         }}
       >
         {screen === "dashboard" && (
@@ -89,7 +95,14 @@ export default function App() {
         )}
 
         {/* Keep Game mounted so we don't lose progress */}
-        <div style={{ display: screen === "game" ? "block" : "none", width: "100%" }}>
+        <div
+          style={{
+            display: screen === "game" ? "block" : "none",
+            width: "100%",
+            height: "100%",
+            minHeight: 0,
+          }}
+        >
           <Game 
             scoreData={scoreData} 
             sfxEnabled={sfxEnabled} 
