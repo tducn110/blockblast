@@ -304,7 +304,7 @@ function makeClearAnimation(
       const key = `${row}-${col}`;
       if (!seen.has(key)) {
         seen.add(key);
-        cells.push({ row, col, colorId: accentColorId ?? board[row][col].colorId });
+        cells.push({ row, col, colorId: board[row][col].colorId });
       }
     }
   });
@@ -314,7 +314,7 @@ function makeClearAnimation(
       const key = `${row}-${col}`;
       if (!seen.has(key)) {
         seen.add(key);
-        cells.push({ row, col, colorId: accentColorId ?? board[row][col].colorId });
+        cells.push({ row, col, colorId: board[row][col].colorId });
       }
     }
   });
