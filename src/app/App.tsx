@@ -63,7 +63,7 @@ export default function App() {
           position: "relative",
           zIndex: 1,
           width: "100%",
-          maxWidth: screen === "dashboard" ? 520 : (screen === "settings" ? 460 : 860),
+          maxWidth: screen === "dashboard" ? 520 : (screen === "settings" ? 460 : 1080),
           height: "100%",
           minHeight: 0,
           padding: "16px 12px",
@@ -96,6 +96,7 @@ export default function App() {
 
         {/* Keep Game mounted so we don't lose progress */}
         <div
+          className="blockblast-game-mount"
           style={{
             display: screen === "game" ? "block" : "none",
             width: "100%",
