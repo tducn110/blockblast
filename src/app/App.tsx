@@ -98,7 +98,7 @@ export default function App() {
         <div
           className="blockblast-game-mount"
           style={{
-            display: screen === "game" ? "block" : "none",
+            display: screen === "game" ? undefined : "none",
             width: "100%",
             height: "100%",
             minHeight: 0,

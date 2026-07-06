@@ -236,7 +236,7 @@
 
 @media (min-width: 1024px) {
   .blockblast-game-mount {
-    display: flex !important;
+    display: flex;
     align-items: center;
     justify-content: center;
   }
