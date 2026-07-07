@@ -23,9 +23,6 @@ export function getLocalScoreData(): LocalStats {
   return loadStats();
 }
 
-export function createEmptyScoreData(): LocalStats {
-  return createDefaultStats();
-}
 
 function normalizeGameResult(result: GameResult): GameResult | null {
   if (!Number.isFinite(result.score) || result.score < 0) return null;

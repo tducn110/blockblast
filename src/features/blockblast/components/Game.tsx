@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Trophy, RotateCcw, Settings } from "lucide-react";
+import { Trophy, RotateCcw, Settings, Heart } from "lucide-react";
 import { useBlockBlastGame, type BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
@@ -52,6 +52,15 @@ export function Game({
     "idle" | "loading" | "clearing"
   >("idle");
   const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
+  const [continuePromptState, setContinuePromptState] = useState<"idle" | "prompting" | "declined" | "doubled">("idle");
+
+  useEffect(() => {
+    if (game.status === "playing") {
+      setContinuePromptState("idle");
+    } else if (game.status === "gameOver" && continuePromptState === "idle") {
+      setContinuePromptState("prompting");
+    }
+  }, [game.status, continuePromptState]);
 
   const { currentPlayer } = buildLeaderboardModel(scoreData.stats, "Người chơi");
 
@@ -274,7 +283,42 @@ export function Game({
           )}
         </div>
       </div>
-      {game.status === "gameOver" && (
+      {game.status === "gameOver" && continuePromptState === "prompting" && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
+          <div className="absolute inset-0 bg-[#2a2418]/40" />
+          
+          <div className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col items-center gap-[24px] w-full max-w-[340px] border-2 border-[#8a7d65]/20">
+            <h2 className="text-[24px] font-extrabold text-[#e87432] text-center uppercase">
+              Tiếp tục?
+            </h2>
+            <div className="flex gap-[16px] w-full">
+              <Button
+                variant="primary"
+                size="lg"
+                disabled={adReplayStatus !== "idle"}
+                onClick={handleAdReplay}
+                style={{ flex: 1, minHeight: 56, fontSize: 16 }}
+              >
+                {adReplayStatus === "idle" ? (
+                  <span className="flex items-center justify-center gap-2">Có <Heart size={20} className="fill-current" /></span>
+                ) : (
+                  GAME_TEXT.BTN_AD_LOADING
+                )}
+              </Button>
+              <Button
+                variant="secondary"
+                size="lg"
+                disabled={adReplayStatus !== "idle"}
+                onClick={() => setContinuePromptState("declined")}
+                style={{ flex: 1, minHeight: 56, fontSize: 16 }}
+              >
+                Không
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {game.status === "gameOver" && (continuePromptState === "declined" || continuePromptState === "doubled") && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
           <div className="absolute inset-0 bg-[#2a2418]/40" />
           
@@ -317,8 +361,14 @@ export function Game({
               <Button
                 variant="secondary"
                 size="lg"
-                disabled={adReplayStatus !== "idle"}
-                onClick={handleAdReplay}
+                disabled={continuePromptState === "doubled" || adReplayStatus !== "idle"}
+                onClick={async () => {
+                  setAdReplayStatus("loading");
+                  await playMockAd();
+                  setAdReplayStatus("idle");
+                  game.doubleScore();
+                  setContinuePromptState("doubled");
+                }}
                 style={{
                   width: "100%",
                   minHeight: 56,
@@ -328,9 +378,9 @@ export function Game({
               >
                 {adReplayStatus === "loading"
                   ? GAME_TEXT.BTN_AD_LOADING
-                  : adReplayStatus === "clearing"
-                    ? GAME_TEXT.BTN_AD_CLEARING
-                    : "Xem mock ads để chơi tiếp"}
+                  : continuePromptState === "doubled"
+                    ? "Đã nhân đôi điểm"
+                    : "x2"}
               </Button>
               <Button 
                 onClick={game.resetGame} 

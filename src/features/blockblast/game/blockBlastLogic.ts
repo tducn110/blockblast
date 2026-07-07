@@ -1,6 +1,6 @@
 export const BOARD_SIZE = 8;
 
-export interface BoardCell {
+interface BoardCell {
   row: number;
   col: number;
   filled: boolean;
@@ -9,7 +9,7 @@ export interface BoardCell {
 
 export type BoardGrid = BoardCell[][];
 
-export interface BlockShape {
+interface BlockShape {
   id: string;
   name: string;
   cells: Array<{ row: number; col: number }>;
@@ -24,14 +24,14 @@ export interface BlockPiece {
   placed: boolean;
 }
 
-export interface Placement {
+interface Placement {
   pieceId: string;
   row: number;
   col: number;
 }
 
-export const COLOR_IDS = ["peanut", "bamboo", "orange", "brown", "cream"] as const;
-export type ColorId = (typeof COLOR_IDS)[number];
+const COLOR_IDS = ["peanut", "bamboo", "orange", "brown", "cream"] as const;
+type ColorId = (typeof COLOR_IDS)[number];
 
 export const BLOCK_COLOR_MAP: Record<string, string> = {
   peanut: "#ffb000",
@@ -110,19 +110,6 @@ function testPieceForShape(shape: { id: string; cells: Array<{ row: number; col:
   };
 }
 
-export function createPieces(seed?: number): BlockPiece[] {
-  const rand = seed !== undefined ? seededRandom(seed) : Math.random;
-  const colors = [...COLOR_IDS];
-
-  return Array.from({ length: 3 }, (_, i) => {
-    const shapeIdx = Math.floor(rand() * SHAPES.length);
-    const colorIdx = Math.floor(rand() * colors.length);
-    const shape = SHAPES[shapeIdx];
-    const colorId = colors[colorIdx];
-
-    return makePiece(shape, colorId, i, rand);
-  });
-}
 
 export function canPlacePiece(
   board: BoardGrid,
@@ -154,7 +141,7 @@ export function placePiece(
   return newBoard;
 }
 
-export function getFullRows(board: BoardGrid): number[] {
+function getFullRows(board: BoardGrid): number[] {
   const full: number[] = [];
   for (let r = 0; r < BOARD_SIZE; r++) {
     if (board[r].every((cell) => cell.filled)) full.push(r);
@@ -162,7 +149,7 @@ export function getFullRows(board: BoardGrid): number[] {
   return full;
 }
 
-export function getFullCols(board: BoardGrid): number[] {
+function getFullCols(board: BoardGrid): number[] {
   const full: number[] = [];
   for (let c = 0; c < BOARD_SIZE; c++) {
     if (board.every((row) => row[c].filled)) full.push(c);
@@ -322,7 +309,7 @@ export function createSmartPieces(
   return createEasyFallbackPieces(board, rand);
 }
 
-export function canPlaceAnyPiece(board: BoardGrid, pieces: BlockPiece[]): boolean {
+function canPlaceAnyPiece(board: BoardGrid, pieces: BlockPiece[]): boolean {
   const unplaced = pieces.filter((p) => !p.placed);
   for (const piece of unplaced) {
     for (let r = 0; r < BOARD_SIZE; r++) {
