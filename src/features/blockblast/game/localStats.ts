@@ -1,4 +1,4 @@
-export const STORAGE_KEY = "xep-khoi-bo-lac";
+const STORAGE_KEY = "xep-khoi-bo-lac";
 
 export interface LocalStatsEntry {
   score: number;

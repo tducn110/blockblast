@@ -1,6 +1,6 @@
 import type { LocalStats } from "@/features/blockblast/game/localStats";
 
-export const MOCK_LEADERBOARD = [
+const MOCK_LEADERBOARD = [
   { name: "Sói Cô Độc", score: 85400, maxCombo: 12 },
   { name: "Vua Khối", score: 62000, maxCombo: 9 },
   { name: "Thợ Săn", score: 48300, maxCombo: 7 },
@@ -26,7 +26,7 @@ export function getRank(bestScore: number): string {
   return "Mầm Non";
 }
 
-export interface LeaderboardEntry {
+interface LeaderboardEntry {
   name: string;
   score: number;
   maxCombo: number;

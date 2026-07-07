@@ -27,7 +27,7 @@ export function colorOf(colorId?: string): number {
   return hexToNumber(BLOCK_COLOR_MAP[colorId ?? "peanut"] ?? BLOCK_COLOR_MAP.peanut);
 }
 
-export function borderOf(colorId?: string): number {
+function borderOf(colorId?: string): number {
   return hexToNumber(BLOCK_BORDER_MAP[colorId ?? "peanut"] ?? BLOCK_BORDER_MAP.peanut);
 }
 
@@ -61,7 +61,7 @@ export function getBlockTexture(app: Application, size: number, colorId: string,
   return texture;
 }
 
-export function drawBlock(
+function drawBlock(
   g: Graphics,
   x: number,
   y: number,
@@ -84,7 +84,7 @@ export function drawBlock(
     .fill({ color: border, alpha: 0.28 * alpha });
 }
 
-export function drawBoardBackground(g: Graphics) {
+function drawBoardBackground(g: Graphics) {
   g.roundRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT, 24)
     .fill({ color: 0xf5ecd7, alpha: 1 })
     .stroke({ width: 2, color: 0x8a7d65, alpha: 0.28 });

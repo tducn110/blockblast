@@ -21,7 +21,7 @@ export interface FeedbackItem {
   type: "clear-row" | "clear-col" | "combo" | "invalid" | "placement" | "boom";
 }
 
-export interface ClearingCell {
+interface ClearingCell {
   row: number;
   col: number;
   colorId?: string;
@@ -96,6 +96,7 @@ export interface GameActions {
   toggleSfx: () => void;
   toggleMusic: () => void;
   dismissFeedback: (id: string) => void;
+  doubleScore: () => void;
 }
 
 export interface UseBlockBlastGameOptions {
@@ -146,7 +147,7 @@ type GameAction =
   | { type: "clearPlacementAnimation"; id: string }
   | { type: "clearClearAnimation"; id: string }
   | { type: "dismissFeedback"; id: string }
-  | { type: "debugGameOver" };
+  | { type: "doubleScore" };
 
 function createInitialCoreState(bestScore: number): GameCoreState {
   const board = createEmptyBoard();
@@ -176,8 +177,6 @@ function createInitialCoreState(bestScore: number): GameCoreState {
 
 function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
   switch (action.type) {
-    case "debugGameOver":
-      return { ...state, status: "gameOver" };
     case "syncBestScore":
       return { ...state, bestScore: Math.max(state.bestScore, action.bestScore) };
     case "selectPiece":
@@ -236,6 +235,14 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
       };
     case "unlockReserveSlot":
       return { ...state, reserveUnlocked: true };
+    case "doubleScore": {
+      const newScore = state.score * 2;
+      return {
+        ...state,
+        score: newScore,
+        bestScore: Math.max(state.bestScore, newScore),
+      };
+    }
     case "clearBoardForReplay":
       return {
         ...state,
@@ -398,14 +405,6 @@ export function useBlockBlastGame({
   const sfxEnabled = controlledSfxEnabled ?? internalSfxEnabled;
   const musicEnabled = controlledMusicEnabled ?? internalMusicEnabled;
 
-  useEffect(() => {
-    // @ts-ignore
-    window.debugGameOver = () => dispatch({ type: "debugGameOver" });
-    return () => {
-      // @ts-ignore
-      delete window.debugGameOver;
-    };
-  }, []);
 
   const cancelPendingTrayGeneration = useCallback(() => {
     if (generationRafRef.current === null) return;
@@ -831,6 +830,18 @@ export function useBlockBlastGame({
     dispatch({ type: "dismissFeedback", id });
   }, []);
 
+  const doubleScore = useCallback(() => {
+    dispatch({ type: "doubleScore" });
+    const state = gameStateRef.current;
+    const newScore = state.score * 2;
+    onGameOver?.({
+      score: newScore,
+      maxCombo: state.maxCombo,
+      linesCleared: state.linesCleared,
+      piecesPlaced: state.piecesPlaced,
+    });
+  }, [onGameOver]);
+
   return {
     ...gameState,
     sfxEnabled,
@@ -850,5 +861,6 @@ export function useBlockBlastGame({
     toggleSfx,
     toggleMusic,
     dismissFeedback,
+    doubleScore,
   };
 }

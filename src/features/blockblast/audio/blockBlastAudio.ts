@@ -6,13 +6,13 @@ type ToneOptions = {
   freqEnd?: number;
 };
 
-export const DESKTOP_AUDIO = {
+const DESKTOP_AUDIO = {
   masterVolume: 1,
   musicVolume: 0.08,
   sfxVolume: 2.2,
 };
 
-export const MOBILE_AUDIO = {
+const MOBILE_AUDIO = {
   masterVolume: 1,
   musicVolume: 0.2,
   sfxVolume: 2.2,
