@@ -1,0 +1,97 @@
+import { useEffect, useRef } from "react";
+import { Application, Container, Graphics, Sprite } from "pixi.js";
+import { BoardGrid, BOARD_SIZE } from "@/features/blockblast/game/blockBlastLogic";
+import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
+import { cellPoint, CELL, GAP, getBlockTexture } from "@/features/blockblast/game/pixiDrawUtils";
+
+interface CellGraphics {
+  block: Sprite;
+}
+
+export function usePixiBoard(app: Application, boardLayer: Container | null, board: BoardGrid, ready: boolean) {
+  const gridRef = useRef<Graphics | null>(null);
+  const blocksRef = useRef<Container | null>(null);
+  const cellsRef = useRef<CellGraphics[][] | null>(null);
+
+  useEffect(() => {
+    if (!ready || !boardLayer) return;
+
+    if (!gridRef.current) {
+      const grid = new Graphics();
+      for (let row = 0; row < BOARD_SIZE; row += 1) {
+        for (let col = 0; col < BOARD_SIZE; col += 1) {
+          const { x, y } = cellPoint(row, col);
+          grid.roundRect(x, y, CELL, CELL, 9)
+            .fill({ color: 0xfffbf0, alpha: 0.84 })
+            .stroke({ width: 1.25, color: 0x5f5241, alpha: 0.2 });
+        }
+      }
+      gridRef.current = grid;
+      boardLayer.addChild(grid);
+    }
+
+    if (!blocksRef.current) {
+      const blocksContainer = new Container();
+      blocksRef.current = blocksContainer;
+      
+      const cells: CellGraphics[][] = [];
+      for (let row = 0; row < BOARD_SIZE; row += 1) {
+        cells[row] = [];
+        for (let col = 0; col < BOARD_SIZE; col += 1) {
+          const { x, y } = cellPoint(row, col);
+          const block = new Sprite();
+          block.x = x;
+          block.y = y;
+          block.visible = false;
+          
+          blocksContainer.addChild(block);
+          cells[row][col] = { block };
+        }
+      }
+      cellsRef.current = cells;
+      boardLayer.addChild(blocksContainer);
+    }
+
+    if (!cellsRef.current) return;
+    
+    if (DEBUG_BLOCK_BLAST_PERF && (globalThis as any).__lastPlacePieceTime) {
+       console.log(`[PERF] react_commit_delay: ${(performance.now() - (globalThis as any).__lastPlacePieceTime).toFixed(2)}ms`);
+       (globalThis as any).__lastPlacePieceTime = 0;
+    }
+
+    const boardUpdateStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
+
+    const cells = cellsRef.current!;
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        const cellState = board[row][col];
+        const cellG = cells[row][col];
+        
+        if (cellState.filled) {
+          cellG.block.texture = getBlockTexture(app, CELL, cellState.colorId || "peanut");
+          cellG.block.visible = true;
+        } else {
+          cellG.block.visible = false;
+        }
+      }
+    }
+
+    if (DEBUG_BLOCK_BLAST_PERF) {
+       console.log(`[PERF] board_visual_update: ${(performance.now() - boardUpdateStart).toFixed(2)}ms`);
+    }
+  }, [board, boardLayer, ready]);
+
+  useEffect(() => {
+    return () => {
+      if (gridRef.current) {
+        gridRef.current.destroy();
+        gridRef.current = null;
+      }
+      if (blocksRef.current) {
+        blocksRef.current.destroy({ children: true });
+        blocksRef.current = null;
+        cellsRef.current = null;
+      }
+    };
+  }, []);
+}
