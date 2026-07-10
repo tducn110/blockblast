@@ -47,20 +47,15 @@ export function Game({
     musicEnabled,
   });
   const lastBoomEventIdRef = useRef<string | null>(null);
-  const adReplayTimerRef = useRef<number | null>(null);
-  const [adReplayStatus, setAdReplayStatus] = useState<
-    "idle" | "loading" | "clearing"
-  >("idle");
+  const [adReplayStatus, setAdReplayStatus] = useState<"idle" | "loading">("idle");
   const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
-  const [continuePromptState, setContinuePromptState] = useState<"idle" | "prompting" | "declined" | "doubled">("idle");
+  const [continuePromptState, setContinuePromptState] = useState<"idle" | "doubled">("idle");
 
   useEffect(() => {
     if (game.status === "playing") {
       setContinuePromptState("idle");
-    } else if (game.status === "gameOver" && continuePromptState === "idle") {
-      setContinuePromptState("prompting");
     }
-  }, [game.status, continuePromptState]);
+  }, [game.status]);
 
   const { currentPlayer } = buildLeaderboardModel(scoreData.stats, "Người chơi");
 
@@ -70,13 +65,6 @@ export function Game({
     lastBoomEventIdRef.current = game.boomEvent.id;
     onBoom(game.boomEvent);
   }, [game.boomEvent, onBoom]);
-
-  useEffect(
-    () => () => {
-      if (adReplayTimerRef.current !== null) window.clearTimeout(adReplayTimerRef.current);
-    },
-    []
-  );
 
   const mascotMood =
     scenery === "boom" ? "boom" : game.status === "gameOver" ? "gameOver" : "idle";
@@ -127,14 +115,9 @@ export function Game({
       return;
     }
 
-    setAdReplayStatus("clearing");
-    const hasClearAnimation = game.clearBoardForReplay();
-    adReplayTimerRef.current = window.setTimeout(() => {
-      adReplayTimerRef.current = null;
-      setAdReplayStatus("idle");
-      game.continueAfterReplay();
-    }, hasClearAnimation ? 780 : 120);
-  }, [adReplayStatus, game.clearBoardForReplay, game.continueAfterReplay]);
+    game.revive();
+    setAdReplayStatus("idle");
+  }, [adReplayStatus, game.revive]);
 
   return (
     <section
@@ -283,11 +266,11 @@ export function Game({
           )}
         </div>
       </div>
-      {game.status === "gameOver" && continuePromptState === "prompting" && (
+      {game.status === "reviveOffer" && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
           <div className="absolute inset-0 bg-[#2a2418]/40" />
           
-          <div className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col items-center gap-[24px] w-full max-w-[340px] border-2 border-[#8a7d65]/20">
+          <div role="dialog" aria-modal="true" className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col items-center gap-[24px] w-full max-w-[340px] max-h-[calc(100dvh-32px)] overflow-y-auto border-2 border-[#8a7d65]/20">
             <h2 className="text-[24px] font-extrabold text-[#e87432] text-center uppercase">
               Tiếp tục?
             </h2>
@@ -309,7 +292,7 @@ export function Game({
                 variant="secondary"
                 size="lg"
                 disabled={adReplayStatus !== "idle"}
-                onClick={() => setContinuePromptState("declined")}
+                onClick={game.declineRevive}
                 style={{ flex: 1, minHeight: 56, fontSize: 16 }}
               >
                 Không
@@ -318,11 +301,11 @@ export function Game({
           </div>
         </div>
       )}
-      {game.status === "gameOver" && (continuePromptState === "declined" || continuePromptState === "doubled") && (
+      {game.status === "gameOver" && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
           <div className="absolute inset-0 bg-[#2a2418]/40" />
           
-          <div className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col gap-[18px] w-full max-w-[420px] border-2 border-[#8a7d65]/20">
+          <div role="dialog" aria-modal="true" className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col gap-[18px] w-full max-w-[420px] max-h-[calc(100dvh-32px)] overflow-y-auto border-2 border-[#8a7d65]/20">
             {/* Header: Score */}
             <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px] shrink-0">
               <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">ĐIỂM</div>

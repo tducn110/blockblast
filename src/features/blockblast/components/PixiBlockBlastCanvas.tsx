@@ -26,7 +26,7 @@ interface PixiBlockBlastCanvasProps {
   reserveUnlocked: boolean;
   reservePiece: BlockPiece | null;
   showMobileReserveSlot: boolean;
-  status: "playing" | "resolving" | "gameOver";
+  status: "playing" | "resolving" | "reviveOffer" | "gameOver";
   clearAnimation: ClearAnimation | null;
   placementAnimation: PlacementAnimation | null;
   comboShakeEvent: ComboShakeEvent | null;

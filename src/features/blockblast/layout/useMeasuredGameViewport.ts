@@ -16,6 +16,9 @@ export function useMeasuredGameViewport() {
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
+    // The game remains mounted while another screen is hidden with display:none.
+    // Keep the last real viewport instead of collapsing Pixi to a 1x1 renderer.
+    if (rect.width < 1 || rect.height < 1) return;
     const width = Math.max(1, Math.floor(rect.width));
     const height = Math.max(1, Math.floor(rect.height));
 

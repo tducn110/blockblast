@@ -283,6 +283,59 @@ function createEasyFallbackPieces(board: BoardGrid, rand: () => number): BlockPi
   });
 }
 
+function hasImmediateLineClear(
+  board: BoardGrid,
+  shape: { id: string; cells: Array<{ row: number; col: number }> }
+): boolean {
+  const piece = testPieceForShape(shape);
+  return getPlacements(board, piece).some((placement) =>
+    clearLines(placePiece(board, piece, placement.row, placement.col)).clearedCount > 0
+  );
+}
+
+/**
+ * Creates a one-time rescue tray without changing the current board.
+ * Small pieces keep the recovery playable; a line-clearing shape is preferred
+ * when the board has a visible opening for it.
+ */
+export function createRevivePieces(
+  board: BoardGrid,
+  _score = 0,
+  seed?: number
+): BlockPiece[] | null {
+  const rand = seed !== undefined ? seededRandom(seed) : Math.random;
+  const colors = [...COLOR_IDS];
+  const smallShapes = SHAPES.filter(
+    (shape) => shape.cells.length <= 2 && getPlacements(board, testPieceForShape(shape)).length > 0
+  );
+
+  if (smallShapes.length === 0) return null;
+
+  const lineClearShapes = SHAPES
+    .filter((shape) => hasImmediateLineClear(board, shape))
+    .sort((a, b) => a.cells.length - b.cells.length);
+  const preferredShape = lineClearShapes[0] ?? smallShapes[0];
+
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    const pieces = [
+      makePiece(preferredShape, colors[Math.floor(rand() * colors.length)], 0, rand),
+      ...Array.from({ length: 2 }, (_, index) => {
+        const shape = smallShapes[Math.floor(rand() * smallShapes.length)];
+        return makePiece(shape, colors[Math.floor(rand() * colors.length)], index + 1, rand);
+      }),
+    ];
+
+    if (canPlaceAllInAnyOrder(board, pieces)) return pieces;
+  }
+
+  const fallback = smallShapes.find((shape) => shape.id === "single") ?? smallShapes[0];
+  const fallbackPieces = Array.from({ length: 3 }, (_, index) =>
+    makePiece(fallback, colors[Math.floor(rand() * colors.length)], index, rand)
+  );
+
+  return canPlaceAllInAnyOrder(board, fallbackPieces) ? fallbackPieces : null;
+}
+
 export function createSmartPieces(
   board: BoardGrid,
   score: number,

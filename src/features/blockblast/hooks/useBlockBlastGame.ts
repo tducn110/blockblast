@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useReducer } from "react";
 import {
   createEmptyBoard,
   createSmartPieces,
+  createRevivePieces,
   canPlacePiece,
   placePiece,
   clearLines,
@@ -65,7 +66,7 @@ export interface GameState {
   score: number;
   bestScore: number;
   combo: number;
-  status: "playing" | "resolving" | "gameOver";
+  status: "playing" | "resolving" | "reviveOffer" | "gameOver";
   feedback: FeedbackItem[];
   piecesPlaced: number;
   linesCleared: number;
@@ -78,6 +79,7 @@ export interface GameState {
   comboShakeEvent: ComboShakeEvent | null;
   reserveUnlocked: boolean;
   reservePiece: BlockPiece | null;
+  reviveUsed: boolean;
 }
 
 export interface GameActions {
@@ -89,8 +91,8 @@ export interface GameActions {
   placeSelectedPiece: (row: number, col: number) => boolean;
   placeDraggingPiece: (row: number, col: number) => boolean;
   resetGame: () => void;
-  clearBoardForReplay: () => boolean;
-  continueAfterReplay: () => void;
+  revive: () => boolean;
+  declineRevive: () => void;
   unlockReserveSlot: () => void;
   useReserveSlot: () => boolean;
   toggleSfx: () => void;
@@ -141,8 +143,8 @@ type GameAction =
       status: GameCoreState["status"];
     }
   | { type: "unlockReserveSlot" }
-  | { type: "clearBoardForReplay"; animation: ClearAnimation | null }
-  | { type: "continueAfterReplay"; board: BoardGrid; pieces: BlockPiece[] }
+  | { type: "revive"; pieces: BlockPiece[] }
+  | { type: "declineRevive" }
   | { type: "reset"; bestScore: number }
   | { type: "clearPlacementAnimation"; id: string }
   | { type: "clearClearAnimation"; id: string }
@@ -172,6 +174,7 @@ function createInitialCoreState(bestScore: number): GameCoreState {
     comboShakeEvent: null,
     reserveUnlocked: false,
     reservePiece: null,
+    reviveUsed: false,
   };
 }
 
@@ -233,33 +236,9 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
         hoverAnchor: null,
         status: action.status,
       };
-    case "unlockReserveSlot":
-      return { ...state, reserveUnlocked: true };
-    case "doubleScore": {
-      const newScore = state.score * 2;
+    case "revive":
       return {
         ...state,
-        score: newScore,
-        bestScore: Math.max(state.bestScore, newScore),
-      };
-    }
-    case "clearBoardForReplay":
-      return {
-        ...state,
-        board: createEmptyBoard(),
-        pieces: state.pieces.map((piece) => ({ ...piece, placed: true })),
-        selectedPieceId: null,
-        draggingPieceId: null,
-        hoverAnchor: null,
-        status: "resolving",
-        clearAnimation: action.animation ?? state.clearAnimation,
-        placementAnimation: null,
-        comboShakeEvent: null,
-      };
-    case "continueAfterReplay":
-      return {
-        ...state,
-        board: action.board,
         pieces: action.pieces,
         selectedPieceId: null,
         draggingPieceId: null,
@@ -271,9 +250,21 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
         placementAnimation: null,
         boomEvent: null,
         comboShakeEvent: null,
-        reserveUnlocked: false,
         reservePiece: null,
+        reviveUsed: true,
       };
+    case "declineRevive":
+      return state.status === "reviveOffer" ? { ...state, status: "gameOver" } : state;
+    case "unlockReserveSlot":
+      return { ...state, reserveUnlocked: true };
+    case "doubleScore": {
+      const newScore = state.score * 2;
+      return {
+        ...state,
+        score: newScore,
+        bestScore: Math.max(state.bestScore, newScore),
+      };
+    }
     case "reset":
       return createInitialCoreState(action.bestScore);
     case "clearPlacementAnimation":
@@ -335,25 +326,6 @@ function makeClearAnimation(
     clearedRows,
     clearedCols,
     accentColorId,
-  };
-}
-
-function makeBoardClearAnimation(board: BoardGrid): ClearAnimation | null {
-  const cells: ClearingCell[] = [];
-
-  board.forEach((row) => {
-    row.forEach((cell) => {
-      if (cell.filled) cells.push({ row: cell.row, col: cell.col, colorId: cell.colorId });
-    });
-  });
-
-  if (cells.length === 0) return null;
-
-  return {
-    id: String(Date.now()) + "-" + String(Math.random()),
-    cells,
-    clearedRows: [],
-    clearedCols: [],
   };
 }
 
@@ -482,13 +454,14 @@ export function useBlockBlastGame({
         const reservePiece = gameStateRef.current.reservePiece;
         const piecesToCheck = reservePiece ? [...generatedPieces, reservePiece] : generatedPieces;
         const generatedGameOver = isGameOver(board, piecesToCheck);
+        const reviveUsed = gameStateRef.current.reviveUsed;
         dispatch({
           type: "generateNextTray",
           pieces: generatedPieces,
-          status: generatedGameOver ? "gameOver" : "playing",
+          status: generatedGameOver ? (reviveUsed ? "gameOver" : "reviveOffer") : "playing",
         });
 
-        if (generatedGameOver) {
+        if (generatedGameOver && reviveUsed) {
           if (sfxEnabled) blockBlastAudio.playGameOver();
           onGameOver?.({
             score,
@@ -598,7 +571,13 @@ export function useBlockBlastGame({
         ? [...nextPieces.filter((p) => !p.placed), nextReservePiece]
         : nextPieces.filter((p) => !p.placed);
       const gameOver = allPlaced ? false : isGameOver(clearedBoard, gameOverPieces);
-      const nextStatus = allPlaced ? "resolving" : gameOver ? "gameOver" : "playing";
+      const nextStatus = allPlaced
+        ? "resolving"
+        : gameOver
+          ? state.reviveUsed
+            ? "gameOver"
+            : "reviveOffer"
+          : "playing";
 
       dispatch({
         type: "placePiece",
@@ -658,7 +637,7 @@ export function useBlockBlastGame({
       }
 
       // Game over check for non-allPlaced case (allPlaced handled in deferred rAF)
-      if (!allPlaced && gameOver) {
+      if (!allPlaced && gameOver && state.reviveUsed) {
         if (sfxEnabled) blockBlastAudio.playGameOver();
         onGameOver?.({
           score: newScore,
@@ -727,38 +706,37 @@ export function useBlockBlastGame({
     dispatch({ type: "reset", bestScore: externalBestScore });
   }, [cancelPendingTrayGeneration, externalBestScore]);
 
-  const clearBoardForReplay = useCallback((): boolean => {
+  const revive = useCallback((): boolean => {
+    const state = gameStateRef.current;
+    if (state.status !== "reviveOffer" || state.reviveUsed) return false;
+
+    const rescuePieces = createRevivePieces(state.board, state.score, Date.now());
+    if (!rescuePieces) return false;
+
     runIdRef.current += 1;
     cancelPendingTrayGeneration();
     clearAnimationTimers.current.forEach((timer) => window.clearTimeout(timer));
     clearAnimationTimers.current = [];
     placementAnimationTimers.current.forEach((timer) => window.clearTimeout(timer));
     placementAnimationTimers.current = [];
-
-    const nextClearAnimation = makeBoardClearAnimation(gameStateRef.current.board);
-    dispatch({ type: "clearBoardForReplay", animation: nextClearAnimation });
-
-    if (nextClearAnimation) {
-      const timer = window.setTimeout(() => {
-        dispatch({ type: "clearClearAnimation", id: nextClearAnimation.id });
-      }, 650);
-      clearAnimationTimers.current.push(timer);
-      if (sfxEnabled) blockBlastAudio.playBoom();
-    }
-
-    return nextClearAnimation !== null;
+    dispatch({ type: "revive", pieces: rescuePieces });
+    if (sfxEnabled) blockBlastAudio.playPlace();
+    return true;
   }, [cancelPendingTrayGeneration, sfxEnabled]);
 
-  const continueAfterReplay = useCallback(() => {
-    runIdRef.current += 1;
-    cancelPendingTrayGeneration();
-    const nextBoard = createEmptyBoard();
-    dispatch({
-      type: "continueAfterReplay",
-      board: nextBoard,
-      pieces: createSmartPieces(nextBoard, gameStateRef.current.score, Date.now()),
+  const declineRevive = useCallback(() => {
+    const state = gameStateRef.current;
+    if (state.status !== "reviveOffer") return;
+
+    dispatch({ type: "declineRevive" });
+    if (sfxEnabled) blockBlastAudio.playGameOver();
+    onGameOver?.({
+      score: state.score,
+      maxCombo: state.maxCombo,
+      linesCleared: state.linesCleared,
+      piecesPlaced: state.piecesPlaced,
     });
-  }, [cancelPendingTrayGeneration]);
+  }, [onGameOver, sfxEnabled]);
 
   const unlockReserveSlot = useCallback(() => {
     if (gameStateRef.current.status !== "playing") return;
@@ -832,15 +810,7 @@ export function useBlockBlastGame({
 
   const doubleScore = useCallback(() => {
     dispatch({ type: "doubleScore" });
-    const state = gameStateRef.current;
-    const newScore = state.score * 2;
-    onGameOver?.({
-      score: newScore,
-      maxCombo: state.maxCombo,
-      linesCleared: state.linesCleared,
-      piecesPlaced: state.piecesPlaced,
-    });
-  }, [onGameOver]);
+  }, []);
 
   return {
     ...gameState,
@@ -854,8 +824,8 @@ export function useBlockBlastGame({
     placeSelectedPiece,
     placeDraggingPiece,
     resetGame,
-    clearBoardForReplay,
-    continueAfterReplay,
+    revive,
+    declineRevive,
     unlockReserveSlot,
     useReserveSlot,
     toggleSfx,
