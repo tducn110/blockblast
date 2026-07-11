@@ -4,6 +4,7 @@ import { Game } from "@/features/blockblast/components/Game";
 import { DashboardScreen } from "@/features/blockblast/screens/Dashboard";
 import { SettingsScreen } from "@/features/blockblast/screens/Settings";
 import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
+import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 
 type Screen = "game" | "dashboard" | "settings";
@@ -17,6 +18,22 @@ export default function App() {
   // Settings state can be stored in localStorage eventually, just local state for now
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      blockBlastAudio.unlockFromGesture();
+    };
+
+    document.addEventListener("pointerdown", unlockAudio, { capture: true, passive: true });
+    document.addEventListener("touchstart", unlockAudio, { capture: true, passive: true });
+    document.addEventListener("keydown", unlockAudio, { capture: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", unlockAudio, { capture: true });
+      document.removeEventListener("touchstart", unlockAudio, { capture: true });
+      document.removeEventListener("keydown", unlockAudio, { capture: true });
+    };
+  }, []);
 
   const handleBoom = useCallback((_event: BoomEvent) => {
     if (sceneryTimerRef.current !== null) {

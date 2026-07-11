@@ -42,6 +42,7 @@ class BlockBlastAudio {
   private masterSfxGain: GainNode | null = null;
   private unlockListenersBound = false;
   private visibilityListenerBound = false;
+  private musicPlayPromise: Promise<void> | null = null;
   private wasMusicPlayingBeforeHidden = false;
 
   private setupWebAudioRouting() {
@@ -86,12 +87,23 @@ class BlockBlastAudio {
   };
 
   private readonly unlock = () => {
-    void this.resumeContext().then((context) => {
-      if (context && context.state !== "running") return;
-      this.removeUnlockListeners();
-      if (this.musicEnabled) this.startMusicTrack();
-    });
+    this.unlockFromGesture({ removeFallbackListeners: true });
   };
+
+  unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}) {
+    const context = this.ensureContext();
+    if (context?.state === "suspended") {
+      void context.resume();
+    }
+
+    if (removeFallbackListeners && (!context || context.state === "running")) {
+      this.removeUnlockListeners();
+    }
+
+    if (this.musicEnabled) {
+      void this.startMusicTrack();
+    }
+  }
 
   setMusicEnabled(enabled: boolean) {
     this.musicEnabled = enabled;
@@ -343,11 +355,16 @@ class BlockBlastAudio {
       return;
     }
 
+    if (this.musicPlayPromise) return;
+
+    this.musicPlayPromise = audio.play();
     try {
-      await audio.play();
+      await this.musicPlayPromise;
       this.removeUnlockListeners();
     } catch {
       this.addUnlockListeners();
+    } finally {
+      this.musicPlayPromise = null;
     }
   }
 
