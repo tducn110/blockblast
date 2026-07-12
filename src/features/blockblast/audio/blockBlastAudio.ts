@@ -43,7 +43,11 @@ class BlockBlastAudio {
   private unlockListenersBound = false;
   private visibilityListenerBound = false;
   private musicPlayPromise: Promise<void> | null = null;
-  private wasMusicPlayingBeforeHidden = false;
+
+  preload() {
+    this.ensureMusicElement();
+    this.ensureSlashElement();
+  }
 
   private setupWebAudioRouting() {
     const context = this.ensureContext();
@@ -130,7 +134,6 @@ class BlockBlastAudio {
   }
 
   setMobileAudioMode(enabled: boolean) {
-    console.log("[Audio] setMobileAudioMode invoked with:", enabled, "current mode:", this.mobileAudioMode);
     if (this.mobileAudioMode === enabled) return;
     this.mobileAudioMode = enabled;
     this.applyAudioVolumes();
@@ -262,8 +265,8 @@ class BlockBlastAudio {
     const audio = new Audio("/assets/audio/music.mp3");
     audio.loop = true;
     audio.preload = "auto";
+    audio.load();
     this.musicElement = audio;
-    this.setupWebAudioRouting();
     return audio;
   }
 
@@ -273,8 +276,8 @@ class BlockBlastAudio {
 
     const audio = new Audio("/assets/audio/slash-clear.mp3");
     audio.preload = "auto";
+    audio.load();
     this.slashElement = audio;
-    this.setupWebAudioRouting();
     return audio;
   }
 
@@ -365,12 +368,6 @@ class BlockBlastAudio {
       this.addUnlockListeners();
     } finally {
       this.musicPlayPromise = null;
-    }
-  }
-
-  private stopMusicTrack() {
-    if (this.masterBgmGain) {
-      this.masterBgmGain.gain.value = 0;
     }
   }
 
@@ -497,34 +494,29 @@ class BlockBlastAudio {
     };
     const forceMobile = this.mobileAudioMode || isMobile();
     const config = forceMobile ? MOBILE_AUDIO : DESKTOP_AUDIO;
-    console.log("[Audio] Config selected:", forceMobile ? "MOBILE" : "DESKTOP", config);
     return config;
   }
 
   private musicVolume() {
     const config = this.audioConfig();
     const calculated = clampVolume(config.masterVolume * config.musicVolume * MUSIC_ASSET_GAIN);
-    console.log("[Audio] calculated musicVolume:", calculated);
     return calculated;
   }
 
   private sfxToneVolume(volume: number) {
     const config = this.audioConfig();
     const calculated = clampVolume(config.masterVolume * config.sfxVolume * volume * TONE_SFX_GAIN);
-    console.log("[Audio] calculated sfxToneVolume for base", volume, "is:", calculated);
     return calculated;
   }
 
   private sfxSlashVolume(volume: number) {
     const config = this.audioConfig();
     const calculated = clampVolume(config.masterVolume * config.sfxVolume * volume * SLASH_SFX_GAIN);
-    console.log("[Audio] calculated sfxSlashVolume for base", volume, "is:", calculated);
     return calculated;
   }
 
   private applyAudioVolumes() {
     const vol = this.musicVolume();
-    console.log("[Audio] applyAudioVolumes setting music volume to:", vol);
     if (this.musicGainNode) {
       this.musicGainNode.gain.value = vol;
     }
@@ -540,7 +532,6 @@ class BlockBlastAudio {
     if (typeof document === "undefined" || !this.visibilityListenerBound) return;
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.visibilityListenerBound = false;
-    this.wasMusicPlayingBeforeHidden = false;
   }
 
   dispose() {
@@ -564,6 +555,8 @@ class BlockBlastAudio {
     this.slashGainNode = null;
     this.musicSourceNode = null;
     this.slashSourceNode = null;
+    this.musicElement = null;
+    this.slashElement = null;
   }
 }
 

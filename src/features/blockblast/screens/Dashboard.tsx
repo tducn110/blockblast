@@ -1,6 +1,6 @@
 import { Trophy } from "lucide-react";
 import type { LocalStats } from "@/features/blockblast/game/localStats";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/shared/Button";
 import { BADGE_COLORS, buildLeaderboardModel, getRank, type RankedLeaderboardEntry } from "@/features/blockblast/lib/dashboardHelpers";
 
 interface DashboardProps {

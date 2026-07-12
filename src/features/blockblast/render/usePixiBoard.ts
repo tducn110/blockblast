@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite } from "pixi.js";
 import { BoardGrid, BOARD_SIZE } from "@/features/blockblast/game/blockBlastLogic";
-import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
-import { cellPoint, CELL, GAP, getBlockTexture } from "@/features/blockblast/game/pixiDrawUtils";
+import { cellPoint, CELL, getBlockTexture } from "@/features/blockblast/game/pixiDrawUtils";
 
 interface CellGraphics {
   block: Sprite;
@@ -54,12 +53,7 @@ export function usePixiBoard(app: Application, boardLayer: Container | null, boa
 
     if (!cellsRef.current) return;
     
-    if (DEBUG_BLOCK_BLAST_PERF && (globalThis as any).__lastPlacePieceTime) {
-       console.log(`[PERF] react_commit_delay: ${(performance.now() - (globalThis as any).__lastPlacePieceTime).toFixed(2)}ms`);
-       (globalThis as any).__lastPlacePieceTime = 0;
-    }
 
-    const boardUpdateStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
 
     const cells = cellsRef.current!;
     for (let row = 0; row < BOARD_SIZE; row++) {
@@ -76,9 +70,6 @@ export function usePixiBoard(app: Application, boardLayer: Container | null, boa
       }
     }
 
-    if (DEBUG_BLOCK_BLAST_PERF) {
-       console.log(`[PERF] board_visual_update: ${(performance.now() - boardUpdateStart).toFixed(2)}ms`);
-    }
   }, [board, boardLayer, ready]);
 
   useEffect(() => {

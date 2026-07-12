@@ -20,6 +20,8 @@ export default function App() {
   const [musicEnabled, setMusicEnabled] = useState(true);
 
   useEffect(() => {
+    blockBlastAudio.preload();
+
     const unlockAudio = () => {
       blockBlastAudio.unlockFromGesture();
     };
@@ -32,6 +34,7 @@ export default function App() {
       document.removeEventListener("pointerdown", unlockAudio, { capture: true });
       document.removeEventListener("touchstart", unlockAudio, { capture: true });
       document.removeEventListener("keydown", unlockAudio, { capture: true });
+      blockBlastAudio.dispose();
     };
   }, []);
 

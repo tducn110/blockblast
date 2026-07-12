@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent, Ticker, Text } from "pixi.js";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import { BlockPiece, BOARD_SIZE, canPlacePiece } from "@/features/blockblast/game/blockBlastLogic";
-import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import {
   VIEW_WIDTH,
   PIECE_SLOT_WIDTH,
@@ -371,6 +370,7 @@ export function usePixiPieces(
   reservePiece: BlockPiece | null,
   showMobileReserveSlot: boolean,
   status: GameState["status"],
+  interactionLocked: boolean,
   onSelectPiece: (id: string | null) => void,
   onPlacePiece: (id: string, row: number, col: number) => boolean,
   onUnlockReserve: () => void | Promise<void>,
@@ -384,6 +384,7 @@ export function usePixiPieces(
     reserveUnlocked,
     reservePiece,
     status,
+    interactionLocked,
     onPlacePiece,
     onSelectPiece,
     onUnlockReserve,
@@ -425,6 +426,7 @@ export function usePixiPieces(
       reserveUnlocked,
       reservePiece,
       status,
+      interactionLocked,
       onPlacePiece,
       onSelectPiece,
       onUnlockReserve,
@@ -438,6 +440,7 @@ export function usePixiPieces(
     reserveUnlocked,
     reservePiece,
     status,
+    interactionLocked,
     onPlacePiece,
     onSelectPiece,
     onUnlockReserve,
@@ -526,6 +529,10 @@ export function usePixiPieces(
       ) return;
 
       const current = latestRef.current;
+      if (current.interactionLocked || current.status !== "playing") {
+        cleanupDrag();
+        return;
+      }
       const piece = findPlayablePiece(current.pieces, current.reservePiece, ctx.activePieceId);
       if (!piece) {
         cleanupDrag();
@@ -579,6 +586,10 @@ export function usePixiPieces(
     const tick = (ticker: Ticker) => {
       const ctx = dragCtx.current;
       if (ctx.state === "idle") return;
+      if (latestRef.current.interactionLocked || latestRef.current.status !== "playing") {
+        cleanupDrag();
+        return;
+      }
 
       const dt = ticker.deltaTime;
 
@@ -593,7 +604,7 @@ export function usePixiPieces(
           // Snap fast
           ctx.dragRenderPosition.x += (ctx.dragTargetPosition.x - ctx.dragRenderPosition.x) * (1 - Math.exp(-dt * 0.95));
           ctx.dragRenderPosition.y += (ctx.dragTargetPosition.y - ctx.dragRenderPosition.y) * (1 - Math.exp(-dt * 0.95));
-          ctx.animationAge += ticker.elapsedMS;
+          ctx.animationAge += ticker.deltaMS;
 
           const dist = Math.hypot(
               ctx.dragTargetPosition.x - ctx.dragRenderPosition.x,
@@ -640,7 +651,7 @@ export function usePixiPieces(
               }
           }
       } else if (ctx.state === "returning") {
-        ctx.animationAge += Math.min(ticker.elapsedMS, 50);
+        ctx.animationAge += Math.min(ticker.deltaMS, 50);
         const progress = Math.min(ctx.animationAge / RETURN_DURATION_MS, 1);
         const ease = 1 - Math.pow(1 - progress, 3);
         ctx.dragRenderPosition.x =
@@ -752,7 +763,7 @@ export function usePixiPieces(
   useEffect(() => {
     if (dragCtx.current.state === "idle") return;
     cleanupDragRef.current?.();
-  }, [pieces, reservePiece, status]);
+  }, [pieces, reservePiece, status, interactionLocked]);
 
   useEffect(() => {
     if (dragCtx.current.state === "idle") return;
@@ -827,7 +838,7 @@ export function usePixiPieces(
 
         container.on("pointerdown", (event: FederatedPointerEvent) => {
           const current = latestRef.current;
-          if (current.status !== "playing") return;
+          if (current.status !== "playing" || current.interactionLocked) return;
           if (event.button !== 0 || (event.pointerType === "touch" && !event.isPrimary)) return;
 
           const isReserveSlot = showMobileReserveSlot && index === reserveSlotIndex;
@@ -929,7 +940,6 @@ export function usePixiPieces(
       }
     }
 
-    const trayRenderStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
     const boardKey = boardOccupancyKey(board);
     const fitCache = fitCacheRef.current;
     if (fitCache.size > 256) fitCache.clear();
@@ -946,7 +956,7 @@ export function usePixiPieces(
       const isSelected = selectedPieceId === piece.id;
       const ctx = dragCtx.current;
 
-      const isInteractable = status === "playing" && canFit && !piece.placed;
+      const isInteractable = status === "playing" && !interactionLocked && canFit && !piece.placed;
       slot.container.eventMode = isInteractable ? "static" : "none";
       slot.container.cursor = isInteractable ? "pointer" : "default";
 
@@ -982,6 +992,7 @@ export function usePixiPieces(
           pieces.some((piece) => piece.id === selectedPieceId && !piece.placed);
         const canUseReserve =
           status === "playing" &&
+          !interactionLocked &&
           (!reserveUnlocked || hasSelectedPiece || reservePiece !== null);
         const isActiveTarget = reserveUnlocked && hasSelectedPiece;
 
@@ -1035,11 +1046,6 @@ export function usePixiPieces(
         }
       }
     }
-    
-    if (DEBUG_BLOCK_BLAST_PERF) {
-      console.log(`[PERF] tray_render: ${(performance.now() - trayRenderStart).toFixed(2)}ms`);
-    }
-
   }, [
     pieces,
     selectedPieceId,
@@ -1047,6 +1053,7 @@ export function usePixiPieces(
     reservePiece,
     showMobileReserveSlot,
     status,
+    interactionLocked,
     ready,
     piecesLayer,
     dragLayer,

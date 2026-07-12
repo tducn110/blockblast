@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trophy, RotateCcw, Settings, Heart } from "lucide-react";
 import { useBlockBlastGame, type BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
-import { Button } from "@/components/ui/Button";
-import { IconButton } from "@/components/ui/IconButton";
-import { LogoBubble } from "@/components/ui/LogoBubble";
+import { Button } from "@/components/shared/Button";
+import { IconButton } from "@/components/shared/IconButton";
+import { LogoBubble } from "@/components/shared/LogoBubble";
 import { GameHUD } from "@/features/blockblast/components/GameHUD";
 import { Mascot } from "@/features/blockblast/components/Mascot";
 import { PixiBlockBlastCanvas } from "@/features/blockblast/components/PixiBlockBlastCanvas";
@@ -87,37 +87,36 @@ export function Game({
           : "Cất khối";
   const reserveStoreDisabled =
     game.status !== "playing" ||
+    game.adPending ||
     !game.reserveUnlocked ||
     (!game.selectedPieceId && !game.reservePiece);
-  const adActionDisabled = game.status !== "playing" || game.reserveUnlocked || isReserveAdLoading;
+  const adActionDisabled =
+    game.status !== "playing" || game.reserveUnlocked || isReserveAdLoading || game.adPending;
   const handleUnlockReserve = useCallback(async () => {
-    if (adActionDisabled) return;
+    if (adActionDisabled || !game.beginMockAd("reserve")) return;
 
     setIsReserveAdLoading(true);
-    const reward = await playMockAd();
-    setIsReserveAdLoading(false);
-
-    if (reward.granted) {
-      game.unlockReserveSlot();
+    try {
+      const reward = await playMockAd();
+      game.completeMockAd("reserve", reward.granted);
+    } finally {
+      setIsReserveAdLoading(false);
     }
-  }, [adActionDisabled, game.unlockReserveSlot]);
+  }, [adActionDisabled, game.beginMockAd, game.completeMockAd]);
   const handleReserveAction = () => {
     game.useReserveSlot();
   };
   const handleAdReplay = useCallback(async () => {
-    if (adReplayStatus !== "idle") return;
+    if (adReplayStatus !== "idle" || !game.beginMockAd("revive")) return;
 
     setAdReplayStatus("loading");
-    const reward = await playMockAd();
-
-    if (!reward.granted) {
+    try {
+      const reward = await playMockAd();
+      game.completeMockAd("revive", reward.granted);
+    } finally {
       setAdReplayStatus("idle");
-      return;
     }
-
-    game.revive();
-    setAdReplayStatus("idle");
-  }, [adReplayStatus, game.revive]);
+  }, [adReplayStatus, game.beginMockAd, game.completeMockAd]);
 
   return (
     <section
@@ -255,6 +254,7 @@ export function Game({
             placementAnimation={game.placementAnimation}
             comboShakeEvent={game.comboShakeEvent}
             paused={paused}
+            interactionLocked={game.adPending}
             onSelectPiece={game.selectPiece}
             onPlacePiece={game.placePiece}
             onUnlockReserve={handleUnlockReserve}

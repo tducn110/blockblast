@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Application, Container, Rectangle } from "pixi.js";
-import { VIEW_WIDTH, VIEW_HEIGHT } from "@/features/blockblast/game/pixiDrawUtils";
+
 import { createGameWorldTransform } from "@/features/blockblast/layout/gameViewport";
 import { useMeasuredGameViewport } from "@/features/blockblast/layout/useMeasuredGameViewport";
 

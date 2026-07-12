@@ -1,5 +1,4 @@
 import {
-  createDefaultStats,
   loadStats,
   saveStats,
   type LocalStats,
@@ -13,7 +12,7 @@ export interface GameResult {
   piecesPlaced: number;
 }
 
-export interface ScoreSaveOutcome {
+interface ScoreSaveOutcome {
   saved: boolean;
   stats: LocalStats;
   error?: "invalid-score" | "storage-unavailable";

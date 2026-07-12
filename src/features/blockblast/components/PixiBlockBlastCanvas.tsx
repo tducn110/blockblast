@@ -13,7 +13,6 @@ import {
   VIEW_WIDTH,
   VIEW_HEIGHT,
 } from "@/features/blockblast/game/pixiDrawUtils";
-import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import { usePixiApp } from "@/features/blockblast/render/usePixiApp";
 import { usePixiBoard } from "@/features/blockblast/render/usePixiBoard";
 import { usePixiPieces } from "@/features/blockblast/render/usePixiPieces";
@@ -31,6 +30,7 @@ interface PixiBlockBlastCanvasProps {
   placementAnimation: PlacementAnimation | null;
   comboShakeEvent: ComboShakeEvent | null;
   paused: boolean;
+  interactionLocked: boolean;
   onSelectPiece: (id: string | null) => void;
   onPlacePiece: (id: string, row: number, col: number) => boolean;
   onUnlockReserve: () => void | Promise<void>;
@@ -49,6 +49,7 @@ export function PixiBlockBlastCanvas({
   placementAnimation,
   comboShakeEvent,
   paused,
+  interactionLocked,
   onSelectPiece,
   onPlacePiece,
   onUnlockReserve,
@@ -81,6 +82,7 @@ export function PixiBlockBlastCanvas({
     reservePiece,
     showMobileReserveSlot,
     status,
+    interactionLocked,
     onSelectPiece,
     onPlacePiece,
     onUnlockReserve,
@@ -110,23 +112,6 @@ export function PixiBlockBlastCanvas({
     appRef.current.render();
   }, [paused, ready]);
 
-  useEffect(() => {
-    if (!DEBUG_BLOCK_BLAST_PERF || !appRef.current) return;
-    const ticker = appRef.current.ticker;
-    let lastTime = performance.now();
-    
-    const monitor = () => {
-      const now = performance.now();
-      const delta = now - lastTime;
-      lastTime = now;
-      if (delta > 24) {
-        console.warn(`[PERF] ticker_spike: ${delta.toFixed(2)}ms`);
-      }
-    };
-    
-    ticker.add(monitor);
-    return () => { ticker.remove(monitor); };
-  }, [ready]);
 
   useEffect(() => {
     if (!appRef.current || !appRef.current.canvas) return;

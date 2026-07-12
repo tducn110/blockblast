@@ -9,13 +9,6 @@ interface BoardCell {
 
 export type BoardGrid = BoardCell[][];
 
-interface BlockShape {
-  id: string;
-  name: string;
-  cells: Array<{ row: number; col: number }>;
-  colorId: string;
-}
-
 export interface BlockPiece {
   id: string;
   shapeId: string;
@@ -24,14 +17,7 @@ export interface BlockPiece {
   placed: boolean;
 }
 
-interface Placement {
-  pieceId: string;
-  row: number;
-  col: number;
-}
-
 const COLOR_IDS = ["peanut", "bamboo", "orange", "brown", "cream"] as const;
-type ColorId = (typeof COLOR_IDS)[number];
 
 export const BLOCK_COLOR_MAP: Record<string, string> = {
   peanut: "#ffb000",
@@ -214,7 +200,7 @@ function getPlacements(
   return placements;
 }
 
-export function canPlaceAllInAnyOrder(board: BoardGrid, pieces: BlockPiece[]): boolean {
+function canPlaceAllInAnyOrder(board: BoardGrid, pieces: BlockPiece[]): boolean {
   if (pieces.length === 0) return true;
 
   for (let i = 0; i < pieces.length; i += 1) {

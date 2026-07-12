@@ -1,6 +1,6 @@
 import { VIEW_HEIGHT, VIEW_WIDTH } from "@/features/blockblast/game/pixiDrawUtils";
 
-export type GameLayoutMode = "desktop" | "mobile-short" | "mobile-normal" | "mobile-tall";
+type GameLayoutMode = "desktop" | "mobile-short" | "mobile-normal" | "mobile-tall";
 
 export type GameWorldTransform = {
   scale: number;
@@ -41,12 +41,3 @@ export function createGameWorldTransform(width: number, height: number): GameWor
   };
 }
 
-export function rendererPointToWorld(
-  point: { x: number; y: number },
-  transform: GameWorldTransform
-) {
-  return {
-    x: (point.x - transform.x) / transform.scale,
-    y: (point.y - transform.y) / transform.scale,
-  };
-}
