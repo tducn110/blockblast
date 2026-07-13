@@ -349,6 +349,13 @@ export function Game({
                   setAdReplayStatus("loading");
                   await playMockAd();
                   setAdReplayStatus("idle");
+                  const doubledScore = game.score * 2;
+                  scoreData.updateLatestGameResult({
+                    score: doubledScore,
+                    maxCombo: game.maxCombo,
+                    linesCleared: game.linesCleared,
+                    piecesPlaced: game.piecesPlaced,
+                  });
                   game.doubleScore();
                   setContinuePromptState("doubled");
                 }}

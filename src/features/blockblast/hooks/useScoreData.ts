@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   getLocalScoreData,
   saveLocalGameResult,
+  updateLatestLocalGameResult,
   type GameResult,
 } from "@/features/blockblast/lib/localScores";
 import type { LocalStats } from "@/features/blockblast/game/localStats";
@@ -15,6 +16,7 @@ export interface ScoreData {
   savingScore: boolean;
   leaderboard: LocalStats["history"];
   handleGameOver: (result: GameResult) => boolean;
+  updateLatestGameResult: (result: GameResult) => boolean;
   refreshStats: () => void;
 }
 
@@ -59,6 +61,25 @@ export function useScoreData(): ScoreData {
     return true;
   }, []);
 
+  const updateLatestGameResult = useCallback((result: GameResult) => {
+    setSavingScore(true);
+    const outcome = updateLatestLocalGameResult(result);
+    setSavingScore(false);
+    setStats(outcome.stats);
+
+    if (!outcome.saved) {
+      setSaveError(
+        outcome.error === "invalid-score"
+          ? "Điểm không hợp lệ nên chưa được cập nhật."
+          : "Không thể cập nhật điểm trên thiết bị này."
+      );
+      return false;
+    }
+
+    setSaveError(null);
+    return true;
+  }, []);
+
   return {
     stats,
     bestScore: stats.bestScore,
@@ -68,6 +89,7 @@ export function useScoreData(): ScoreData {
     savingScore,
     leaderboard: stats.history,
     handleGameOver,
+    updateLatestGameResult,
     refreshStats,
   };
 }
