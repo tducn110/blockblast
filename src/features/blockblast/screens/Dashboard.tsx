@@ -67,7 +67,7 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
           <div className="text-[12px] font-extrabold text-[#e87432] uppercase tracking-[0.06em]">
             Bảng xếp hạng của bạn
           </div>
-          <RankingRow entry={playerRow} highlight label={playerInTopTen ? "Đang ở top 10" : "Hạng của bạn"} />
+          <RankingRow entry={playerRow} isInner />
         </section>
       )}
 
@@ -81,19 +81,23 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
 export function RankingRow({
   entry,
   highlight = false,
-  label,
+  isInner = false,
 }: {
   entry: RankedLeaderboardEntry;
   highlight?: boolean;
-  label?: string;
+  isInner?: boolean;
 }) {
   const isTopThree = entry.rank != null && entry.rank <= 3;
   const medal = isTopThree ? BADGE_COLORS[entry.rank! - 1] : null;
 
   return (
     <div
-      className="grid grid-cols-[58px_minmax(0,1fr)_minmax(58px,auto)] items-center gap-[8px] rounded-[16px] p-[10px_12px] sm:grid-cols-[64px_minmax(0,1fr)_minmax(68px,auto)] sm:gap-[12px] sm:p-[12px_16px]"
-      style={{
+      className={`grid items-center gap-[8px] sm:gap-[12px] ${
+        isInner 
+          ? "grid-cols-[58px_minmax(0,1fr)_minmax(58px,auto)] sm:grid-cols-[64px_minmax(0,1fr)_minmax(68px,auto)]"
+          : "grid-cols-[58px_minmax(0,1fr)_minmax(58px,auto)] rounded-[16px] p-[10px_12px] sm:grid-cols-[64px_minmax(0,1fr)_minmax(68px,auto)] sm:p-[12px_16px]"
+      }`}
+      style={isInner ? {} : {
         background: highlight
           ? "rgba(232,116,50,0.16)"
           : medal 
@@ -119,29 +123,21 @@ export function RankingRow({
       </div>
 
       <div className="min-w-0">
-        <div className="flex flex-col gap-1 w-full flex-1">
-          <span className="text-[13px] font-bold text-[#4a4232] truncate leading-tight">
+        <div className="flex flex-row items-center gap-[6px] w-full min-w-0">
+          <span className="text-[13px] font-bold text-[#4a4232] truncate leading-tight shrink">
             {entry.name}
           </span>
           {entry.maxCombo > 0 && (
             <span
-              className="text-[11px] font-extrabold p-[2px_6px] rounded-[6px] bg-[#e87432] text-white w-max"
+              className="text-[10px] sm:text-[11px] font-extrabold p-[2px_6px] rounded-[6px] bg-[#e87432] text-white shrink-0"
             >
               Combo {entry.maxCombo}
             </span>
           )}
         </div>
-        
-        {label && (
-          <div className="mt-1">
-            <span className="text-[#e87432] text-[10px] font-extrabold">
-              {label}
-            </span>
-          </div>
-        )}
       </div>
 
-      <div className="min-w-0 whitespace-nowrap text-[#e87432] text-[11px] sm:text-[13px] font-extrabold text-right">
+      <div className="min-w-0 whitespace-nowrap text-[#e87432] text-[12px] sm:text-[14px] font-extrabold text-right">
         {entry.score > 0 ? entry.score.toLocaleString("vi-VN") : "Chưa có"}
       </div>
     </div>
