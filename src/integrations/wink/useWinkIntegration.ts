@@ -2,6 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { winkGame, type WinkRound } from "./client";
 import type { WinkBridgeState, LeaderboardEntry } from "./wink-bridge";
 
+export function isOfflineModeEnabled(env: { dev: boolean; flag: string | undefined }) {
+  return env.dev && env.flag === 'true';
+}
+
 export function useWinkIntegration() {
   const [state, setState] = useState<WinkBridgeState | null>(winkGame.state);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -57,6 +61,25 @@ export function useWinkIntegration() {
     return winkGame.startRound();
   }, []);
   
+  const isMissing = !window.WinkBridge && !isOfflineModeEnabled({ dev: import.meta.env.DEV, flag: import.meta.env.VITE_OFFLINE });
+
+  if (isMissing) {
+    return {
+      state: null,
+      capabilities: { getLeaderboard: false, submitScore: false, complete: false },
+      leaderboard: [],
+      refreshLeaderboard: async () => {},
+      submitFinalScore: async () => {},
+      completeRound: () => {},
+      startRound: () => ({ roundId: 'mock', status: 'playing', startedAtMs: Date.now() } as WinkRound),
+      hostPaused: false,
+      parentMuted: false,
+      error: { code: 'BRIDGE_MISSING', message: 'Bridge missing', retryable: false },
+      phase: 'error',
+      mode: 'wink'
+    };
+  }
+
   return {
     state,
     capabilities: winkGame.capabilities,
@@ -67,6 +90,8 @@ export function useWinkIntegration() {
     startRound,
     hostPaused,
     parentMuted,
-    error: state?.error ?? null
+    error: state?.error ?? null,
+    phase: state?.phase ?? 'error',
+    mode: state ? 'wink' : 'standalone'
   };
 }
