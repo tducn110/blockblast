@@ -30,7 +30,9 @@
       "src/integrations/wink/client.ts"
     ],
     "tests": [
-      "src/integrations/wink/__tests__/client.test.ts"
+      "src/integrations/wink/__tests__/client.test.ts",
+      "src/integrations/wink/__tests__/security-negative.test.ts",
+      "src/integrations/wink/__tests__/useWinkIntegration.test.tsx"
     ]
   },
   "commands": {

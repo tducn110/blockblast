@@ -40,17 +40,11 @@ export function useWinkIntegration() {
 
   const submitFinalScore = useCallback(async (input: { roundId: string, score: number, playTimeSec: number, qualifies: boolean }) => {
     if (!input.qualifies) return;
-    try {
-      await winkGame.submitFinalScore({
-        score: input.score,
-        playTime: input.playTimeSec,
-        metadata: { roundId: input.roundId }
-      });
-    } catch (err: any) {
-      if (err?.code !== "CAPABILITY_DENIED") {
-        throw err;
-      }
-    }
+    return winkGame.submitFinalScore({
+      score: input.score,
+      playTime: input.playTimeSec,
+      metadata: { roundId: input.roundId }
+    });
   }, []);
   
   const completeRound = useCallback((round: WinkRound, playDurationMs: number) => {

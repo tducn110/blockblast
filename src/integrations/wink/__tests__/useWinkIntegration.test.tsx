@@ -17,7 +17,7 @@ import type {
 
 const ANONYMOUS_STATE: RawWinkBridgeState = {
   phase: 'ready_anonymous',
-  gameId: '27d74846-b8ca-44b1-87fe-a909d8b9eef9',
+  gameId: '7784ef77-53f2-4924-9179-356c8e0a715f',
   environment: 'dev',
   sessionId: '33333333-3333-4333-8333-333333333331',
   identityType: 'anonymous',

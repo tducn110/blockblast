@@ -704,7 +704,7 @@ export function useBlockBlastGame({
 
       return true;
     },
-    [sfxEnabled, scheduleDeferredTrayGeneration, scheduleFeedbackDismissal, onGameOver]
+    [sfxEnabled, scheduleDeferredTrayGeneration, scheduleFeedbackDismissal, onGameOver, paused]
   );
 
   const selectPiece = useCallback((id: string | null) => {
@@ -717,7 +717,7 @@ export function useBlockBlastGame({
       return;
     }
     dispatch({ type: "selectPiece", id });
-  }, []);
+  }, [paused]);
 
   const startDrag = useCallback((id: string) => {
     if (
@@ -729,7 +729,7 @@ export function useBlockBlastGame({
       return;
     }
     dispatch({ type: "startDrag", id });
-  }, []);
+  }, [paused]);
 
   const endDrag = useCallback(() => {
     if (
@@ -741,7 +741,7 @@ export function useBlockBlastGame({
       return;
     }
     dispatch({ type: "endDrag" });
-  }, []);
+  }, [paused]);
 
   const setHoverAnchorAction = useCallback((anchor: { row: number; col: number } | null) => {
     if (
@@ -753,7 +753,7 @@ export function useBlockBlastGame({
       return;
     }
     dispatch({ type: "setHoverAnchor", anchor });
-  }, []);
+  }, [paused]);
 
   const placePieceAction = useCallback(
     (id: string, row: number, col: number): boolean => doPlace(id, row, col),

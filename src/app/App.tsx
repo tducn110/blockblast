@@ -25,6 +25,7 @@ export default function App() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const activeRoundRef = useRef<WinkRound | null>(null);
+  const finalizingRoundRef = useRef<string | null>(null);
 
   const onRoundStart = useCallback(() => {
     if (activeRoundRef.current) return;
@@ -35,6 +36,9 @@ export default function App() {
   const onGameEnd = useCallback(async (score: number) => {
     const round = activeRoundRef.current;
     if (!round) return;
+
+    if (finalizingRoundRef.current === round.roundId) return;
+    finalizingRoundRef.current = round.roundId;
 
     const playTimeMs = Date.now() - round.startedAtMs;
     const playTimeSec = Math.round(playTimeMs / 1000);
@@ -62,6 +66,7 @@ export default function App() {
       console.error("[Wink] completeRound failed", err);
     } finally {
       activeRoundRef.current = null;
+      finalizingRoundRef.current = null;
     }
 
     if (wink.phase === "ready_anonymous" || wink.phase === "ready_authenticated") {
