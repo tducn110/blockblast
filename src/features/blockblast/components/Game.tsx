@@ -44,6 +44,8 @@ export function Game({
   onDashboard,
   onSettings,
 }: GameProps) {
+  const [roundSealed, setRoundSealed] = useState(false);
+
   const game = useBlockBlastGame({
     bestScore: scoreData.bestScore,
     onGameOver: (result) => {
@@ -51,20 +53,19 @@ export function Game({
     },
     sfxEnabled,
     musicEnabled,
-    paused,
+    paused: paused || roundSealed,
   });
   const lastBoomEventIdRef = useRef<string | null>(null);
   const [adReplayStatus, setAdReplayStatus] = useState<"idle" | "loading">("idle");
   const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
   const [continuePromptState, setContinuePromptState] = useState<"idle" | "doubled">("idle");
   const [isFinalizing, setIsFinalizing] = useState(false);
-  const [hasFinalizedOnce, setHasFinalizedOnce] = useState(false);
   const finalizingRef = useRef(false);
 
   useEffect(() => {
     if (game.status === "playing") {
       setContinuePromptState("idle");
-      setHasFinalizedOnce(false);
+      setRoundSealed(false);
     }
   }, [game.status]);
 
@@ -139,10 +140,12 @@ export function Game({
     if (finalizingRef.current) return;
     finalizingRef.current = true;
     setIsFinalizing(true);
-    setHasFinalizedOnce(true);
+    setRoundSealed(true);
     try {
       await onGameEnd?.(game.score);
       game.resetGame();
+      setRoundSealed(false);
+      setContinuePromptState("idle");
     } catch (error) {
       console.error("[Wink] round finalization failed", error);
     } finally {
@@ -151,21 +154,10 @@ export function Game({
     }
   }, [game.score, game.resetGame, onGameEnd]);
 
-  const handleDashboard = useCallback(async () => {
+  const handleDashboard = useCallback(() => {
     if (finalizingRef.current) return;
-    finalizingRef.current = true;
-    setIsFinalizing(true);
-    setHasFinalizedOnce(true);
-    try {
-      await onGameEnd?.(game.score);
-      onDashboard();
-    } catch (error) {
-      console.error("[Wink] round finalization failed", error);
-    } finally {
-      finalizingRef.current = false;
-      setIsFinalizing(false);
-    }
-  }, [game.score, onDashboard, onGameEnd]);
+    onDashboard();
+  }, [onDashboard]);
 
   return (
     <section
@@ -195,10 +187,10 @@ export function Game({
           </div>
 
           <div className="flex items-center gap-2 lg:gap-3">
-            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={handleDashboard} size={40} disabled={isFinalizing}>
+            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={handleDashboard} size={40} disabled={isFinalizing || roundSealed}>
               <Trophy size={20} />
             </IconButton>
-            <IconButton label="Cài đặt" onClick={onSettings} size={40} disabled={isFinalizing}>
+            <IconButton label="Cài đặt" onClick={onSettings} size={40} disabled={isFinalizing || roundSealed}>
               <Settings size={22} />
             </IconButton>
             <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={handleRestart} size={40} disabled={isFinalizing}>
@@ -393,7 +385,7 @@ export function Game({
               <Button
                 variant="secondary"
                 size="lg"
-                disabled={continuePromptState === "doubled" || adReplayStatus !== "idle" || hasFinalizedOnce}
+                disabled={continuePromptState === "doubled" || adReplayStatus !== "idle" || roundSealed}
                 onClick={async () => {
                   setAdReplayStatus("loading");
                   await playMockAd();

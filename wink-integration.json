@@ -17,8 +17,8 @@
   },
   "semantics": {
     "roundId": "Generated when the first block is placed in a new game session",
-    "completion": "Reported when leaving/finalizing the result screen (e.g. hitting Restart or Dashboard)",
-    "score": "Reported when leaving/finalizing the result screen (e.g. hitting Restart or Dashboard)",
+    "completion": "Reported when the player finalizes the round by choosing Restart",
+    "score": "Reported when the player finalizes the round by choosing Restart",
     "pauseResume": "Pauses player input, the Pixi ticker, and audio playback while preserving the active round and board state",
     "muteUnmute": "Applies a master volume constraint over user audio preferences"
   },
