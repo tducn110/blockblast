@@ -57,20 +57,33 @@ export default function App() {
       } else {
         console.error("[Wink] submitFinalScore failed", err);
         setSubmitError(err?.message || "Lỗi lưu điểm");
+        finalizingRoundRef.current = null;
+        throw err;
       }
     }
 
+    let completed = false;
     try {
       wink.completeRound(round, playTimeMs);
+      completed = true;
     } catch (err) {
       console.error("[Wink] completeRound failed", err);
+      setSubmitError("Không thể hoàn tất ván. Vui lòng thử lại.");
+      throw err;
     } finally {
-      activeRoundRef.current = null;
+      if (completed) {
+        activeRoundRef.current = null;
+      }
       finalizingRoundRef.current = null;
     }
 
     if (wink.phase === "ready_anonymous" || wink.phase === "ready_authenticated") {
-      void wink.refreshLeaderboard();
+      try {
+        await wink.refreshLeaderboard();
+      } catch (err) {
+        console.error("[Wink] refreshLeaderboard failed", err);
+        setSubmitError("Không thể tải bảng xếp hạng mới.");
+      }
     }
   }, [wink]);
 

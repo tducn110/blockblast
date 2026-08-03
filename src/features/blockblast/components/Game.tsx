@@ -27,7 +27,7 @@ interface GameProps {
   paused: boolean;
   onBoom: (event: BoomEvent) => void;
   onRoundStart?: () => void;
-  onGameEnd?: (score: number) => void;
+  onGameEnd?: (score: number) => Promise<void>;
   onDashboard: () => void;
   onSettings: () => void;
 }
@@ -57,6 +57,7 @@ export function Game({
   const [adReplayStatus, setAdReplayStatus] = useState<"idle" | "loading">("idle");
   const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
   const [continuePromptState, setContinuePromptState] = useState<"idle" | "doubled">("idle");
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   useEffect(() => {
     if (game.status === "playing") {
@@ -131,15 +132,27 @@ export function Game({
     }
   }, [adReplayStatus, game.beginMockAd, game.completeMockAd]);
 
-  const handleRestart = useCallback(() => {
-    onGameEnd?.(game.score);
-    game.resetGame();
-  }, [game.score, game.resetGame, onGameEnd]);
+  const handleRestart = useCallback(async () => {
+    if (isFinalizing) return;
+    setIsFinalizing(true);
+    try {
+      await onGameEnd?.(game.score);
+      game.resetGame();
+    } finally {
+      setIsFinalizing(false);
+    }
+  }, [game.score, game.resetGame, onGameEnd, isFinalizing]);
 
-  const handleDashboard = useCallback(() => {
-    onGameEnd?.(game.score);
-    onDashboard();
-  }, [game.score, onDashboard, onGameEnd]);
+  const handleDashboard = useCallback(async () => {
+    if (isFinalizing) return;
+    setIsFinalizing(true);
+    try {
+      await onGameEnd?.(game.score);
+      onDashboard();
+    } finally {
+      setIsFinalizing(false);
+    }
+  }, [game.score, onDashboard, onGameEnd, isFinalizing]);
 
   return (
     <section
@@ -169,13 +182,13 @@ export function Game({
           </div>
 
           <div className="flex items-center gap-2 lg:gap-3">
-            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={handleDashboard} size={40}>
+            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={handleDashboard} size={40} disabled={isFinalizing}>
               <Trophy size={20} />
             </IconButton>
-            <IconButton label="Cài đặt" onClick={onSettings} size={40}>
+            <IconButton label="Cài đặt" onClick={onSettings} size={40} disabled={isFinalizing}>
               <Settings size={22} />
             </IconButton>
-            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={handleRestart} size={40}>
+            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={handleRestart} size={40} disabled={isFinalizing}>
               <RotateCcw size={20} />
             </IconButton>
           </div>
@@ -399,6 +412,7 @@ export function Game({
                 onClick={handleRestart} 
                 size="md" 
                 variant="primary"
+                disabled={isFinalizing}
                 style={{
                   width: "100%",
                   minHeight: 48,
