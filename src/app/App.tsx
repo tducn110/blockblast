@@ -28,6 +28,8 @@ export default function App() {
     onGameEnd
   } = useRoundFinalization(wink);
 
+  const fatalWinkError = wink.phase === 'error' ? wink.error : null;
+
   useEffect(() => {
     if (wink.hostPaused) {
       blockBlastAudio.suspend();
@@ -148,7 +150,7 @@ export default function App() {
         )}
 
         {/* Keep Game mounted so we don't lose progress */}
-        {(submitError || (wink.error && wink.error.code === "CAPABILITY_DENIED")) && (
+        {(submitError || fatalWinkError) && (
           <div
             role="alert"
             style={{
@@ -157,7 +159,7 @@ export default function App() {
               padding: "8px 20px", borderRadius: 8, fontSize: 13, textAlign: "center",
             }}
           >
-            {submitError || wink.error?.message}
+            {submitError || fatalWinkError?.message}
           </div>
         )}
         <div

@@ -102,19 +102,21 @@ describe('useRoundFinalization', () => {
 
     expect(error).toBeDefined();
     expect(mockWink.submitFinalScore).toHaveBeenCalledTimes(1);
+    expect(mockWink.submitFinalScore).toHaveBeenCalledWith(expect.objectContaining({ score: 100 }));
     expect(mockWink.completeRound).toHaveBeenCalledTimes(1);
     // the round should remain active
     expect(latest.activeRoundRef.current).toBe(mockRound);
 
-    // retry
+    // retry with different score
+    mockWink.completeRound = vi.fn();
     await act(async () => {
-      await latest.onGameEnd(100);
+      await latest.onGameEnd(200);
     });
 
     // submit should not be called again
     expect(mockWink.submitFinalScore).toHaveBeenCalledTimes(1);
     // complete should be called again
-    expect(mockWink.completeRound).toHaveBeenCalledTimes(2);
+    expect(mockWink.completeRound).toHaveBeenCalledTimes(1);
     expect(latest.activeRoundRef.current).toBeNull();
     
     await mounted.unmount();
@@ -143,12 +145,14 @@ describe('useRoundFinalization', () => {
     expect(latest.activeRoundRef.current).toBe(mockRound);
 
     // retry
+    mockWink.submitFinalScore = vi.fn().mockResolvedValue(undefined);
     await act(async () => {
-      await latest.onGameEnd(100);
+      await latest.onGameEnd(200);
     });
 
     // submit should be called again
-    expect(mockWink.submitFinalScore).toHaveBeenCalledTimes(2);
+    expect(mockWink.submitFinalScore).toHaveBeenCalledTimes(1);
+    expect(mockWink.submitFinalScore).toHaveBeenCalledWith(expect.objectContaining({ score: 100 }));
     // complete should not be called again
     expect(mockWink.completeRound).toHaveBeenCalledTimes(1);
     expect(latest.activeRoundRef.current).toBeNull();

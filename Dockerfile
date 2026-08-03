@@ -7,7 +7,7 @@
 #  certified public Wink artifacts — no source, no scripts, no .env, no harness.
 # =============================================================================
 
-ARG NODE_IMAGE=node:22.11.0-alpine
+ARG NODE_IMAGE=node:22.22.2-alpine
 ARG NGINX_IMAGE=nginx:1.25.3-alpine
 ARG BUILD_OUTPUT_DIR=dist
 

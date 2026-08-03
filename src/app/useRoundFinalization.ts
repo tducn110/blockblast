@@ -3,6 +3,9 @@ import type { WinkRound } from "@/integrations/wink/client";
 
 interface FinalizationState {
   roundId: string;
+  finalScore: number;
+  playTimeMs: number;
+  playTimeSec: number;
   scoreSubmitted: boolean;
   completed: boolean;
   promise: Promise<void> | null;
@@ -28,8 +31,12 @@ export function useRoundFinalization(wink: any) {
         return finalizationRef.current.promise;
       }
     } else {
+      const playTimeMs = Date.now() - round.startedAtMs;
       finalizationRef.current = {
         roundId: round.roundId,
+        finalScore: score,
+        playTimeMs,
+        playTimeSec: Math.round(playTimeMs / 1000),
         scoreSubmitted: false,
         completed: false,
         promise: null,
@@ -37,8 +44,6 @@ export function useRoundFinalization(wink: any) {
     }
 
     const state = finalizationRef.current;
-    const playTimeMs = Date.now() - round.startedAtMs;
-    const playTimeSec = Math.round(playTimeMs / 1000);
     
     state.promise = (async () => {
       let hasError = false;
@@ -47,9 +52,9 @@ export function useRoundFinalization(wink: any) {
         try {
           setSubmitError(null);
           await wink.submitFinalScore({
-            roundId: round.roundId,
-            score,
-            playTimeSec,
+            roundId: state.roundId,
+            score: state.finalScore,
+            playTimeSec: state.playTimeSec,
             qualifies: true,
           });
           state.scoreSubmitted = true;
@@ -67,7 +72,7 @@ export function useRoundFinalization(wink: any) {
 
       if (!state.completed) {
         try {
-          wink.completeRound(round, playTimeMs);
+          wink.completeRound(round, state.playTimeMs);
           state.completed = true;
         } catch (err) {
           console.error("[Wink] completeRound failed", err);

@@ -58,11 +58,13 @@ export function Game({
   const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
   const [continuePromptState, setContinuePromptState] = useState<"idle" | "doubled">("idle");
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [hasFinalizedOnce, setHasFinalizedOnce] = useState(false);
   const finalizingRef = useRef(false);
 
   useEffect(() => {
     if (game.status === "playing") {
       setContinuePromptState("idle");
+      setHasFinalizedOnce(false);
     }
   }, [game.status]);
 
@@ -137,9 +139,12 @@ export function Game({
     if (finalizingRef.current) return;
     finalizingRef.current = true;
     setIsFinalizing(true);
+    setHasFinalizedOnce(true);
     try {
       await onGameEnd?.(game.score);
       game.resetGame();
+    } catch (error) {
+      console.error("[Wink] round finalization failed", error);
     } finally {
       finalizingRef.current = false;
       setIsFinalizing(false);
@@ -150,9 +155,12 @@ export function Game({
     if (finalizingRef.current) return;
     finalizingRef.current = true;
     setIsFinalizing(true);
+    setHasFinalizedOnce(true);
     try {
       await onGameEnd?.(game.score);
       onDashboard();
+    } catch (error) {
+      console.error("[Wink] round finalization failed", error);
     } finally {
       finalizingRef.current = false;
       setIsFinalizing(false);
@@ -385,7 +393,7 @@ export function Game({
               <Button
                 variant="secondary"
                 size="lg"
-                disabled={continuePromptState === "doubled" || adReplayStatus !== "idle"}
+                disabled={continuePromptState === "doubled" || adReplayStatus !== "idle" || hasFinalizedOnce}
                 onClick={async () => {
                   setAdReplayStatus("loading");
                   await playMockAd();
