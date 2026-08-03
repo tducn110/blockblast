@@ -5,9 +5,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { useWinkIntegration, isOfflineModeEnabled } from '../useWinkIntegration';
 import type {
-  RawWinkBridge,
-  RawWinkBridgeState,
-} from '../types';
+  WinkBridgeApi as RawWinkBridge,
+  WinkBridgeState as RawWinkBridgeState,
+} from '../wink-bridge';
 
 (
   globalThis as typeof globalThis & {

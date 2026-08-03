@@ -132,18 +132,14 @@ export function Game({
   }, [adReplayStatus, game.beginMockAd, game.completeMockAd]);
 
   const handleRestart = useCallback(() => {
-    if (game.status === "playing" || game.status === "gameOver") {
-      onGameEnd?.(game.score);
-    }
+    onGameEnd?.(game.score);
     game.resetGame();
-  }, [game.status, game.score, game.resetGame, onGameEnd]);
+  }, [game.score, game.resetGame, onGameEnd]);
 
   const handleDashboard = useCallback(() => {
-    if (game.status === "playing" || game.status === "gameOver") {
-      onGameEnd?.(game.score);
-    }
+    onGameEnd?.(game.score);
     onDashboard();
-  }, [game.status, game.score, onDashboard, onGameEnd]);
+  }, [game.score, onDashboard, onGameEnd]);
 
   return (
     <section

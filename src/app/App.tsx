@@ -22,6 +22,7 @@ export default function App() {
 
   // Wink bridge integration
   const wink = useWinkIntegration();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const activeRoundRef = useRef<WinkRound | null>(null);
 
@@ -34,12 +35,12 @@ export default function App() {
   const onGameEnd = useCallback(async (score: number) => {
     const round = activeRoundRef.current;
     if (!round) return;
-    activeRoundRef.current = null;
 
     const playTimeMs = Date.now() - round.startedAtMs;
     const playTimeSec = Math.round(playTimeMs / 1000);
 
     try {
+      setSubmitError(null);
       await wink.submitFinalScore({
         roundId: round.roundId,
         score,
@@ -47,8 +48,11 @@ export default function App() {
         qualifies: true,
       });
     } catch (err: any) {
-      if (err?.code !== "CAPABILITY_DENIED") {
+      if (err?.code === "CAPABILITY_DENIED") {
+        setSubmitError("Bạn chưa đăng nhập để lưu điểm lên Wink");
+      } else {
         console.error("[Wink] submitFinalScore failed", err);
+        setSubmitError(err?.message || "Lỗi lưu điểm");
       }
     }
 
@@ -56,6 +60,12 @@ export default function App() {
       wink.completeRound(round, playTimeMs);
     } catch (err) {
       console.error("[Wink] completeRound failed", err);
+    } finally {
+      activeRoundRef.current = null;
+    }
+
+    if (wink.phase === "ready_anonymous" || wink.phase === "ready_authenticated") {
+      void wink.refreshLeaderboard();
     }
   }, [wink]);
 
@@ -68,10 +78,10 @@ export default function App() {
   }, [wink.hostPaused]);
 
   useEffect(() => {
-    // Only refresh on mount to avoid infinite loops if capabilities are missing
-    wink.refreshLeaderboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (wink.phase === "ready_anonymous" || wink.phase === "ready_authenticated") {
+      void wink.refreshLeaderboard();
+    }
+  }, [wink.phase, wink.refreshLeaderboard]);
 
   // Apply parent mute to audio engine without touching user prefs
   useEffect(() => {
@@ -179,7 +189,7 @@ export default function App() {
         )}
 
         {/* Keep Game mounted so we don't lose progress */}
-        {wink.error && wink.error.code === "CAPABILITY_DENIED" && (
+        {(submitError || (wink.error && wink.error.code === "CAPABILITY_DENIED")) && (
           <div
             role="alert"
             style={{
@@ -188,7 +198,7 @@ export default function App() {
               padding: "8px 20px", borderRadius: 8, fontSize: 13, textAlign: "center",
             }}
           >
-            {wink.error.message}
+            {submitError || wink.error?.message}
           </div>
         )}
         <div

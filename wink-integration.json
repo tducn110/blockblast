@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "game": {
-    "id": "70735b2e-8005-40e9-81ff-1c53e2a6ec01",
+    "id": "7784ef77-53f2-4924-9179-356c8e0a715f",
     "slug": "block-blast",
     "devOrigin": "https://dev-block-blast.papastudio.net",
     "localOrigin": "http://127.0.0.1:5173"
@@ -16,11 +16,11 @@
     "devApiBase": "https://dev-api-winkgames.papastudio.net/api/v1"
   },
   "semantics": {
-    "roundId": "crypto.randomUUID() generated on first block placed",
-    "completion": "Reported when Game Over is reached or game is explicitly restarted",
-    "score": "Submitted when finishing Game Over dialog, returning to Dashboard, or restarting",
-    "pauseResume": "Suspends AudioContext and locks interaction (dragging/placing)",
-    "muteUnmute": "Mutes/unmutes game audio without modifying user settings"
+    "roundId": "Generated when the first block is placed in a new game session",
+    "completion": "Reported when leaving/finalizing the result screen (e.g. hitting Restart or Dashboard)",
+    "score": "Reported when leaving/finalizing the result screen (e.g. hitting Restart or Dashboard)",
+    "pauseResume": "Pauses both game logic and audio playback, showing pause overlay",
+    "muteUnmute": "Applies a master volume constraint over user audio preferences"
   },
   "files": {
     "runtimeConfig": "public/wink-runtime-config.json",

@@ -17,21 +17,19 @@ export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: Dashb
   const playerInTopTen = localTopEntries.find((entry) => entry.isLocal) ?? null;
   let playerRow = playerInTopTen ?? currentPlayer;
 
+  const isWinkLeaderboard = leaderboard !== undefined;
   let topEntries = localTopEntries;
-  if (leaderboard && leaderboard.length > 0) {
-    topEntries = leaderboard.map(entry => ({
+  if (isWinkLeaderboard) {
+    topEntries = leaderboard.map((entry) => ({
       name: entry.displayName || "Anonymous",
       score: entry.score,
       maxCombo: 0,
       linesCleared: 0,
       rank: entry.rank,
       isLocal: false,
-      isNew: false
+      isNew: false,
     }));
-    // We don't have the authenticated player's rank in local mock if we use Wink leaderboard,
-    // so we just hide the "Bảng xếp hạng của bạn" section if we are using the remote leaderboard
-    // unless they appear in the top 10.
-    playerRow = null; 
+    playerRow = null;
   }
 
   return (
@@ -68,9 +66,15 @@ export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: Dashb
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-[10px] overflow-y-auto overscroll-contain pr-1">
-          {topEntries.map((entry) => (
-            <RankingRow key={`${entry.name}-${entry.rank}`} entry={entry} highlight={entry.isLocal} />
-          ))}
+          {topEntries.length > 0 ? (
+            topEntries.map((entry) => (
+              <RankingRow key={`${entry.name}-${entry.rank}`} entry={entry} highlight={entry.isLocal} />
+            ))
+          ) : (
+            <div className="text-[14px] text-center text-[#8a7d65] font-bold mt-4">
+              Chưa có dữ liệu Ranking từ Wink.
+            </div>
+          )}
         </div>
       </section>
 

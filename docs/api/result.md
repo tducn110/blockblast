@@ -30,14 +30,15 @@ Quá trình này có thể dùng làm chuẩn cho mọi minigame Wink sau này:
    - Tách biệt round start và complete/submit.
    - Quản lý lifecycle.
 4. **React Binding (useWinkIntegration.ts):** Viết Hook react để subscribe vào `winkGame.observe`, tự động re-render component khi Wink Bridge có thay đổi state (pause, mute, score).
-5. **Typescript & Tests:** Xoá file `types.ts` cũ (từ reference 2048), chỉ sử dụng type sinh tự động từ `wink-bridge.ts`. Các script `npm run typecheck`, `verify:wink-bridge` và `vitest run` phải pass xanh toàn bộ.
+5. **Typescript & Tests:** Sử dụng type sinh tự động từ `wink-bridge.ts`. Các script `npm run typecheck`, `verify:wink-bridge` và `vitest run` phải pass xanh toàn bộ.
 6. **Wink Config JSON (`wink-integration.json`):** Trả lời đúng 5 "TODO" liên quan đến semantics cho Wink Admin.
 7. **Verify Docker Headers:** Phải run `source game.config.sh && npm run verify:docker-headers` để kiểm chứng Docker serve đúng chuẩn Content-Security-Policy iframe. Kết quả cho BlockBlast: `docker headers verified image=winkgames-block-blast:header-smoke... routes=5 frameAncestors='none'` (Thành công!).
 
 ## 4. Trạng Thái Hiện Tại
-Dự án 09_blockblast đã đáp ứng ĐẦY ĐỦ tiêu chuẩn Wink Handoff:
-- [x] Không còn fallback "2048".
-- [x] `verify:wink-bridge` PASS.
-- [x] `verify:docker-headers` PASS.
-- [x] Typecheck & Unit tests (security-negative) PASS.
-- [x] API catalog row tồn tại và khớp cấu hình.
+Dự án 09_blockblast hiện tại:
+- [x] Static verifier pass
+- [x] Docker gate agent báo pass
+- [x] Catalog agent báo tồn tại
+- [ ] Runtime game-template anonymous/user chưa được ghi nhận
+
+Ghi chú: Đã xóa/rewrite file types.ts cũ. Vẫn cần tự chạy lại các test runtime anonymous và user trên trình duyệt để ghi nhận score lên leaderboard theo quy trình chuẩn.
