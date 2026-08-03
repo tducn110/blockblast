@@ -19,7 +19,7 @@
     "roundId": "Generated when the first block is placed in a new game session",
     "completion": "Reported when leaving/finalizing the result screen (e.g. hitting Restart or Dashboard)",
     "score": "Reported when leaving/finalizing the result screen (e.g. hitting Restart or Dashboard)",
-    "pauseResume": "Pauses both game logic and audio playback, showing pause overlay",
+    "pauseResume": "Pauses player input, the Pixi ticker, and audio playback while preserving the active round and board state",
     "muteUnmute": "Applies a master volume constraint over user audio preferences"
   },
   "files": {
@@ -32,7 +32,8 @@
     "tests": [
       "src/integrations/wink/__tests__/client.test.ts",
       "src/integrations/wink/__tests__/security-negative.test.ts",
-      "src/integrations/wink/__tests__/useWinkIntegration.test.tsx"
+      "src/integrations/wink/__tests__/useWinkIntegration.test.tsx",
+      "src/app/__tests__/useRoundFinalization.test.tsx"
     ]
   },
   "commands": {

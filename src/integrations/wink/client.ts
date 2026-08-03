@@ -58,13 +58,10 @@ const DENIED: WinkBridgeCapabilities = Object.freeze({
 });
 
 function newRoundId(): string {
-  const cryptoRef = globalThis.crypto;
-  if (cryptoRef && typeof cryptoRef.randomUUID === 'function') {
-    return cryptoRef.randomUUID();
+  if (typeof globalThis.crypto?.randomUUID !== "function") {
+    throw new Error("crypto.randomUUID is unavailable");
   }
-  // Non-secret correlation id; only used to keep one round's events together.
-  const random = Math.random().toString(16).slice(2, 10);
-  return `round-${Date.now().toString(16)}-${random}`;
+  return globalThis.crypto.randomUUID();
 }
 
 export class WinkGameIntegration {
