@@ -26,7 +26,6 @@ interface GameProps {
   scenery: "normal" | "boom";
   paused: boolean;
   onBoom: (event: BoomEvent) => void;
-  onGameEnd?: (score: number) => void;
   onDashboard: () => void;
   onSettings: () => void;
 }
@@ -38,16 +37,12 @@ export function Game({
   scenery,
   paused,
   onBoom,
-  onGameEnd,
   onDashboard,
   onSettings,
 }: GameProps) {
   const game = useBlockBlastGame({
     bestScore: scoreData.bestScore,
-    onGameOver: (result) => {
-      scoreData.handleGameOver(result);
-      onGameEnd?.(result.score);
-    },
+    onGameOver: scoreData.handleGameOver,
     sfxEnabled,
     musicEnabled,
   });
@@ -245,8 +240,8 @@ export function Game({
       </div>
 
       {/* Right Column: Canvas Board */}
-      <div className="blockblast-game-board relative flex-1 min-h-0 flex flex-col items-center justify-center overflow-hidden">
-        <div className="blockblast-canvas-wrap w-full h-full min-h-0 relative max-w-[590px] lg:h-auto">
+      <div className="relative flex-1 flex flex-col items-center justify-center">
+        <div className="w-full relative max-w-[590px]">
           <PixiBlockBlastCanvas
             board={game.board}
             pieces={game.pieces}

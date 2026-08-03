@@ -97,7 +97,7 @@ class BlockBlastAudio {
   unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}) {
     const context = this.ensureContext();
     if (context?.state === "suspended") {
-      void context.resume().catch(() => this.addUnlockListeners());
+      void context.resume();
     }
 
     if (removeFallbackListeners && (!context || context.state === "running")) {
@@ -105,7 +105,7 @@ class BlockBlastAudio {
     }
 
     if (this.musicEnabled) {
-      this.startMusicTrack({ fromGesture: true });
+      void this.startMusicTrack();
     }
   }
 
@@ -123,11 +123,7 @@ class BlockBlastAudio {
     }
 
     this.addVisibilityListener();
-    if (this.context?.state === "running") {
-      this.startMusicTrack();
-    } else {
-      this.addUnlockListeners();
-    }
+    void this.startMusicTrack();
   }
 
   setSfxEnabled(enabled: boolean) {
@@ -339,21 +335,13 @@ class BlockBlastAudio {
     return context;
   }
 
-  private startMusicTrack({ fromGesture = false }: { fromGesture?: boolean } = {}) {
+  private async startMusicTrack() {
     if (!this.musicEnabled) return;
 
     const audio = this.ensureMusicElement();
     if (!audio) return;
 
-    const context = this.ensureContext();
-    if (context?.state === "suspended") {
-      if (!fromGesture) {
-        this.addUnlockListeners();
-        return;
-      }
-      void context.resume().catch(() => this.addUnlockListeners());
-    }
-
+    void this.resumeContext();
     this.setupWebAudioRouting();
 
     const vol = this.musicVolume();
@@ -362,8 +350,7 @@ class BlockBlastAudio {
     }
 
     if (this.masterBgmGain) {
-      const isHidden = typeof document !== "undefined" && document.hidden;
-      this.masterBgmGain.gain.value = this.musicEnabled && !isHidden ? 1 : 0;
+      this.masterBgmGain.gain.value = this.musicEnabled && !document.hidden ? 1 : 0;
     }
 
     if (!audio.paused && !audio.ended) {
@@ -371,22 +358,20 @@ class BlockBlastAudio {
       return;
     }
 
-    if (this.musicPlayPromise && !fromGesture) return;
+    if (this.musicPlayPromise) return;
 
     const playPromise = audio.play();
     this.musicPlayPromise = playPromise;
-    playPromise
-      .then(() => {
-        this.removeUnlockListeners();
-      })
-      .catch(() => {
-        this.addUnlockListeners();
-      })
-      .finally(() => {
-        if (this.musicPlayPromise === playPromise) {
-          this.musicPlayPromise = null;
-        }
-      });
+    try {
+      await playPromise;
+      this.removeUnlockListeners();
+    } catch {
+      this.addUnlockListeners();
+    } finally {
+      if (this.musicPlayPromise === playPromise) {
+        this.musicPlayPromise = null;
+      }
+    }
   }
 
   private playSlashSound(volume: number, playbackRate: number) {
@@ -410,8 +395,7 @@ class BlockBlastAudio {
     if (!context) return;
 
     if (context.state === "suspended") {
-      this.addUnlockListeners();
-      void context.resume().catch(() => this.addUnlockListeners());
+      void context.resume();
     }
 
     callback(context);

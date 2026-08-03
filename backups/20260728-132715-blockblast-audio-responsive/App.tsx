@@ -6,7 +6,6 @@ import { SettingsScreen } from "@/features/blockblast/screens/Settings";
 import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
-import { useWinkIntegration } from "@/integrations/wink/useWinkIntegration";
 
 type Screen = "game" | "dashboard" | "settings";
 
@@ -16,61 +15,9 @@ export default function App() {
   const [scenery, setScenery] = useState<"normal" | "boom">("normal");
   const sceneryTimerRef = useRef<number | null>(null);
 
+  // Settings state can be stored in localStorage eventually, just local state for now
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
-
-  // Wink bridge integration
-  const wink = useWinkIntegration();
-
-  const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
-  const [roundStartMs, setRoundStartMs] = useState<number>(0);
-
-  const onRoundStart = useCallback(() => {
-    if (activeRoundId) return;
-    const id = `round-${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
-    setActiveRoundId(id);
-    setRoundStartMs(Date.now());
-  }, [activeRoundId]);
-
-  const onGameEnd = useCallback(async (score: number) => {
-    const roundId = activeRoundId;
-    setActiveRoundId(null);
-    if (!roundId) return;
-
-    const playTimeMs = Date.now() - roundStartMs;
-    const playTimeSec = Math.round(playTimeMs / 1000);
-
-    try {
-      await wink.submitFinalScore({
-        roundId,
-        score,
-        playTimeSec,
-        qualifies: true,
-      });
-    } catch (err: any) {
-      if (err?.code !== "CAPABILITY_DENIED") {
-        console.error("[Wink] submitFinalScore failed", err);
-      }
-    }
-
-    try {
-      await wink.completeRound({
-        roundId,
-        playDurationMs: playTimeMs,
-      });
-    } catch (err) {
-      console.error("[Wink] completeRound failed", err);
-    }
-  }, [activeRoundId, roundStartMs, wink]);
-
-  // Apply parent mute to audio engine without touching user prefs
-  useEffect(() => {
-    blockBlastAudio.setMusicEnabled(musicEnabled && !wink.parentMuted);
-  }, [musicEnabled, wink.parentMuted]);
-
-  useEffect(() => {
-    blockBlastAudio.setSfxEnabled(sfxEnabled && !wink.parentMuted);
-  }, [sfxEnabled, wink.parentMuted]);
 
   useEffect(() => {
     blockBlastAudio.preload();
@@ -153,10 +100,7 @@ export default function App() {
           <DashboardScreen 
             bestScore={scoreData.bestScore}
             stats={scoreData.stats}
-            onPlay={() => {
-              onRoundStart();
-              setScreen("game");
-            }}
+            onPlay={() => setScreen("game")}
           />
         )}
 
@@ -171,18 +115,6 @@ export default function App() {
         )}
 
         {/* Keep Game mounted so we don't lose progress */}
-        {wink.error && wink.error.code === "CAPABILITY_DENIED" && (
-          <div
-            role="alert"
-            style={{
-              position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)",
-              zIndex: 100, background: "rgba(180,30,30,0.92)", color: "#fff",
-              padding: "8px 20px", borderRadius: 8, fontSize: 13, textAlign: "center",
-            }}
-          >
-            {wink.error.message}
-          </div>
-        )}
         <div
           className="blockblast-game-mount"
           style={{
@@ -197,9 +129,8 @@ export default function App() {
             sfxEnabled={sfxEnabled} 
             musicEnabled={musicEnabled}
             scenery={scenery}
-            paused={screen !== "game" || wink.hostPaused}
+            paused={screen !== "game"}
             onBoom={handleBoom}
-            onGameEnd={onGameEnd}
             onDashboard={() => setScreen("dashboard")} 
             onSettings={() => setScreen("settings")}
           />
