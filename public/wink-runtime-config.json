@@ -1,9 +1,10 @@
 {
-  "gameId": "70735b2e-8005-40e9-81ff-1c53e2a6ec01",
-  "slug": "bo-lac-block-blaster-pixijs",
-  "url": "https://dev-bo-lac-block-blaster-pixijs.papastudio.net",
-  "origins": [
-    "https://dev-bo-lac-block-blaster-pixijs.papastudio.net",
-    "http://127.0.0.1:5173"
+  "gameId": "7784ef77-53f2-4924-9179-356c8e0a715f",
+  "environment": "dev",
+  "protocolVersion": 1,
+  "bridgeVersion": "9.0.0",
+  "allowedParentOrigins": [
+    "https://dev-winkgames.papastudio.net",
+    "http://127.0.0.1:8787"
   ]
 }

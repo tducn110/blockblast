@@ -2,18 +2,37 @@ import { Trophy } from "lucide-react";
 import type { LocalStats } from "@/features/blockblast/game/localStats";
 import { Button } from "@/components/shared/Button";
 import { BADGE_COLORS, buildLeaderboardModel, getRank, type RankedLeaderboardEntry } from "@/features/blockblast/lib/dashboardHelpers";
+import type { LeaderboardEntry } from "@/integrations/wink/wink-bridge";
 
 interface DashboardProps {
   bestScore: number;
   stats: LocalStats;
+  leaderboard?: readonly LeaderboardEntry[];
   onPlay: () => void;
 }
 
-export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
+export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: DashboardProps) {
   // Use "Người chơi" since we don't have username input yet
-  const { topEntries, currentPlayer } = buildLeaderboardModel(stats, "Người chơi");
-  const playerInTopTen = topEntries.find((entry) => entry.isLocal) ?? null;
-  const playerRow = playerInTopTen ?? currentPlayer;
+  const { topEntries: localTopEntries, currentPlayer } = buildLeaderboardModel(stats, "Người chơi");
+  const playerInTopTen = localTopEntries.find((entry) => entry.isLocal) ?? null;
+  let playerRow = playerInTopTen ?? currentPlayer;
+
+  let topEntries = localTopEntries;
+  if (leaderboard && leaderboard.length > 0) {
+    topEntries = leaderboard.map(entry => ({
+      name: entry.displayName || "Anonymous",
+      score: entry.score,
+      maxCombo: 0,
+      linesCleared: 0,
+      rank: entry.rank,
+      isLocal: false,
+      isNew: false
+    }));
+    // We don't have the authenticated player's rank in local mock if we use Wink leaderboard,
+    // so we just hide the "Bảng xếp hạng của bạn" section if we are using the remote leaderboard
+    // unless they appear in the top 10.
+    playerRow = null; 
+  }
 
   return (
     <div

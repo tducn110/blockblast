@@ -7,6 +7,7 @@ import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { useWinkIntegration } from "@/integrations/wink/useWinkIntegration";
+import type { WinkRound } from "@/integrations/wink/client";
 
 type Screen = "game" | "dashboard" | "settings";
 
@@ -22,27 +23,25 @@ export default function App() {
   // Wink bridge integration
   const wink = useWinkIntegration();
 
-  const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
-  const [roundStartMs, setRoundStartMs] = useState<number>(0);
+  const activeRoundRef = useRef<WinkRound | null>(null);
 
   const onRoundStart = useCallback(() => {
-    if (activeRoundId) return;
-    const id = `round-${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
-    setActiveRoundId(id);
-    setRoundStartMs(Date.now());
-  }, [activeRoundId]);
+    if (activeRoundRef.current) return;
+    const round = wink.startRound();
+    activeRoundRef.current = round;
+  }, [wink]);
 
   const onGameEnd = useCallback(async (score: number) => {
-    const roundId = activeRoundId;
-    setActiveRoundId(null);
-    if (!roundId) return;
+    const round = activeRoundRef.current;
+    if (!round) return;
+    activeRoundRef.current = null;
 
-    const playTimeMs = Date.now() - roundStartMs;
+    const playTimeMs = Date.now() - round.startedAtMs;
     const playTimeSec = Math.round(playTimeMs / 1000);
 
     try {
       await wink.submitFinalScore({
-        roundId,
+        roundId: round.roundId,
         score,
         playTimeSec,
         qualifies: true,
@@ -54,14 +53,25 @@ export default function App() {
     }
 
     try {
-      await wink.completeRound({
-        roundId,
-        playDurationMs: playTimeMs,
-      });
+      wink.completeRound(round, playTimeMs);
     } catch (err) {
       console.error("[Wink] completeRound failed", err);
     }
-  }, [activeRoundId, roundStartMs, wink]);
+  }, [wink]);
+
+  useEffect(() => {
+    if (wink.hostPaused) {
+      blockBlastAudio.suspend();
+    } else {
+      blockBlastAudio.resume();
+    }
+  }, [wink.hostPaused]);
+
+  useEffect(() => {
+    // Only refresh on mount to avoid infinite loops if capabilities are missing
+    wink.refreshLeaderboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Apply parent mute to audio engine without touching user prefs
   useEffect(() => {
@@ -153,10 +163,8 @@ export default function App() {
           <DashboardScreen 
             bestScore={scoreData.bestScore}
             stats={scoreData.stats}
-            onPlay={() => {
-              onRoundStart();
-              setScreen("game");
-            }}
+            leaderboard={wink.leaderboard}
+            onPlay={() => setScreen("game")}
           />
         )}
 
@@ -199,6 +207,7 @@ export default function App() {
             scenery={scenery}
             paused={screen !== "game" || wink.hostPaused}
             onBoom={handleBoom}
+            onRoundStart={onRoundStart}
             onGameEnd={onGameEnd}
             onDashboard={() => setScreen("dashboard")} 
             onSettings={() => setScreen("settings")}

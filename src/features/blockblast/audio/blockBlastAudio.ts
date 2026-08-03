@@ -577,6 +577,18 @@ class BlockBlastAudio {
     this.musicElement = null;
     this.slashElement = null;
   }
+
+  suspend() {
+    if (this.context && this.context.state === "running") {
+      void this.context.suspend();
+    }
+  }
+
+  resume() {
+    if (this.context && this.context.state === "suspended") {
+      void this.context.resume();
+    }
+  }
 }
 
 export const blockBlastAudio = new BlockBlastAudio();

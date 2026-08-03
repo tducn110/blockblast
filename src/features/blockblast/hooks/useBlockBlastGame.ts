@@ -109,6 +109,7 @@ interface UseBlockBlastGameOptions {
   bestScore?: number;
   sfxEnabled?: boolean;
   musicEnabled?: boolean;
+  paused?: boolean;
   onGameOver?: (result: GameResult) => void;
 }
 
@@ -415,6 +416,7 @@ export function useBlockBlastGame({
   bestScore: externalBestScore = 0,
   sfxEnabled: controlledSfxEnabled,
   musicEnabled: controlledMusicEnabled,
+  paused = false,
   onGameOver,
 }: UseBlockBlastGameOptions = {}): GameState & GameActions {
   const [gameState, dispatch] = useReducer(
@@ -531,7 +533,7 @@ export function useBlockBlastGame({
   const doPlace = useCallback(
     (pieceId: string, row: number, col: number): boolean => {
       const state = gameStateRef.current;
-      if (state.status !== "playing" || state.adPending || mockAdSessionRef.current) return false;
+      if (paused || state.status !== "playing" || state.adPending || mockAdSessionRef.current) return false;
 
       const trayPiece = state.pieces.find((p) => p.id === pieceId && !p.placed);
       const reservePiece =
@@ -707,6 +709,7 @@ export function useBlockBlastGame({
 
   const selectPiece = useCallback((id: string | null) => {
     if (
+      paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
       mockAdSessionRef.current
@@ -718,6 +721,7 @@ export function useBlockBlastGame({
 
   const startDrag = useCallback((id: string) => {
     if (
+      paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
       mockAdSessionRef.current
@@ -729,6 +733,7 @@ export function useBlockBlastGame({
 
   const endDrag = useCallback(() => {
     if (
+      paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
       mockAdSessionRef.current
@@ -740,6 +745,7 @@ export function useBlockBlastGame({
 
   const setHoverAnchorAction = useCallback((anchor: { row: number; col: number } | null) => {
     if (
+      paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
       mockAdSessionRef.current

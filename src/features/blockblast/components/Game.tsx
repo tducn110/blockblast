@@ -26,6 +26,7 @@ interface GameProps {
   scenery: "normal" | "boom";
   paused: boolean;
   onBoom: (event: BoomEvent) => void;
+  onRoundStart?: () => void;
   onGameEnd?: (score: number) => void;
   onDashboard: () => void;
   onSettings: () => void;
@@ -38,6 +39,7 @@ export function Game({
   scenery,
   paused,
   onBoom,
+  onRoundStart,
   onGameEnd,
   onDashboard,
   onSettings,
@@ -46,10 +48,10 @@ export function Game({
     bestScore: scoreData.bestScore,
     onGameOver: (result) => {
       scoreData.handleGameOver(result);
-      onGameEnd?.(result.score);
     },
     sfxEnabled,
     musicEnabled,
+    paused,
   });
   const lastBoomEventIdRef = useRef<string | null>(null);
   const [adReplayStatus, setAdReplayStatus] = useState<"idle" | "loading">("idle");
@@ -61,6 +63,12 @@ export function Game({
       setContinuePromptState("idle");
     }
   }, [game.status]);
+
+  useEffect(() => {
+    if (game.piecesPlaced === 1 && game.status === "playing") {
+      onRoundStart?.();
+    }
+  }, [game.piecesPlaced, game.status, onRoundStart]);
 
   const { currentPlayer } = buildLeaderboardModel(scoreData.stats, "Người chơi");
 
@@ -123,6 +131,20 @@ export function Game({
     }
   }, [adReplayStatus, game.beginMockAd, game.completeMockAd]);
 
+  const handleRestart = useCallback(() => {
+    if (game.status === "playing" || game.status === "gameOver") {
+      onGameEnd?.(game.score);
+    }
+    game.resetGame();
+  }, [game.status, game.score, game.resetGame, onGameEnd]);
+
+  const handleDashboard = useCallback(() => {
+    if (game.status === "playing" || game.status === "gameOver") {
+      onGameEnd?.(game.score);
+    }
+    onDashboard();
+  }, [game.status, game.score, onDashboard, onGameEnd]);
+
   return (
     <section
       className="blockblast-game-shell w-full h-full min-h-0 max-w-[440px] lg:h-auto lg:max-w-[1080px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[30px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[38px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden"
@@ -151,13 +173,13 @@ export function Game({
           </div>
 
           <div className="flex items-center gap-2 lg:gap-3">
-            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={onDashboard} size={40}>
+            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={handleDashboard} size={40}>
               <Trophy size={20} />
             </IconButton>
             <IconButton label="Cài đặt" onClick={onSettings} size={40}>
               <Settings size={22} />
             </IconButton>
-            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={game.resetGame} size={40}>
+            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={handleRestart} size={40}>
               <RotateCcw size={20} />
             </IconButton>
           </div>
@@ -259,7 +281,7 @@ export function Game({
             placementAnimation={game.placementAnimation}
             comboShakeEvent={game.comboShakeEvent}
             paused={paused}
-            interactionLocked={game.adPending}
+            interactionLocked={paused || game.adPending}
             onSelectPiece={game.selectPiece}
             onPlacePiece={game.placePiece}
             onUnlockReserve={handleUnlockReserve}
@@ -378,7 +400,7 @@ export function Game({
                     : "x2"}
               </Button>
               <Button 
-                onClick={game.resetGame} 
+                onClick={handleRestart} 
                 size="md" 
                 variant="primary"
                 style={{

@@ -224,7 +224,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("certified bridge security negatives — 2048", () => {
+describe("certified bridge security negatives — BlockBlast", () => {
   it("fails top-level with PARENT_REQUIRED before any config or API request", async () => {
     const harness = await createHarness({ topLevel: true });
 
@@ -396,7 +396,7 @@ describe("certified bridge security negatives — 2048", () => {
   });
 });
 
-describe("2048 iframe-only documentation boundary", () => {
+describe("BlockBlast iframe-only documentation boundary", () => {
   it("documents certified iframe commands and PARENT_REQUIRED in README", () => {
     const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
 
