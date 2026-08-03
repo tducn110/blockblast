@@ -25,7 +25,12 @@ export default function App() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const activeRoundRef = useRef<WinkRound | null>(null);
-  const finalizingRoundRef = useRef<string | null>(null);
+  const finalizationRef = useRef<{
+    roundId: string;
+    scoreSubmitted: boolean;
+    completed: boolean;
+    promise: Promise<void> | null;
+  } | null>(null);
 
   const onRoundStart = useCallback(() => {
     if (activeRoundRef.current) return;
@@ -37,54 +42,80 @@ export default function App() {
     const round = activeRoundRef.current;
     if (!round) return;
 
-    if (finalizingRoundRef.current === round.roundId) return;
-    finalizingRoundRef.current = round.roundId;
+    if (finalizationRef.current?.roundId === round.roundId) {
+      if (finalizationRef.current.promise) {
+        return finalizationRef.current.promise;
+      }
+    } else {
+      finalizationRef.current = {
+        roundId: round.roundId,
+        scoreSubmitted: false,
+        completed: false,
+        promise: null,
+      };
+    }
 
+    const state = finalizationRef.current;
     const playTimeMs = Date.now() - round.startedAtMs;
     const playTimeSec = Math.round(playTimeMs / 1000);
+    
+    state.promise = (async () => {
+      let hasError = false;
 
-    try {
-      setSubmitError(null);
-      await wink.submitFinalScore({
-        roundId: round.roundId,
-        score,
-        playTimeSec,
-        qualifies: true,
-      });
-    } catch (err: any) {
-      if (err?.code === "CAPABILITY_DENIED") {
-        setSubmitError("Bạn chưa đăng nhập để lưu điểm lên Wink");
-      } else {
-        console.error("[Wink] submitFinalScore failed", err);
-        setSubmitError(err?.message || "Lỗi lưu điểm");
-        finalizingRoundRef.current = null;
-        throw err;
+      if (!state.scoreSubmitted) {
+        try {
+          setSubmitError(null);
+          await wink.submitFinalScore({
+            roundId: round.roundId,
+            score,
+            playTimeSec,
+            qualifies: true,
+          });
+          state.scoreSubmitted = true;
+        } catch (err: any) {
+          if (err?.code === "CAPABILITY_DENIED") {
+            setSubmitError("Bạn chưa đăng nhập để lưu điểm lên Wink");
+            state.scoreSubmitted = true; 
+          } else {
+            console.error("[Wink] submitFinalScore failed", err);
+            setSubmitError(err?.message || "Lỗi lưu điểm");
+            hasError = true;
+          }
+        }
       }
-    }
 
-    let completed = false;
-    try {
-      wink.completeRound(round, playTimeMs);
-      completed = true;
-    } catch (err) {
-      console.error("[Wink] completeRound failed", err);
-      setSubmitError("Không thể hoàn tất ván. Vui lòng thử lại.");
-      throw err;
-    } finally {
-      if (completed) {
+      if (!state.completed) {
+        try {
+          wink.completeRound(round, playTimeMs);
+          state.completed = true;
+        } catch (err) {
+          console.error("[Wink] completeRound failed", err);
+          setSubmitError((prev) => prev ? prev + " - Không thể hoàn tất ván." : "Không thể hoàn tất ván. Vui lòng thử lại.");
+          hasError = true;
+        }
+      }
+
+      if (state.completed) {
         activeRoundRef.current = null;
       }
-      finalizingRoundRef.current = null;
-    }
 
-    if (wink.phase === "ready_anonymous" || wink.phase === "ready_authenticated") {
-      try {
-        await wink.refreshLeaderboard();
-      } catch (err) {
-        console.error("[Wink] refreshLeaderboard failed", err);
-        setSubmitError("Không thể tải bảng xếp hạng mới.");
+      state.promise = null;
+
+      if (hasError) {
+        throw new Error("Finalization failed");
       }
-    }
+
+      if (wink.phase === "ready_anonymous" || wink.phase === "ready_authenticated") {
+        try {
+          await wink.refreshLeaderboard();
+        } catch (err) {
+          console.error("[Wink] refreshLeaderboard failed", err);
+          setSubmitError((prev) => prev ? prev + " - Lỗi tải BXH." : "Không thể tải bảng xếp hạng mới.");
+        }
+      }
+    })();
+
+    return state.promise;
   }, [wink]);
 
   useEffect(() => {

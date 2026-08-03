@@ -30,12 +30,8 @@ export function useWinkIntegration() {
   }, []);
 
   const refreshLeaderboard = useCallback(async () => {
-    try {
-      const res = await winkGame.refreshLeaderboard({ limit: 100 });
-      setLeaderboard(res.entries);
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await winkGame.refreshLeaderboard({ limit: 100 });
+    setLeaderboard(res.entries);
   }, []);
 
   const submitFinalScore = useCallback(async (input: { roundId: string, score: number, playTimeSec: number, qualifies: boolean }) => {

@@ -58,6 +58,7 @@ export function Game({
   const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
   const [continuePromptState, setContinuePromptState] = useState<"idle" | "doubled">("idle");
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const finalizingRef = useRef(false);
 
   useEffect(() => {
     if (game.status === "playing") {
@@ -133,26 +134,30 @@ export function Game({
   }, [adReplayStatus, game.beginMockAd, game.completeMockAd]);
 
   const handleRestart = useCallback(async () => {
-    if (isFinalizing) return;
+    if (finalizingRef.current) return;
+    finalizingRef.current = true;
     setIsFinalizing(true);
     try {
       await onGameEnd?.(game.score);
       game.resetGame();
     } finally {
+      finalizingRef.current = false;
       setIsFinalizing(false);
     }
-  }, [game.score, game.resetGame, onGameEnd, isFinalizing]);
+  }, [game.score, game.resetGame, onGameEnd]);
 
   const handleDashboard = useCallback(async () => {
-    if (isFinalizing) return;
+    if (finalizingRef.current) return;
+    finalizingRef.current = true;
     setIsFinalizing(true);
     try {
       await onGameEnd?.(game.score);
       onDashboard();
     } finally {
+      finalizingRef.current = false;
       setIsFinalizing(false);
     }
-  }, [game.score, onDashboard, onGameEnd, isFinalizing]);
+  }, [game.score, onDashboard, onGameEnd]);
 
   return (
     <section
