@@ -58,10 +58,7 @@ const DENIED: WinkBridgeCapabilities = Object.freeze({
 });
 
 function newRoundId(): string {
-  if (typeof globalThis.crypto?.randomUUID !== "function") {
-    throw new Error("crypto.randomUUID is unavailable");
-  }
-  return globalThis.crypto.randomUUID();
+  return crypto.randomUUID();
 }
 
 export class WinkGameIntegration {
@@ -95,6 +92,8 @@ export class WinkGameIntegration {
     if (this.#completedRounds.has(round.roundId)) {
       return false;
     }
+    this.#completedRounds.add(round.roundId);
+
     const { playDurationMs, ...rest } = extra;
     complete({
       roundId: round.roundId,
@@ -104,8 +103,6 @@ export class WinkGameIntegration {
       ),
       ...rest,
     });
-    
-    this.#completedRounds.add(round.roundId);
     return true;
   }
 

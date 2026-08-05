@@ -154,10 +154,23 @@ export function Game({
     }
   }, [game.score, game.resetGame, onGameEnd]);
 
-  const handleDashboard = useCallback(() => {
+  const handleDashboard = useCallback(async () => {
     if (finalizingRef.current) return;
+    if (game.status === "gameOver") {
+      finalizingRef.current = true;
+      setIsFinalizing(true);
+      setRoundSealed(true);
+      try {
+        await onGameEnd?.(game.score);
+      } catch (error) {
+        console.error("[Wink] round finalization failed", error);
+      } finally {
+        finalizingRef.current = false;
+        setIsFinalizing(false);
+      }
+    }
     onDashboard();
-  }, [onDashboard]);
+  }, [game.status, game.score, onGameEnd, onDashboard]);
 
   return (
     <section

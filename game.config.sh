@@ -12,17 +12,17 @@
 # ----------------------------- PER-GAME INPUT --------------------------------
 # Slug: lowercase letters, digits, single hyphens. Becomes the subdomain, the
 # service name, and the registry path.
-GAME_SLUG="block-blast"
+GAME_SLUG="bo-lac-block-blaster-pixijs"
 
 # Display metadata (not used by the runtime contract).
-GAME_TITLE="Block Blast"
-GAME_DESCRIPTION="Block Blast — Winkgames mini-game"
+GAME_TITLE="BlockBlast"
+GAME_DESCRIPTION="BlockBlast — Winkgames mini-game"
 
 # The game UUID. Must match public/wink-runtime-config.json and the catalog row
 # id of the environment below — the two environments have different ids. On dev
 # it is the UUID the developer generated before building; on prod it is the one
 # the CMS generated when the row was created, so that row has to exist first.
-GAME_ID="7784ef77-53f2-4924-9179-356c8e0a715f"
+GAME_ID="70735b2e-8005-40e9-81ff-1c53e2a6ec01"
 
 # "dev" or "prod". Promoting to prod additionally requires the platform-owner
 # approval described in game-template/docs/PRODUCTION_READINESS.md.

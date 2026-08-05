@@ -185,7 +185,7 @@ export function submitScore(
 }
 
 export function complete(input: CompletionInput): void {
-  requireBridge().complete(input);
+  getWinkBridge()?.complete(input);
 }
 
 export function onPause(listener: () => void): () => void {

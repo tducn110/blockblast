@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "game": {
-    "id": "7784ef77-53f2-4924-9179-356c8e0a715f",
-    "slug": "block-blast",
-    "devOrigin": "https://dev-block-blast.papastudio.net",
+    "id": "70735b2e-8005-40e9-81ff-1c53e2a6ec01",
+    "slug": "bo-lac-block-blaster-pixijs",
+    "devOrigin": "https://dev-bo-lac-block-blaster-pixijs.papastudio.net",
     "localOrigin": "http://127.0.0.1:5173"
   },
   "wink": {
@@ -16,11 +16,11 @@
     "devApiBase": "https://dev-api-winkgames.papastudio.net/api/v1"
   },
   "semantics": {
-    "roundId": "Generated when the first block is placed in a new game session",
-    "completion": "Reported when the player finalizes the round by choosing Restart",
-    "score": "Reported when the player finalizes the round by choosing Restart",
-    "pauseResume": "Pauses player input, the Pixi ticker, and audio playback while preserving the active round and board state",
-    "muteUnmute": "Applies a master volume constraint over user audio preferences"
+    "roundId": "Generated via crypto.randomUUID() when the first block is placed",
+    "completion": "Reported when the round ends and the player restarts or goes to dashboard",
+    "score": "Reported on game over when the player chooses to restart or goes to dashboard",
+    "pauseResume": "Pauses player input and gameplay events while preserving state",
+    "muteUnmute": "Mutes audio without overwriting user preferences"
   },
   "files": {
     "runtimeConfig": "public/wink-runtime-config.json",
