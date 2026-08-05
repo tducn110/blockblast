@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent, Ticker, Text } from "pixi.js";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import { BlockPiece, BOARD_SIZE, canPlacePiece } from "@/features/blockblast/game/blockBlastLogic";
-import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import {
   VIEW_WIDTH,
   PIECE_SLOT_WIDTH,
@@ -21,7 +20,6 @@ import {
 } from "@/features/blockblast/game/pixiDrawUtils";
 import { GameState } from "@/features/blockblast/hooks/useBlockBlastGame";
 import {
-  rendererPointToWorld,
   type GameWorldTransform,
 } from "@/features/blockblast/layout/gameViewport";
 
@@ -89,13 +87,19 @@ function getTrayLayout(showMobileReserveSlot: boolean): TrayLayout {
   };
 }
 
-type DragState = "idle" | "pickup" | "dragging" | "snapping" | "committing";
+type DragState = "idle" | "pickup" | "dragging" | "snapping" | "returning" | "committing";
+
+const SNAP_RADIUS = (CELL + GAP) * 0.78;
+const SNAP_HYSTERESIS = 5;
+const RETURN_DURATION_MS = 125;
+const TOUCH_CLEARANCE_PX = 48;
 
 interface DragContext {
   state: DragState;
   activePieceId: string | null;
   sourceTrayIndex: number;
   pointerGlobal: { x: number; y: number };
+  pointerId: number | null;
   originalTrayPosition: { x: number; y: number };
   ghostContainer: Container | null;
   shadowGraphics: Graphics | null; // Keep shadow as Graphics for now
@@ -106,6 +110,9 @@ interface DragContext {
   candidateCell: { row: number; col: number } | null;
   lastPreviewKey: string | null;
   animationAge: number;
+  animationStartPosition: { x: number; y: number };
+  animationStartScale: number;
+  returnScale: number;
 }
 
 function boardOccupancyKey(board: GameState["board"]): string {
@@ -209,6 +216,59 @@ function getClearPreviewCells(
   });
 }
 
+function findSnapCandidate(
+  board: GameState["board"],
+  piece: BlockPiece,
+  center: { x: number; y: number },
+  previous: { row: number; col: number } | null
+): { row: number; col: number } | null {
+  const bounds = pieceBounds(piece);
+  const pieceWidth = bounds.width * CELL + (bounds.width - 1) * GAP;
+  const pieceHeight = bounds.height * CELL + (bounds.height - 1) * GAP;
+  const pieceLeft = center.x - pieceWidth / 2;
+  const pieceTop = center.y - pieceHeight / 2;
+  const stride = CELL + GAP;
+  const rawCol = Math.round((pieceLeft - BOARD_X) / stride);
+  const rawRow = Math.round((pieceTop - BOARD_Y) / stride);
+  const candidates: Array<{ row: number; col: number; distance: number }> = [];
+
+  for (let row = rawRow - 1; row <= rawRow + 1; row += 1) {
+    for (let col = rawCol - 1; col <= rawCol + 1; col += 1) {
+      if (!canPlacePiece(board, piece, row, col)) continue;
+      const targetX = BOARD_X + col * stride;
+      const targetY = BOARD_Y + row * stride;
+      const distance = Math.hypot(targetX - pieceLeft, targetY - pieceTop);
+      if (distance <= SNAP_RADIUS) candidates.push({ row, col, distance });
+    }
+  }
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => a.distance - b.distance);
+  const best = candidates[0];
+
+  if (previous) {
+    const previousCandidate = candidates.find(
+      (candidate) => candidate.row === previous.row && candidate.col === previous.col
+    );
+    if (previousCandidate && previousCandidate.distance <= best.distance + SNAP_HYSTERESIS) {
+      return previous;
+    }
+  }
+
+  return { row: best.row, col: best.col };
+}
+
+function previewCellForPiece(piece: BlockPiece, layout: TrayLayout): number {
+  const bounds = pieceBounds(piece);
+  const availableWidth = layout.slotWidth - layout.slotPaddingX * 2;
+  const availableHeight = layout.slotHeight - layout.slotPaddingY * 2;
+  const widthGaps = Math.max(0, bounds.width - 1) * layout.previewGap;
+  const heightGaps = Math.max(0, bounds.height - 1) * layout.previewGap;
+  const cellByWidth = Math.floor((availableWidth - widthGaps) / bounds.width);
+  const cellByHeight = Math.floor((availableHeight - heightGaps) / bounds.height);
+  return Math.max(layout.previewMinCell, Math.min(layout.previewMaxCell, cellByWidth, cellByHeight));
+}
+
 function drawPiecePreview(
   app: Application,
   pieceGraphic: Container,
@@ -310,6 +370,7 @@ export function usePixiPieces(
   reservePiece: BlockPiece | null,
   showMobileReserveSlot: boolean,
   status: GameState["status"],
+  interactionLocked: boolean,
   onSelectPiece: (id: string | null) => void,
   onPlacePiece: (id: string, row: number, col: number) => boolean,
   onUnlockReserve: () => void | Promise<void>,
@@ -323,6 +384,7 @@ export function usePixiPieces(
     reserveUnlocked,
     reservePiece,
     status,
+    interactionLocked,
     onPlacePiece,
     onSelectPiece,
     onUnlockReserve,
@@ -341,6 +403,7 @@ export function usePixiPieces(
     activePieceId: null,
     sourceTrayIndex: -1,
     pointerGlobal: { x: 0, y: 0 },
+    pointerId: null,
     originalTrayPosition: { x: 0, y: 0 },
     ghostContainer: null,
     shadowGraphics: null,
@@ -351,6 +414,9 @@ export function usePixiPieces(
     candidateCell: null,
     lastPreviewKey: null,
     animationAge: 0,
+    animationStartPosition: { x: 0, y: 0 },
+    animationStartScale: 1,
+    returnScale: 1,
   });
 
   useEffect(() => {
@@ -360,6 +426,7 @@ export function usePixiPieces(
       reserveUnlocked,
       reservePiece,
       status,
+      interactionLocked,
       onPlacePiece,
       onSelectPiece,
       onUnlockReserve,
@@ -373,6 +440,7 @@ export function usePixiPieces(
     reserveUnlocked,
     reservePiece,
     status,
+    interactionLocked,
     onPlacePiece,
     onSelectPiece,
     onUnlockReserve,
@@ -405,9 +473,16 @@ export function usePixiPieces(
 
     const onGlobalMove = (event: FederatedPointerEvent) => {
       const ctx = dragCtx.current;
-      if (ctx.state === "idle" || ctx.state === "snapping" || ctx.state === "committing") return;
+      if (
+        ctx.state === "idle" ||
+        ctx.state === "snapping" ||
+        ctx.state === "returning" ||
+        ctx.state === "committing" ||
+        (ctx.pointerId !== null && event.pointerId !== ctx.pointerId)
+      ) return;
 
-      ctx.pointerGlobal = rendererPointToWorld(event.global, latestRef.current.worldTransform);
+      const local = dragLayer.toLocal(event.global);
+      ctx.pointerGlobal = { x: local.x, y: local.y };
       ctx.state = "dragging";
       
       ctx.dragTargetPosition = {
@@ -433,6 +508,7 @@ export function usePixiPieces(
       ctx.pieceGraphics = null;
       ctx.candidateCell = null;
       ctx.lastPreviewKey = null;
+      ctx.pointerId = null;
       
       // Re-show tray
       if (ctx.sourceTrayIndex >= 0 && slotsRef.current[ctx.sourceTrayIndex]) {
@@ -444,19 +520,40 @@ export function usePixiPieces(
 
     const onPointerUp = (event: FederatedPointerEvent) => {
       const ctx = dragCtx.current;
-      if (ctx.state === "idle" || ctx.state === "snapping" || ctx.state === "committing") return;
+      if (
+        ctx.state === "idle" ||
+        ctx.state === "snapping" ||
+        ctx.state === "returning" ||
+        ctx.state === "committing" ||
+        (ctx.pointerId !== null && event.pointerId !== ctx.pointerId)
+      ) return;
+
+      const current = latestRef.current;
+      if (current.interactionLocked || current.status !== "playing") {
+        cleanupDrag();
+        return;
+      }
+      const piece = findPlayablePiece(current.pieces, current.reservePiece, ctx.activePieceId);
+      if (!piece) {
+        cleanupDrag();
+        return;
+      }
+
+      const local = dragLayer.toLocal(event.global);
+      ctx.pointerGlobal = { x: local.x, y: local.y };
+      ctx.dragTargetPosition = {
+        x: local.x + ctx.pickupOffset.x,
+        y: local.y + ctx.pickupOffset.y,
+      };
+      ctx.candidateCell = findSnapCandidate(
+        current.board,
+        piece,
+        ctx.dragTargetPosition,
+        ctx.candidateCell
+      );
 
       if (ctx.candidateCell) {
         // Snap to board!
-        const piece = findPlayablePiece(
-          latestRef.current.pieces,
-          latestRef.current.reservePiece,
-          ctx.activePieceId
-        );
-        if (!piece) {
-            cleanupDrag();
-            return;
-        }
         const bounds = pieceBounds(piece);
         const pieceWidth = bounds.width * CELL + (bounds.width - 1) * GAP;
         const pieceHeight = bounds.height * CELL + (bounds.height - 1) * GAP;
@@ -473,14 +570,26 @@ export function usePixiPieces(
         previewCells.forEach(s => s.visible = false);
         ctx.lastPreviewKey = null;
       } else {
-        // Just cancel
-        cleanupDrag();
+        ctx.state = "returning";
+        ctx.animationAge = 0;
+        ctx.animationStartPosition = { ...ctx.dragRenderPosition };
+        ctx.animationStartScale = ctx.ghostContainer?.scale.x ?? 1;
+        ctx.dragTargetPosition = { ...ctx.originalTrayPosition };
+        ctx.lastPreviewKey = null;
+        previewCells.forEach((s) => (s.visible = false));
+        clearPreview.clear();
       }
     };
+
+    const onPointerCancel = () => cleanupDrag();
 
     const tick = (ticker: Ticker) => {
       const ctx = dragCtx.current;
       if (ctx.state === "idle") return;
+      if (latestRef.current.interactionLocked || latestRef.current.status !== "playing") {
+        cleanupDrag();
+        return;
+      }
 
       const dt = ticker.deltaTime;
 
@@ -495,7 +604,7 @@ export function usePixiPieces(
           // Snap fast
           ctx.dragRenderPosition.x += (ctx.dragTargetPosition.x - ctx.dragRenderPosition.x) * (1 - Math.exp(-dt * 0.95));
           ctx.dragRenderPosition.y += (ctx.dragTargetPosition.y - ctx.dragRenderPosition.y) * (1 - Math.exp(-dt * 0.95));
-          ctx.animationAge += ticker.elapsedMS;
+          ctx.animationAge += ticker.deltaMS;
 
           const dist = Math.hypot(
               ctx.dragTargetPosition.x - ctx.dragRenderPosition.x,
@@ -541,6 +650,23 @@ export function usePixiPieces(
                   cleanupDrag();
               }
           }
+      } else if (ctx.state === "returning") {
+        ctx.animationAge += Math.min(ticker.deltaMS, 50);
+        const progress = Math.min(ctx.animationAge / RETURN_DURATION_MS, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        ctx.dragRenderPosition.x =
+          ctx.animationStartPosition.x +
+          (ctx.dragTargetPosition.x - ctx.animationStartPosition.x) * ease;
+        ctx.dragRenderPosition.y =
+          ctx.animationStartPosition.y +
+          (ctx.dragTargetPosition.y - ctx.animationStartPosition.y) * ease;
+        if (ctx.ghostContainer) {
+          ctx.ghostContainer.scale.set(
+            ctx.animationStartScale + (ctx.returnScale - ctx.animationStartScale) * ease
+          );
+          ctx.ghostContainer.alpha = 1 - ease * 0.16;
+        }
+        if (progress >= 1) cleanupDrag();
       }
 
       if (ctx.ghostContainer) {
@@ -554,16 +680,15 @@ export function usePixiPieces(
           const piece = findPlayablePiece(current.pieces, current.reservePiece, ctx.activePieceId);
           if (!piece) return;
 
-          const bounds = pieceBounds(piece);
-          const pieceWidth = bounds.width * CELL + (bounds.width - 1) * GAP;
-          const pieceHeight = bounds.height * CELL + (bounds.height - 1) * GAP;
-
-          const pieceLeft = ctx.dragRenderPosition.x - pieceWidth / 2;
-          const pieceTop = ctx.dragRenderPosition.y - pieceHeight / 2;
-          
-          const targetCol = Math.round((pieceLeft - BOARD_X) / (CELL + GAP));
-          const targetRow = Math.round((pieceTop - BOARD_Y) / (CELL + GAP));
-          const valid = canPlacePiece(current.board, piece, targetRow, targetCol);
+          const candidate = findSnapCandidate(
+            current.board,
+            piece,
+            ctx.dragRenderPosition,
+            ctx.candidateCell
+          );
+          const targetRow = candidate?.row ?? -1;
+          const targetCol = candidate?.col ?? -1;
+          const valid = candidate !== null;
           const previewKey = `${piece.id}:${targetRow}:${targetCol}:${valid ? 1 : 0}`;
 
           if (previewKey === ctx.lastPreviewKey) return;
@@ -571,7 +696,7 @@ export function usePixiPieces(
           ctx.lastPreviewKey = previewKey;
           
         if (valid) {
-              ctx.candidateCell = { row: targetRow, col: targetCol };
+              ctx.candidateCell = candidate;
               const bounds = pieceBounds(piece);
               const tex = getBlockTexture(app, CELL, piece.colorId, 0.4);
               const clearCells = getClearPreviewCells(current.board, piece, targetRow, targetCol);
@@ -612,12 +737,18 @@ export function usePixiPieces(
     app.stage.on("globalpointermove", onGlobalMove);
     app.stage.on("pointerup", onPointerUp);
     app.stage.on("pointerupoutside", onPointerUp);
+    app.stage.on("pointercancel", onPointerCancel);
+    window.addEventListener("blur", onPointerCancel);
+    document.addEventListener("visibilitychange", onPointerCancel);
     app.ticker.add(tick);
 
     return () => {
       app.stage.off("globalpointermove", onGlobalMove);
       app.stage.off("pointerup", onPointerUp);
       app.stage.off("pointerupoutside", onPointerUp);
+      app.stage.off("pointercancel", onPointerCancel);
+      window.removeEventListener("blur", onPointerCancel);
+      document.removeEventListener("visibilitychange", onPointerCancel);
       app.ticker.remove(tick);
       cleanupDrag();
       cleanupDragRef.current = null;
@@ -632,7 +763,7 @@ export function usePixiPieces(
   useEffect(() => {
     if (dragCtx.current.state === "idle") return;
     cleanupDragRef.current?.();
-  }, [pieces, reservePiece, status]);
+  }, [pieces, reservePiece, status, interactionLocked]);
 
   useEffect(() => {
     if (dragCtx.current.state === "idle") return;
@@ -645,6 +776,14 @@ export function usePixiPieces(
 
     const layout = getTrayLayout(showMobileReserveSlot);
     const reserveSlotIndex = layout.slotCount - 1;
+
+    const textureColors = new Set(
+      [...pieces.slice(0, 3), ...(reservePiece ? [reservePiece] : [])].map((piece) => piece.colorId)
+    );
+    textureColors.forEach((colorId) => {
+      getBlockTexture(app, CELL, colorId, 1);
+      getBlockTexture(app, CELL, colorId, 0.4);
+    });
 
     if (
       slotModeRef.current !== showMobileReserveSlot ||
@@ -699,7 +838,8 @@ export function usePixiPieces(
 
         container.on("pointerdown", (event: FederatedPointerEvent) => {
           const current = latestRef.current;
-          if (current.status !== "playing") return;
+          if (current.status !== "playing" || current.interactionLocked) return;
+          if (event.button !== 0 || (event.pointerType === "touch" && !event.isPrimary)) return;
 
           const isReserveSlot = showMobileReserveSlot && index === reserveSlotIndex;
           if (isReserveSlot) {
@@ -734,8 +874,13 @@ export function usePixiPieces(
           blockBlastAudio.playButtonClick();
           ctx.activePieceId = piece.id;
           ctx.sourceTrayIndex = index;
-          ctx.pointerGlobal = rendererPointToWorld(event.global, latestRef.current.worldTransform);
-          ctx.originalTrayPosition = { x: slotX, y: layout.trayY };
+          ctx.pointerId = event.pointerId;
+          const local = dragLayer.toLocal(event.global);
+          ctx.pointerGlobal = { x: local.x, y: local.y };
+          ctx.originalTrayPosition = {
+            x: slotX + layout.slotWidth / 2,
+            y: layout.trayY + layout.slotHeight / 2,
+          };
 
           const bounds = pieceBounds(piece);
           const pieceWidth = bounds.width * CELL + (bounds.width - 1) * GAP;
@@ -771,7 +916,10 @@ export function usePixiPieces(
           ctx.ghostContainer.addChild(ctx.pieceGraphics);
           dragLayer.addChild(ctx.ghostContainer);
 
-          ctx.pickupOffset = { x: 0, y: -pieceHeight/2 - 20 };
+          const clearancePx = event.pointerType === "touch" ? TOUCH_CLEARANCE_PX : 24;
+          const touchLift = clearancePx / Math.max(latestRef.current.worldTransform.scale, 0.01);
+          ctx.pickupOffset = { x: 0, y: -pieceHeight / 2 - touchLift };
+          ctx.returnScale = previewCellForPiece(piece, layout) / CELL;
           
           const startTargetX = ctx.pointerGlobal.x + ctx.pickupOffset.x;
           const startTargetY = ctx.pointerGlobal.y + ctx.pickupOffset.y;
@@ -782,7 +930,7 @@ export function usePixiPieces(
           ctx.ghostContainer.x = ctx.dragRenderPosition.x;
           ctx.ghostContainer.y = ctx.dragRenderPosition.y;
           
-          ctx.ghostContainer.scale.set(1.15);
+          ctx.ghostContainer.scale.set(1);
 
           current.onSelectPiece(piece.id);
           slot.pieceGraphic.visible = false;
@@ -792,7 +940,6 @@ export function usePixiPieces(
       }
     }
 
-    const trayRenderStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
     const boardKey = boardOccupancyKey(board);
     const fitCache = fitCacheRef.current;
     if (fitCache.size > 256) fitCache.clear();
@@ -809,7 +956,7 @@ export function usePixiPieces(
       const isSelected = selectedPieceId === piece.id;
       const ctx = dragCtx.current;
 
-      const isInteractable = status === "playing" && canFit && !piece.placed;
+      const isInteractable = status === "playing" && !interactionLocked && canFit && !piece.placed;
       slot.container.eventMode = isInteractable ? "static" : "none";
       slot.container.cursor = isInteractable ? "pointer" : "default";
 
@@ -845,6 +992,7 @@ export function usePixiPieces(
           pieces.some((piece) => piece.id === selectedPieceId && !piece.placed);
         const canUseReserve =
           status === "playing" &&
+          !interactionLocked &&
           (!reserveUnlocked || hasSelectedPiece || reservePiece !== null);
         const isActiveTarget = reserveUnlocked && hasSelectedPiece;
 
@@ -898,11 +1046,6 @@ export function usePixiPieces(
         }
       }
     }
-    
-    if (DEBUG_BLOCK_BLAST_PERF) {
-      console.log(`[PERF] tray_render: ${(performance.now() - trayRenderStart).toFixed(2)}ms`);
-    }
-
   }, [
     pieces,
     selectedPieceId,
@@ -910,6 +1053,7 @@ export function usePixiPieces(
     reservePiece,
     showMobileReserveSlot,
     status,
+    interactionLocked,
     ready,
     piecesLayer,
     dragLayer,

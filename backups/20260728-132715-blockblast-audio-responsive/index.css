@@ -234,26 +234,10 @@
   }
 }
 
-@media (max-width: 1023px) {
-  .blockblast-game-shell {
-    max-height: 100%;
-  }
-
-  .blockblast-game-board,
-  .blockblast-canvas-wrap {
-    min-height: 0;
-    max-height: 100%;
-  }
-}
-
 @media (min-width: 1024px) {
   .blockblast-game-mount {
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  .blockblast-canvas-wrap {
-    aspect-ratio: 412 / 572;
   }
 }

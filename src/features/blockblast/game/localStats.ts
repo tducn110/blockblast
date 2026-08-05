@@ -17,7 +17,7 @@ export interface LocalStats {
   history: LocalStatsEntry[];
 }
 
-export function createDefaultStats(): LocalStats {
+function createDefaultStats(): LocalStats {
   return { bestScore: 0, lastScore: 0, totalGames: 0, history: [] };
 }
 

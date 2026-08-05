@@ -28,13 +28,11 @@ function StatBox({
   label,
   value,
   accent,
-  highlight,
   children,
 }: {
   label: string;
   value: string;
   accent?: boolean;
-  highlight?: boolean;
   children?: ReactNode;
 }) {
   const labelColor = "#4a4232"; // Black-ish for labels

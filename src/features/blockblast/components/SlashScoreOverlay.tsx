@@ -45,18 +45,20 @@ export function SlashScoreOverlay({ items }: SlashScoreOverlayProps) {
       nodes.forEach((node, index) => {
         const slashLine = node.querySelector("[data-slash-line]");
         const isBoom = node.dataset.feedbackType === "boom";
-        const rotate = isBoom ? 0 : index % 2 === 0 ? -5 : 5;
+        const rotate = 0; // Keep straight for vertical alignment
 
         gsap
           .timeline()
           .fromTo(
             node,
-            { opacity: 0, scale: 0.58, y: 30, rotate: rotate * 1.5 },
+            { opacity: 0, scale: 0.58, y: 30, rotate, xPercent: -50, yPercent: -50 },
             {
               opacity: 1,
               scale: isBoom ? 1.06 : 1,
-              y: index * -20,
+              y: index * -40,
               rotate,
+              xPercent: -50,
+              yPercent: -50,
               duration: 0.26,
               ease: "back.out(2.1)",
             }
@@ -74,7 +76,7 @@ export function SlashScoreOverlay({ items }: SlashScoreOverlayProps) {
           )
           .to(
             node,
-            { opacity: 0, y: index * -20 - 58, scale: 1.12, duration: 0.46, ease: "power2.in" },
+            { opacity: 0, y: index * -40 - 58, scale: 1.12, duration: 0.46, ease: "power2.in" },
             0.95
           );
       });
@@ -91,7 +93,6 @@ export function SlashScoreOverlay({ items }: SlashScoreOverlayProps) {
         const isCombo = item.type === "combo";
         const isBoom = item.type === "boom";
         const palette = COMBO_PALETTE[colorIndexForId(item.id)];
-        const offsetX = index === 0 ? 0 : index % 2 === 0 ? 46 : -42;
 
         return (
           <div
@@ -101,7 +102,7 @@ export function SlashScoreOverlay({ items }: SlashScoreOverlayProps) {
             }}
             data-feedback-type={item.type}
             className="absolute grid place-items-center font-['Be_Vietnam_Pro',sans-serif]"
-            style={{ left: `calc(50% + ${offsetX}px)`, top: "50%" }}
+            style={{ left: "50%", top: "50%" }}
           >
             <span
               data-slash-line

@@ -50,7 +50,7 @@ export function usePixiApp() {
 
       appRef.current = app;
       app.canvas.style.width = "100%";
-      app.canvas.style.height = "100%";
+      app.canvas.style.height = "auto";
       app.canvas.style.display = "block";
       app.canvas.style.touchAction = "none";
       hostRef.current.appendChild(app.canvas);

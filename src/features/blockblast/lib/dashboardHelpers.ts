@@ -37,7 +37,7 @@ export interface RankedLeaderboardEntry extends LeaderboardEntry {
   rank: number | null;
 }
 
-export interface LeaderboardModel {
+interface LeaderboardModel {
   topEntries: RankedLeaderboardEntry[];
   currentPlayer: RankedLeaderboardEntry | null;
 }

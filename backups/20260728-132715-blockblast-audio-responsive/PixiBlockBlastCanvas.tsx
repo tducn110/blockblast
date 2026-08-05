@@ -10,6 +10,8 @@ import {
   BOARD_X,
   BOARD_Y,
   TRAY_Y,
+  VIEW_WIDTH,
+  VIEW_HEIGHT,
 } from "@/features/blockblast/game/pixiDrawUtils";
 import { usePixiApp } from "@/features/blockblast/render/usePixiApp";
 import { usePixiBoard } from "@/features/blockblast/render/usePixiBoard";
@@ -121,8 +123,6 @@ export function PixiBlockBlastCanvas({
       style={{
         position: "relative",
         width: "100%",
-        height: "100%",
-        minHeight: 0,
       }}
     >
       <div
@@ -130,8 +130,8 @@ export function PixiBlockBlastCanvas({
         aria-label="Bảng chơi Xếp Khối"
         style={{
           width: "100%",
-          height: "100%",
-          minHeight: 0,
+          height: "auto",
+          aspectRatio: `${VIEW_WIDTH} / ${VIEW_HEIGHT}`,
           borderRadius: 24,
           overflow: "hidden",
           touchAction: "none",

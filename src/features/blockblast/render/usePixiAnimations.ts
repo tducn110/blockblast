@@ -6,7 +6,6 @@ import type {
   PlacementAnimation,
 } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { BOARD_SIZE } from "@/features/blockblast/game/blockBlastLogic";
-import { DEBUG_BLOCK_BLAST_PERF } from "@/features/blockblast/game/debugPerf";
 import { gsap } from "gsap";
 import { cellPoint, CELL, GAP, colorOf } from "@/features/blockblast/game/pixiDrawUtils";
 
@@ -18,6 +17,8 @@ interface Particle {
   vy: number;
   rotation: number;
   vr: number;
+  gravity: number;
+  drag: number;
   life: number;
   maxLife: number;
   baseScale: number;
@@ -71,7 +72,7 @@ function createShardTextures(app: Application): Texture[] {
     rest.forEach(([x, y]) => g.lineTo(x, y));
     g.closePath()
       .fill({ color: 0xffffff, alpha: 1 })
-      .stroke({ width: 2, color: 0xffffff, alpha: 0.68 });
+      .stroke({ width: 1, color: 0xffffff, alpha: 0.18 });
 
     const texture = app.renderer.generateTexture(g);
     g.destroy();
@@ -120,13 +121,15 @@ export function usePixiAnimations(
         particlesRef.current.push({
           sprite,
           x: 0, y: 0, vx: 0, vy: 0, rotation: 0, vr: 0,
+          gravity: 0.002,
+          drag: 0.992,
           life: 0, maxLife: 1, baseScale: 1, active: false
         });
       }
     }
 
     const tick = (ticker: Ticker) => {
-      const dt = Math.min(ticker.elapsedMS, 50);
+      const dt = Math.min(ticker.deltaMS, 50);
       const particles = particlesRef.current;
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -139,7 +142,9 @@ export function usePixiAnimations(
           continue;
         }
 
-        p.vy += 0.002 * dt; // slight gravity
+        const drag = Math.pow(p.drag, dt / 16.67);
+        p.vx *= drag;
+        p.vy = p.vy * drag + p.gravity * dt;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.rotation += p.vr * dt;
@@ -148,8 +153,8 @@ export function usePixiAnimations(
         p.sprite.x = p.x;
         p.sprite.y = p.y;
         p.sprite.rotation = p.rotation;
-        p.sprite.alpha = 1 - Math.pow(progress, 2);
-        p.sprite.scale.set(p.baseScale * Math.max(0, 1 - progress * 0.5));
+        p.sprite.alpha = Math.max(0, 1 - Math.pow(progress, 1.65));
+        p.sprite.scale.set(p.baseScale * Math.max(0.24, 1 - progress * 0.42));
       }
     };
 
@@ -242,7 +247,7 @@ export function usePixiAnimations(
     const totalDuration = 760;
 
     const tick = (ticker: Ticker) => {
-      age += Math.min(ticker.elapsedMS, 50);
+      age += Math.min(ticker.deltaMS, 50);
       const t = Math.min(age / totalDuration, 1);
       const pop = Math.min(age / 160, 1);
       const easeOut = 1 - Math.pow(1 - pop, 3);
@@ -284,7 +289,7 @@ export function usePixiAnimations(
     let age = 0;
 
     const tick = (ticker: Ticker) => {
-      age += Math.min(ticker.elapsedMS, 50);
+      age += Math.min(ticker.deltaMS, 50);
       const progress = Math.min(age / duration, 1);
       const decay = Math.pow(1 - progress, 2);
       const intensity = baseIntensity * decay;
@@ -320,7 +325,6 @@ export function usePixiAnimations(
     group.label = clearAnimation.id;
     group.eventMode = "none";
     
-    const clearSpawnStart = DEBUG_BLOCK_BLAST_PERF ? performance.now() : 0;
 
     // Create a container for each cell so we can scale from its center
     const cellContainers: Container[] = [];
@@ -378,9 +382,6 @@ export function usePixiAnimations(
       cellContainers.push(c);
     }
     
-    if (DEBUG_BLOCK_BLAST_PERF) {
-      console.log(`[PERF] clear_spawn: ${(performance.now() - clearSpawnStart).toFixed(2)}ms`);
-    }
     
     animationLayer.addChild(group);
 
@@ -399,16 +400,15 @@ export function usePixiAnimations(
       tl.to(beam, { alpha: 0, duration: 0.2, ease: "power1.out" }, 0.1);
     }
 
-    // 2. Cells flash, scale up, then shatter into pieces
+    // 2. Cells bulge once, then break upward into heavier shards.
     for (const c of cellContainers) {
       const g = c.children[0] as Sprite;
       const flash = c.children[1] as Sprite;
       
-      // Flash fade out and initial pop scale
-      tl.to(flash, { alpha: 0, duration: 0.1, ease: "power2.out" }, 0);
-      tl.to(c.scale, { x: 1.15, y: 1.15, duration: 0.1, ease: "power2.out" }, 0);
+      tl.to(flash, { alpha: 0.55, duration: 0.05, ease: "power1.out" }, 0);
+      tl.to(c.scale, { x: 1.16, y: 0.9, duration: 0.055, ease: "power2.out" }, 0);
+      tl.to(c.scale, { x: 1.04, y: 1.2, duration: 0.085, ease: "back.out(2.2)" }, 0.045);
       
-      // At 0.1s, hide main cell, show pooled shard sprites, and explode.
       tl.call(() => {
         g.visible = false;
         flash.visible = false;
@@ -424,21 +424,24 @@ export function usePixiAnimations(
           if (pIndex >= particles.length) break;
 
           const p = particles[pIndex];
-          const angle = (Math.PI * 2 * i) / shardCount + (Math.random() - 0.5) * 0.7;
-          const radius = 4 + Math.random() * 12;
-          const speed = 0.46 + Math.random() * 0.72;
-          const stretch = 0.74 + Math.random() * 0.5;
+          const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.55;
+          const radiusX = (Math.random() - 0.5) * CELL * 0.72;
+          const radiusY = (Math.random() - 0.5) * CELL * 0.35;
+          const speed = 0.34 + Math.random() * 0.44;
+          const stretch = 0.84 + Math.random() * 0.42;
 
           p.active = true;
-          p.x = c.x + Math.cos(angle) * radius;
-          p.y = c.y + Math.sin(angle) * radius;
-          p.vx = Math.cos(angle) * speed;
-          p.vy = Math.sin(angle) * speed - 0.18;
+          p.x = c.x + radiusX;
+          p.y = c.y + radiusY;
+          p.vx = Math.cos(angle) * speed + (Math.random() - 0.5) * 0.12;
+          p.vy = Math.sin(angle) * speed - 0.16 - Math.random() * 0.2;
           p.rotation = angle + (Math.random() - 0.5) * Math.PI;
-          p.vr = (Math.random() - 0.5) * 0.055;
-          p.maxLife = 330 + Math.random() * 170;
+          p.vr = (Math.random() - 0.5) * 0.07;
+          p.gravity = 0.0019 + Math.random() * 0.0008;
+          p.drag = 0.986 + Math.random() * 0.008;
+          p.maxLife = 560 + Math.random() * 260;
           p.life = p.maxLife;
-          p.baseScale = (0.42 + Math.random() * 0.32) * stretch;
+          p.baseScale = (0.34 + Math.random() * 0.3) * stretch;
 
           p.sprite.texture = shardTextures[(i + Math.floor(Math.random() * shardTextures.length)) % shardTextures.length] ?? Texture.WHITE;
           p.sprite.visible = true;
@@ -446,7 +449,15 @@ export function usePixiAnimations(
           p.sprite.scale.set(p.baseScale);
           p.sprite.alpha = 1;
         }
-      }, undefined, 0.1);
+      }, undefined, 0.13);
     }
+
+    return () => {
+      tl.kill();
+      if (animationLayer && !group.destroyed) {
+        animationLayer.removeChild(group);
+        group.destroy({ children: true });
+      }
+    };
   }, [clearAnimation, ready, app, animationLayer]);
 }

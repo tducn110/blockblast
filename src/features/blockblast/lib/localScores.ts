@@ -1,5 +1,4 @@
 import {
-  createDefaultStats,
   loadStats,
   saveStats,
   type LocalStats,
@@ -13,7 +12,7 @@ export interface GameResult {
   piecesPlaced: number;
 }
 
-export interface ScoreSaveOutcome {
+interface ScoreSaveOutcome {
   saved: boolean;
   stats: LocalStats;
   error?: "invalid-score" | "storage-unavailable";
@@ -58,6 +57,40 @@ export function saveLocalGameResult(result: GameResult): ScoreSaveOutcome {
     lastScore: normalized.score,
     totalGames: current.totalGames + 1,
     history: [entry, ...current.history].slice(0, 50),
+  };
+
+  const saved = saveStats(next);
+  return saved ? { saved, stats: next } : { saved, stats: current, error: "storage-unavailable" };
+}
+
+export function updateLatestLocalGameResult(result: GameResult): ScoreSaveOutcome {
+  const normalized = normalizeGameResult(result);
+  const current = loadStats();
+
+  if (!normalized) {
+    return { saved: false, stats: current, error: "invalid-score" };
+  }
+
+  const latest = current.history[0];
+  const entry: LocalStatsEntry = {
+    score: normalized.score,
+    date: latest?.date ?? new Date().toISOString(),
+    metadata: {
+      maxCombo: normalized.maxCombo,
+      linesCleared: normalized.linesCleared,
+      piecesPlaced: normalized.piecesPlaced,
+    },
+  };
+
+  const history =
+    current.history.length > 0
+      ? [entry, ...current.history.slice(1)]
+      : [entry];
+  const next: LocalStats = {
+    bestScore: Math.max(current.bestScore, normalized.score),
+    lastScore: normalized.score,
+    totalGames: Math.max(current.totalGames, 1),
+    history,
   };
 
   const saved = saveStats(next);

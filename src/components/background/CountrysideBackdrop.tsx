@@ -31,13 +31,13 @@ export function CountrysideBackdrop({ scenery = "normal" }: CountrysideBackdropP
           ease: "power2.out",
         });
         timeline.fromTo(
-          rays,
+          rays ? Array.from(rays) : [],
           { opacity: 0, scaleY: 0.25 },
           { opacity: 0.52, scaleY: 1, duration: 0.55, stagger: 0.035, ease: "power3.out" },
           0.04
         );
         timeline.fromTo(
-          sparks,
+          sparks ? Array.from(sparks) : [],
           { opacity: 0, scale: 0.4, y: 12 },
           { opacity: 0.86, scale: 1, y: 0, duration: 0.62, stagger: 0.045, ease: "back.out(2)" },
           0.1
