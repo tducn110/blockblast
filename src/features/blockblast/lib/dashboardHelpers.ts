@@ -1,17 +1,5 @@
 import type { LocalStats } from "@/features/blockblast/game/localStats";
 
-const MOCK_LEADERBOARD = [
-  { name: "Sói Cô Độc", score: 85400, maxCombo: 12 },
-  { name: "Vua Khối", score: 62000, maxCombo: 9 },
-  { name: "Thợ Săn", score: 48300, maxCombo: 7 },
-  { name: "Kẻ Hủy Diệt", score: 35000, maxCombo: 5 },
-  { name: "Ninja Rùa", score: 28500, maxCombo: 4 },
-  { name: "Gấu Mập", score: 21000, maxCombo: 3 },
-  { name: "Mèo Lười", score: 15400, maxCombo: 3 },
-  { name: "Cáo Già", score: 12200, maxCombo: 2 },
-  { name: "Bóng Đêm", score: 8900, maxCombo: 2 },
-];
-
 export const BADGE_COLORS = [
   { bg: "#f0b840", border: "#c8941a", text: "#2a2418", label: "Vàng" },
   { bg: "#d0c4a0", border: "#a8a080", text: "#2a2418", label: "Bạc"  },
@@ -60,7 +48,7 @@ function getBestLocalEntry(stats: LocalStats, playerName: string): LeaderboardEn
 
 export function buildLeaderboardModel(stats: LocalStats, playerName = "Người chơi"): LeaderboardModel {
   const localBest = getBestLocalEntry(stats, playerName);
-  const leaderboardEntries: LeaderboardEntry[] = [...MOCK_LEADERBOARD, ...(localBest ? [localBest] : [])];
+  const leaderboardEntries: LeaderboardEntry[] = localBest ? [localBest] : [];
   
   const ranked: RankedLeaderboardEntry[] = leaderboardEntries
     .sort((a, b) => b.score - a.score)

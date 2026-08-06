@@ -49,9 +49,15 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-[10px] overflow-y-auto overscroll-contain pr-1">
-          {topEntries.map((entry) => (
-            <RankingRow key={`${entry.name}-${entry.rank}`} entry={entry} highlight={entry.isLocal} />
-          ))}
+          {topEntries.length > 0 ? (
+            topEntries.map((entry) => (
+              <RankingRow key={`${entry.name}-${entry.rank}`} entry={entry} highlight={entry.isLocal} />
+            ))
+          ) : (
+            <div className="rounded-[16px] border-2 border-[#8a7d65]/15 bg-[#8a7d65]/5 p-[18px_14px] text-center text-[13px] font-bold text-[#8a7d65]">
+              Chưa có thành tích. Hãy chơi để thiết lập kỷ lục đầu tiên.
+            </div>
+          )}
         </div>
       </section>
 
