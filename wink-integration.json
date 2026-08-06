@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
   "game": {
-    "id": "70735b2e-8005-40e9-81ff-1c53e2a6ec01",
-    "slug": "bo-lac-block-blaster-pixijs",
-    "devOrigin": "https://dev-bo-lac-block-blaster-pixijs.papastudio.net",
+    "id": "ba16a10f-ebd7-4252-92c5-75e58f806021",
+    "slug": "bo-lac-block-blast",
+    "devOrigin": "https://bo-lac-block-blaster.papastudio.net",
     "localOrigin": "http://127.0.0.1:5173"
   },
   "wink": {
-    "environment": "dev",
+    "environment": "prod",
     "protocolVersion": 1,
     "bridgeVersion": "9.0.0",
     "bridgeSha256": "afe2a789466c3d68f4eec7d8cf2e718f45a29a19a5d8b9eb8c4cec10b18f31eb",
-    "devParentOrigin": "https://dev-winkgames.papastudio.net",
+    "devParentOrigin": "https://winkgames.papastudio.net",
     "harnessOrigin": "http://127.0.0.1:8787",
-    "devApiBase": "https://dev-api-winkgames.papastudio.net/api/v1"
+    "devApiBase": "https://api-winkgames.papastudio.net/api/v1"
   },
   "semantics": {
     "roundId": "A new UUID is generated when the player starts their first tile move after the audio unlock. The same ID is kept through any revive step within the same game session. A fresh ID is assigned only when the player starts a new game via the reset button.",

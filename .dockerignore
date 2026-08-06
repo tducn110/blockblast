@@ -1,0 +1,10 @@
+.git
+.gitignore
+.worktrees
+node_modules
+dist
+.env
+.env.*
+artifacts
+docs
+*.log

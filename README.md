@@ -1,30 +1,22 @@
-# Xếp Khối Bộ Lạc
+# Bo Lac Block Blast PixiJS
 
-React/Vite version of the Block Blast-style mini game exported from Figma Make.
+Wink mini-game chạy trong iframe của `https://winkgames.papastudio.net`.
+Production game origin là `https://bo-lac-block-blaster.papastudio.net`.
 
-## Running the code
-
-Install dependencies:
-
-```bash
-pnpm install
-```
-
-Start the development server:
+## Local verification
 
 ```bash
-pnpm run dev
+npm ci
+npm run verify:wink-bridge
+npm test
+npm run typecheck
+npm run build
 ```
 
-Build for production:
+Production bắt buộc chạy trong Wink iframe. Mở game trực tiếp ngoài parent
+được cho phép sẽ dừng với lỗi `PARENT_REQUIRED`. Runtime config chỉ chứa public
+metadata; access token và session authority luôn nằm trong bridge closure.
 
-```bash
-pnpm run build
-```
-
-## Wink Integration
-
-This game is integrated with the Wink platform and operates exclusively inside a Wink `iframe`.
-Any direct standalone load will fail with a `PARENT_REQUIRED` error.
-To test the bridge, run: `npm run verify:wink-bridge`
-
+- Protocol version: `1`
+- Bridge version: `9.0.0`
+- Allowed parent: `https://winkgames.papastudio.net`
