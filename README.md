@@ -18,5 +18,5 @@ Production bắt buộc chạy trong Wink iframe. Mở game trực tiếp ngoài
 metadata; access token và session authority luôn nằm trong bridge closure.
 
 - Protocol version: `1`
-- Bridge version: `9.0.0`
+- Bridge version: `9.0.1`
 - Allowed parent: `https://winkgames.papastudio.net`
