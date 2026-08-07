@@ -7,7 +7,10 @@ const EXPECTED_BRIDGE_VERSION = "9.0.1";
 const EXPECTED_PROTOCOL_VERSION = 1;
 const EXPECTED_SHA256 =
   "2c116572babd9d850f19a91ff68669395eb3c8cd268c34f85be3d13d5625e29c";
-const EXPECTED_PARENT = "https://winkgames.papastudio.net";
+const EXPECTED_PARENTS = [
+  "https://winkgames.papastudio.net",
+  "http://localhost:3000",
+];
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -30,7 +33,8 @@ if (
   config.environment !== "prod" ||
   config.protocolVersion !== EXPECTED_PROTOCOL_VERSION ||
   config.bridgeVersion !== EXPECTED_BRIDGE_VERSION ||
-  JSON.stringify(config.allowedParentOrigins) !== JSON.stringify([EXPECTED_PARENT]) ||
+  JSON.stringify(config.allowedParentOrigins) !==
+    JSON.stringify(EXPECTED_PARENTS) ||
   lock.bridgeVersion !== EXPECTED_BRIDGE_VERSION ||
   lock.protocolVersion !== EXPECTED_PROTOCOL_VERSION ||
   lock.sha256 !== EXPECTED_SHA256 ||
