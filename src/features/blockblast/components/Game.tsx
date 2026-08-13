@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Trophy, RotateCcw, Settings, Heart } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Trophy, RotateCcw, Settings, Heart, Play, Video } from "lucide-react";
 import { useBlockBlastGame, type BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { Button } from "@/components/shared/Button";
 import { IconButton } from "@/components/shared/IconButton";
@@ -23,6 +24,7 @@ interface GameProps {
   scoreData: ScoreData;
   sfxEnabled: boolean;
   musicEnabled: boolean;
+  shakeEnabled: boolean;
   scenery: "normal" | "boom";
   paused: boolean;
   onBoom: (event: BoomEvent) => void;
@@ -36,6 +38,7 @@ export function Game({
   scoreData,
   sfxEnabled,
   musicEnabled,
+  shakeEnabled,
   scenery,
   paused,
   onBoom,
@@ -306,7 +309,7 @@ export function Game({
             status={game.status}
             clearAnimation={game.clearAnimation}
             placementAnimation={game.placementAnimation}
-            comboShakeEvent={game.comboShakeEvent}
+            comboShakeEvent={shakeEnabled ? game.comboShakeEvent : null}
             paused={paused}
             interactionLocked={paused || game.adPending}
             onSelectPiece={game.selectPiece}
@@ -320,8 +323,8 @@ export function Game({
           )}
         </div>
       </div>
-      {game.status === "reviveOffer" && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
+      {game.status === "reviveOffer" && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease] font-['Be_Vietnam_Pro',sans-serif]">
           <div className="absolute inset-0 bg-[#2a2418]/40" />
           
           <div role="dialog" aria-modal="true" className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col items-center gap-[24px] w-full max-w-[340px] max-h-[calc(100dvh-32px)] overflow-y-auto border-2 border-[#8a7d65]/20">
@@ -337,7 +340,12 @@ export function Game({
                 style={{ flex: 1, minHeight: 56, fontSize: 16 }}
               >
                 {adReplayStatus === "idle" ? (
-                  <span className="flex items-center justify-center gap-2">Có <Heart size={20} className="fill-current" /></span>
+                  <span className="flex items-center justify-center gap-2">
+                    <RewardedAdIndicator />
+                    <span className="flex items-center justify-center gap-1.5">
+                      Có <Heart size={20} className="fill-current" />
+                    </span>
+                  </span>
                 ) : (
                   GAME_TEXT.BTN_AD_LOADING
                 )}
@@ -353,10 +361,11 @@ export function Game({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-      {game.status === "gameOver" && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
+      {game.status === "gameOver" && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease] font-['Be_Vietnam_Pro',sans-serif]">
           <div className="absolute inset-0 bg-[#2a2418]/40" />
           
           <div role="dialog" aria-modal="true" className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col gap-[18px] w-full max-w-[420px] max-h-[calc(100dvh-32px)] overflow-y-auto border-2 border-[#8a7d65]/20">
@@ -424,7 +433,12 @@ export function Game({
                   ? GAME_TEXT.BTN_AD_LOADING
                   : continuePromptState === "doubled"
                     ? "Đã nhân đôi điểm"
-                    : "x2"}
+                    : (
+                      <span className="flex items-center justify-center gap-2">
+                        <RewardedAdIndicator />
+                        <span>x2</span>
+                      </span>
+                    )}
               </Button>
               <Button 
                 onClick={handleRestart} 
@@ -441,9 +455,21 @@ export function Game({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
+  );
+}
+
+function RewardedAdIndicator() {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-[22px] items-center justify-center rounded-[6px] border border-[#8a7d65]/65 bg-[#fffaf0]/92 px-[6px] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]"
+    >
+      <Video size={13} className="text-[#8a7d65]" strokeWidth={2.4} />
+    </span>
   );
 }
 

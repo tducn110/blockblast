@@ -455,14 +455,6 @@ export function useBlockBlastGame({
     if (controlledMusicEnabled !== undefined) setInternalMusicEnabled(controlledMusicEnabled);
   }, [controlledMusicEnabled]);
 
-  useEffect(() => {
-    blockBlastAudio.setSfxEnabled(sfxEnabled);
-  }, [sfxEnabled]);
-
-  useEffect(() => {
-    blockBlastAudio.setMusicEnabled(musicEnabled);
-  }, [musicEnabled]);
-
   useEffect(
     () => () => {
       clearAnimationTimers.current.forEach((timer) => window.clearTimeout(timer));
