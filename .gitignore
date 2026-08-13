@@ -5,3 +5,6 @@ dist/
 *.log
 *.local
 .vercel
+
+# Wink deployment evidence (local only)
+artifacts/

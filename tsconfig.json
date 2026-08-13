@@ -19,7 +19,8 @@
     "types": ["node", "vite/client"],
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["node", "vitest"]
   },
   "include": ["src"]
 }

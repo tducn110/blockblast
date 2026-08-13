@@ -12,7 +12,7 @@ const BRIDGE_SOURCE = fs.readFileSync(
   path.join(ROOT, "public/wink-bridge.js"),
   "utf8",
 );
-const GAME_ID = "27d74846-b8ca-44b1-87fe-a909d8b9eef9";
+const GAME_ID = "7784ef77-53f2-4924-9179-356c8e0a715f";
 const OTHER_GAME_ID = "55555555-5555-4555-8555-555555555555";
 const PARENT_ORIGIN = "http://127.0.0.1:8787";
 const GAME_ORIGIN = "http://127.0.0.1:5173";
@@ -224,7 +224,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("certified bridge security negatives — 2048", () => {
+describe("certified bridge security negatives — BlockBlast", () => {
   it("fails top-level with PARENT_REQUIRED before any config or API request", async () => {
     const harness = await createHarness({ topLevel: true });
 
@@ -396,7 +396,7 @@ describe("certified bridge security negatives — 2048", () => {
   });
 });
 
-describe("2048 iframe-only documentation boundary", () => {
+describe("BlockBlast iframe-only documentation boundary", () => {
   it("documents certified iframe commands and PARENT_REQUIRED in README", () => {
     const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
 

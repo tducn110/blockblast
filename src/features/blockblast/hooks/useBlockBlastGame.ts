@@ -109,6 +109,7 @@ interface UseBlockBlastGameOptions {
   bestScore?: number;
   sfxEnabled?: boolean;
   musicEnabled?: boolean;
+  paused?: boolean;
   onGameOver?: (result: GameResult) => void;
 }
 
@@ -415,6 +416,7 @@ export function useBlockBlastGame({
   bestScore: externalBestScore = 0,
   sfxEnabled: controlledSfxEnabled,
   musicEnabled: controlledMusicEnabled,
+  paused = false,
   onGameOver,
 }: UseBlockBlastGameOptions = {}): GameState & GameActions {
   const [gameState, dispatch] = useReducer(
@@ -452,14 +454,6 @@ export function useBlockBlastGame({
   useEffect(() => {
     if (controlledMusicEnabled !== undefined) setInternalMusicEnabled(controlledMusicEnabled);
   }, [controlledMusicEnabled]);
-
-  useEffect(() => {
-    blockBlastAudio.setSfxEnabled(sfxEnabled);
-  }, [sfxEnabled]);
-
-  useEffect(() => {
-    blockBlastAudio.setMusicEnabled(musicEnabled);
-  }, [musicEnabled]);
 
   useEffect(
     () => () => {
@@ -531,7 +525,7 @@ export function useBlockBlastGame({
   const doPlace = useCallback(
     (pieceId: string, row: number, col: number): boolean => {
       const state = gameStateRef.current;
-      if (state.status !== "playing" || state.adPending || mockAdSessionRef.current) return false;
+      if (paused || state.status !== "playing" || state.adPending || mockAdSessionRef.current) return false;
 
       const trayPiece = state.pieces.find((p) => p.id === pieceId && !p.placed);
       const reservePiece =
@@ -702,11 +696,12 @@ export function useBlockBlastGame({
 
       return true;
     },
-    [sfxEnabled, scheduleDeferredTrayGeneration, scheduleFeedbackDismissal, onGameOver]
+    [sfxEnabled, scheduleDeferredTrayGeneration, scheduleFeedbackDismissal, onGameOver, paused]
   );
 
   const selectPiece = useCallback((id: string | null) => {
     if (
+      paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
       mockAdSessionRef.current
@@ -714,10 +709,11 @@ export function useBlockBlastGame({
       return;
     }
     dispatch({ type: "selectPiece", id });
-  }, []);
+  }, [paused]);
 
   const startDrag = useCallback((id: string) => {
     if (
+      paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
       mockAdSessionRef.current
@@ -725,10 +721,11 @@ export function useBlockBlastGame({
       return;
     }
     dispatch({ type: "startDrag", id });
-  }, []);
+  }, [paused]);
 
   const endDrag = useCallback(() => {
     if (
+      paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
       mockAdSessionRef.current
@@ -736,10 +733,11 @@ export function useBlockBlastGame({
       return;
     }
     dispatch({ type: "endDrag" });
-  }, []);
+  }, [paused]);
 
   const setHoverAnchorAction = useCallback((anchor: { row: number; col: number } | null) => {
     if (
+      paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
       mockAdSessionRef.current
@@ -747,7 +745,7 @@ export function useBlockBlastGame({
       return;
     }
     dispatch({ type: "setHoverAnchor", anchor });
-  }, []);
+  }, [paused]);
 
   const placePieceAction = useCallback(
     (id: string, row: number, col: number): boolean => doPlace(id, row, col),

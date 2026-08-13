@@ -16,24 +16,24 @@
     "devApiBase": "https://api-winkgames.papastudio.net/api/v1"
   },
   "semantics": {
-    "roundId": "A new UUID is generated when the player starts their first tile move after the audio unlock. The same ID is kept through any revive step within the same game session. A fresh ID is assigned only when the player starts a new game via the reset button.",
-    "completion": "The round is complete when the player confirms the final game-over by clicking Không (decline revive) on the revive prompt, causing the final score overlay to appear. Reviving does not complete the round; only the definitive end-of-game confirmation does.",
-    "score": "The final qualifying score is the value shown in the final results overlay — optionally doubled by the x2 Điểm bonus button — submitted at the same moment the round completes. Score is never submitted automatically on completion; it is an independent explicit action.",
-    "pauseResume": "On pause, keyboard and touch input are disabled via the inputEnabled prop passed to the game component, and the Web Audio AudioContext is suspended. On resume, input is re-enabled and AudioContext is resumed. The board state and round ID are preserved; no reset or time jump occurs.",
-    "muteUnmute": "On parent mute, the BGM HTMLAudioElement volume and the SFX GainNode gain are set to zero, silencing all audio output. The player's own musicEnabled and sfxEnabled preference flags are not modified. On unmute, audio output is restored to the levels dictated by those player preferences."
+    "roundId": "Generated via crypto.randomUUID() when the first block is placed",
+    "completion": "Reported when the round ends and the player restarts or goes to dashboard",
+    "score": "Reported on game over when the player chooses to restart or goes to dashboard",
+    "pauseResume": "Pauses player input and gameplay events while preserving state",
+    "muteUnmute": "Mutes audio without overwriting user preferences"
   },
   "files": {
     "runtimeConfig": "public/wink-runtime-config.json",
     "bridge": "public/wink-bridge.js",
     "bridgeLock": "public/wink-bridge.lock.json",
     "adapters": [
-      "src/integrations/wink/client.ts",
-      "src/integrations/wink/useWinkIntegration.ts"
+      "src/integrations/wink/client.ts"
     ],
     "tests": [
       "src/integrations/wink/__tests__/client.test.ts",
       "src/integrations/wink/__tests__/security-negative.test.ts",
-      "src/integrations/wink/__tests__/useWinkIntegration.test.tsx"
+      "src/integrations/wink/__tests__/useWinkIntegration.test.tsx",
+      "src/app/__tests__/useRoundFinalization.test.tsx"
     ]
   },
   "commands": {

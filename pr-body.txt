@@ -1,0 +1,11 @@
+This PR addresses all outstanding requirements for the BlockBlast Wink Handoff. 
+
+## Changes Made:
+- **Final Score Snapshot:** Stored `finalScore` and `playTimeMs` in `FinalizationState` to prevent scores from being artificially inflated via Mock Ad (x2) clicks during a network retry.
+- **Bridge Missing Fail-Fast:** Upgraded the Wink Bridge fallback to securely throw an error if the bridge is missing, instead of acting as a silent no-op. Fatal bridge errors are now correctly displayed in the App UI.
+- **Async Promise Guard:** Added `try...catch` blocks in `Game.tsx` for `handleRestart` and `handleDashboard` to prevent unhandled promise rejections on network failures.
+- **Dashboard Lifecycle Safety:** Fixed a severe runtime error where `handleDashboard` prematurely finalized the round. It now strictly opens the overlay without submitting data.
+- **Round Sealed Lock (`roundSealed`):** Gameplay inputs, `Dashboard`, and `Settings` buttons are now instantly locked as soon as a finalization attempt starts and remain locked if the finalization fails, preventing users from altering their score on a failed submission.
+- **Clean Build & pristine dist:** Exclusively use `crypto.randomUUID` without the `Math.random()` fallback. Eliminated obsolete audit files, corrected the manifest semantics (`wink-integration.json`), and generated a fresh `dist` bundle.
+- **Node Engine Compatibility:** Updated the `Dockerfile` and `package.json` to properly target Node `22.22.2-alpine` for strict dependency compliance (`jsdom`, `undici`).
+- **Metadata Update:** Updated `index.html` placeholders with correct BlockBlast metadata.

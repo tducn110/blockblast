@@ -7,6 +7,7 @@ import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { useWinkIntegration } from "@/integrations/wink/useWinkIntegration";
+import { useRoundFinalization } from "./useRoundFinalization";
 
 type Screen = "game" | "dashboard" | "settings";
 
@@ -18,55 +19,44 @@ export default function App() {
 
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
+  const [shakeEnabled, setShakeEnabled] = useState(true);
 
   // Wink bridge integration
   const wink = useWinkIntegration();
+  const {
+    submitError,
+    onRoundStart,
+    onGameEnd
+  } = useRoundFinalization(wink);
 
-  const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
-  const [roundStartMs, setRoundStartMs] = useState<number>(0);
+  const isIframeDevError = import.meta.env.DEV && wink.error?.message?.toLowerCase().includes("iframe parent");
+  const fatalWinkError = wink.phase === 'error' && !isIframeDevError ? wink.error : null;
 
-  const onRoundStart = useCallback(() => {
-    if (activeRoundId) return;
-    const id = `round-${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
-    setActiveRoundId(id);
-    setRoundStartMs(Date.now());
-  }, [activeRoundId]);
-
-  const onGameEnd = useCallback(async (score: number) => {
-    const roundId = activeRoundId;
-    setActiveRoundId(null);
-    if (!roundId) return;
-
-    const playTimeMs = Date.now() - roundStartMs;
-    const playTimeSec = Math.round(playTimeMs / 1000);
-
-    try {
-      await wink.submitFinalScore({
-        roundId,
-        score,
-        playTimeSec,
-        qualifies: true,
-      });
-    } catch (err: any) {
-      if (err?.code !== "CAPABILITY_DENIED") {
-        console.error("[Wink] submitFinalScore failed", err);
-      }
+  useEffect(() => {
+    if (wink.hostPaused) {
+      blockBlastAudio.suspend();
+    } else {
+      blockBlastAudio.resume();
     }
+  }, [wink.hostPaused]);
 
-    try {
-      await wink.completeRound({
-        roundId,
-        playDurationMs: playTimeMs,
-      });
-    } catch (err) {
-      console.error("[Wink] completeRound failed", err);
+  useEffect(() => {
+    if (wink.phase === "ready_anonymous" || wink.phase === "ready_authenticated") {
+      void wink.refreshLeaderboard();
     }
-  }, [activeRoundId, roundStartMs, wink]);
+  }, [wink.phase, wink.refreshLeaderboard]);
+
+  const applyMusicEnabled = useCallback(
+    (requestedMusicEnabled: boolean, options?: { fromGesture?: boolean }) => {
+      blockBlastAudio.setMusicEnabled(requestedMusicEnabled && !wink.parentMuted, options);
+    },
+    [wink.parentMuted]
+  );
 
   // Apply parent mute to audio engine without touching user prefs
   useEffect(() => {
-    blockBlastAudio.setMusicEnabled(musicEnabled && !wink.parentMuted);
-  }, [musicEnabled, wink.parentMuted]);
+    applyMusicEnabled(musicEnabled);
+  }, [musicEnabled, applyMusicEnabled]);
 
   useEffect(() => {
     blockBlastAudio.setSfxEnabled(sfxEnabled && !wink.parentMuted);
@@ -92,6 +82,7 @@ export default function App() {
   }, []);
 
   const handleBoom = useCallback((_event: BoomEvent) => {
+    if (!shakeEnabled) return;
     if (sceneryTimerRef.current !== null) {
       window.clearTimeout(sceneryTimerRef.current);
     }
@@ -101,13 +92,21 @@ export default function App() {
       setScenery("normal");
       sceneryTimerRef.current = null;
     }, 4200);
-  }, []);
+  }, [shakeEnabled]);
 
   useEffect(
     () => () => {
       if (sceneryTimerRef.current !== null) window.clearTimeout(sceneryTimerRef.current);
     },
     []
+  );
+
+  const handleMusicChange = useCallback(
+    (enabled: boolean) => {
+      applyMusicEnabled(enabled, enabled && !wink.parentMuted ? { fromGesture: true } : undefined);
+      setMusicEnabled(enabled);
+    },
+    [applyMusicEnabled, setMusicEnabled, wink.parentMuted]
   );
 
   return (
@@ -153,10 +152,8 @@ export default function App() {
           <DashboardScreen 
             bestScore={scoreData.bestScore}
             stats={scoreData.stats}
-            onPlay={() => {
-              onRoundStart();
-              setScreen("game");
-            }}
+            leaderboard={wink.leaderboard}
+            onPlay={() => setScreen("game")}
           />
         )}
 
@@ -164,14 +161,16 @@ export default function App() {
           <SettingsScreen
             musicEnabled={musicEnabled}
             sfxEnabled={sfxEnabled}
-            onMusicChange={setMusicEnabled}
+            shakeEnabled={shakeEnabled}
+            onMusicChange={handleMusicChange}
             onSfxChange={setSfxEnabled}
+            onShakeChange={setShakeEnabled}
             onBack={() => setScreen("game")}
           />
         )}
 
         {/* Keep Game mounted so we don't lose progress */}
-        {wink.error && wink.error.code === "CAPABILITY_DENIED" && (
+        {(submitError || fatalWinkError) && (
           <div
             role="alert"
             style={{
@@ -180,7 +179,7 @@ export default function App() {
               padding: "8px 20px", borderRadius: 8, fontSize: 13, textAlign: "center",
             }}
           >
-            {wink.error.message}
+            {submitError || fatalWinkError?.message}
           </div>
         )}
         <div
@@ -196,9 +195,11 @@ export default function App() {
             scoreData={scoreData} 
             sfxEnabled={sfxEnabled} 
             musicEnabled={musicEnabled}
+            shakeEnabled={shakeEnabled}
             scenery={scenery}
             paused={screen !== "game" || wink.hostPaused}
             onBoom={handleBoom}
+            onRoundStart={onRoundStart}
             onGameEnd={onGameEnd}
             onDashboard={() => setScreen("dashboard")} 
             onSettings={() => setScreen("settings")}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Trophy, RotateCcw, Settings, Heart } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Trophy, RotateCcw, Settings, Heart, Play, Video } from "lucide-react";
 import { useBlockBlastGame, type BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { Button } from "@/components/shared/Button";
 import { IconButton } from "@/components/shared/IconButton";
@@ -23,10 +24,12 @@ interface GameProps {
   scoreData: ScoreData;
   sfxEnabled: boolean;
   musicEnabled: boolean;
+  shakeEnabled: boolean;
   scenery: "normal" | "boom";
   paused: boolean;
   onBoom: (event: BoomEvent) => void;
-  onGameEnd?: (score: number) => void;
+  onRoundStart?: () => void;
+  onGameEnd?: (score: number) => Promise<void>;
   onDashboard: () => void;
   onSettings: () => void;
 }
@@ -35,32 +38,45 @@ export function Game({
   scoreData,
   sfxEnabled,
   musicEnabled,
+  shakeEnabled,
   scenery,
   paused,
   onBoom,
+  onRoundStart,
   onGameEnd,
   onDashboard,
   onSettings,
 }: GameProps) {
+  const [roundSealed, setRoundSealed] = useState(false);
+
   const game = useBlockBlastGame({
     bestScore: scoreData.bestScore,
     onGameOver: (result) => {
       scoreData.handleGameOver(result);
-      onGameEnd?.(result.score);
     },
     sfxEnabled,
     musicEnabled,
+    paused: paused || roundSealed,
   });
   const lastBoomEventIdRef = useRef<string | null>(null);
   const [adReplayStatus, setAdReplayStatus] = useState<"idle" | "loading">("idle");
   const [isReserveAdLoading, setIsReserveAdLoading] = useState(false);
   const [continuePromptState, setContinuePromptState] = useState<"idle" | "doubled">("idle");
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const finalizingRef = useRef(false);
 
   useEffect(() => {
     if (game.status === "playing") {
       setContinuePromptState("idle");
+      setRoundSealed(false);
     }
   }, [game.status]);
+
+  useEffect(() => {
+    if (game.piecesPlaced === 1 && game.status === "playing") {
+      onRoundStart?.();
+    }
+  }, [game.piecesPlaced, game.status, onRoundStart]);
 
   const { currentPlayer } = buildLeaderboardModel(scoreData.stats, "Người chơi");
 
@@ -123,6 +139,42 @@ export function Game({
     }
   }, [adReplayStatus, game.beginMockAd, game.completeMockAd]);
 
+  const handleRestart = useCallback(async () => {
+    if (finalizingRef.current) return;
+    finalizingRef.current = true;
+    setIsFinalizing(true);
+    setRoundSealed(true);
+    try {
+      await onGameEnd?.(game.score);
+      game.resetGame();
+      setRoundSealed(false);
+      setContinuePromptState("idle");
+    } catch (error) {
+      console.error("[Wink] round finalization failed", error);
+    } finally {
+      finalizingRef.current = false;
+      setIsFinalizing(false);
+    }
+  }, [game.score, game.resetGame, onGameEnd]);
+
+  const handleDashboard = useCallback(async () => {
+    if (finalizingRef.current) return;
+    if (game.status === "gameOver") {
+      finalizingRef.current = true;
+      setIsFinalizing(true);
+      setRoundSealed(true);
+      try {
+        await onGameEnd?.(game.score);
+      } catch (error) {
+        console.error("[Wink] round finalization failed", error);
+      } finally {
+        finalizingRef.current = false;
+        setIsFinalizing(false);
+      }
+    }
+    onDashboard();
+  }, [game.status, game.score, onGameEnd, onDashboard]);
+
   return (
     <section
       className="blockblast-game-shell w-full h-full min-h-0 max-w-[440px] lg:h-auto lg:max-w-[1080px] mx-auto bg-[#fdf6ea]/96 border-2 border-[#8a7d65]/34 rounded-[28px] p-[14px_14px_18px] lg:p-[30px] shadow-[0_18px_46px_rgba(42,36,24,0.18)] flex flex-col lg:flex-row gap-[12px] lg:gap-[38px] relative font-['Be_Vietnam_Pro',sans-serif] overflow-hidden"
@@ -151,13 +203,13 @@ export function Game({
           </div>
 
           <div className="flex items-center gap-2 lg:gap-3">
-            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={onDashboard} size={40}>
+            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={handleDashboard} size={40} disabled={isFinalizing || roundSealed}>
               <Trophy size={20} />
             </IconButton>
-            <IconButton label="Cài đặt" onClick={onSettings} size={40}>
+            <IconButton label="Cài đặt" onClick={onSettings} size={40} disabled={isFinalizing || roundSealed}>
               <Settings size={22} />
             </IconButton>
-            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={game.resetGame} size={40}>
+            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={handleRestart} size={40} disabled={isFinalizing}>
               <RotateCcw size={20} />
             </IconButton>
           </div>
@@ -257,9 +309,9 @@ export function Game({
             status={game.status}
             clearAnimation={game.clearAnimation}
             placementAnimation={game.placementAnimation}
-            comboShakeEvent={game.comboShakeEvent}
+            comboShakeEvent={shakeEnabled ? game.comboShakeEvent : null}
             paused={paused}
-            interactionLocked={game.adPending}
+            interactionLocked={paused || game.adPending}
             onSelectPiece={game.selectPiece}
             onPlacePiece={game.placePiece}
             onUnlockReserve={handleUnlockReserve}
@@ -271,8 +323,8 @@ export function Game({
           )}
         </div>
       </div>
-      {game.status === "reviveOffer" && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
+      {game.status === "reviveOffer" && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease] font-['Be_Vietnam_Pro',sans-serif]">
           <div className="absolute inset-0 bg-[#2a2418]/40" />
           
           <div role="dialog" aria-modal="true" className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col items-center gap-[24px] w-full max-w-[340px] max-h-[calc(100dvh-32px)] overflow-y-auto border-2 border-[#8a7d65]/20">
@@ -288,7 +340,12 @@ export function Game({
                 style={{ flex: 1, minHeight: 56, fontSize: 16 }}
               >
                 {adReplayStatus === "idle" ? (
-                  <span className="flex items-center justify-center gap-2">Có <Heart size={20} className="fill-current" /></span>
+                  <span className="flex items-center justify-center gap-2">
+                    <RewardedAdIndicator />
+                    <span className="flex items-center justify-center gap-1.5">
+                      Có <Heart size={20} className="fill-current" />
+                    </span>
+                  </span>
                 ) : (
                   GAME_TEXT.BTN_AD_LOADING
                 )}
@@ -304,10 +361,11 @@ export function Game({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-      {game.status === "gameOver" && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease]">
+      {game.status === "gameOver" && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-[24px] animate-[fadeScaleIn_0.32s_ease] font-['Be_Vietnam_Pro',sans-serif]">
           <div className="absolute inset-0 bg-[#2a2418]/40" />
           
           <div role="dialog" aria-modal="true" className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col gap-[18px] w-full max-w-[420px] max-h-[calc(100dvh-32px)] overflow-y-auto border-2 border-[#8a7d65]/20">
@@ -349,7 +407,7 @@ export function Game({
               <Button
                 variant="secondary"
                 size="lg"
-                disabled={continuePromptState === "doubled" || adReplayStatus !== "idle"}
+                disabled={continuePromptState === "doubled" || adReplayStatus !== "idle" || roundSealed}
                 onClick={async () => {
                   setAdReplayStatus("loading");
                   await playMockAd();
@@ -375,12 +433,18 @@ export function Game({
                   ? GAME_TEXT.BTN_AD_LOADING
                   : continuePromptState === "doubled"
                     ? "Đã nhân đôi điểm"
-                    : "x2"}
+                    : (
+                      <span className="flex items-center justify-center gap-2">
+                        <RewardedAdIndicator />
+                        <span>x2</span>
+                      </span>
+                    )}
               </Button>
               <Button 
-                onClick={game.resetGame} 
+                onClick={handleRestart} 
                 size="md" 
                 variant="primary"
+                disabled={isFinalizing}
                 style={{
                   width: "100%",
                   minHeight: 48,
@@ -391,9 +455,21 @@ export function Game({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
+  );
+}
+
+function RewardedAdIndicator() {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-[22px] items-center justify-center rounded-[6px] border border-[#8a7d65]/65 bg-[#fffaf0]/92 px-[6px] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]"
+    >
+      <Video size={13} className="text-[#8a7d65]" strokeWidth={2.4} />
+    </span>
   );
 }
 
