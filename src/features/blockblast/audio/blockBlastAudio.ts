@@ -27,7 +27,7 @@ function clampVolume(volume: number) {
   return clamped;
 }
 
-class BlockBlastAudio {
+export class BlockBlastAudio {
   private context: AudioContext | null = null;
   private musicEnabled = false;
   private sfxEnabled = true;
@@ -109,7 +109,7 @@ class BlockBlastAudio {
     }
   }
 
-  setMusicEnabled(enabled: boolean) {
+  setMusicEnabled(enabled: boolean, { fromGesture = false }: { fromGesture?: boolean } = {}) {
     this.musicEnabled = enabled;
 
     if (this.masterBgmGain) {
@@ -117,12 +117,22 @@ class BlockBlastAudio {
     }
 
     if (!enabled) {
+      if (this.musicElement) {
+        this.musicElement.pause();
+        this.musicElement.currentTime = 0;
+        this.musicElement.load();
+      }
       this.removeUnlockListeners();
       this.removeVisibilityListener();
       return;
     }
 
     this.addVisibilityListener();
+    if (fromGesture) {
+      this.startMusicTrack({ fromGesture: true });
+      return;
+    }
+
     if (this.context?.state === "running") {
       this.startMusicTrack();
     } else {

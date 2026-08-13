@@ -19,6 +19,7 @@ export default function App() {
 
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
+  const [shakeEnabled, setShakeEnabled] = useState(true);
 
   // Wink bridge integration
   const wink = useWinkIntegration();
@@ -28,7 +29,8 @@ export default function App() {
     onGameEnd
   } = useRoundFinalization(wink);
 
-  const fatalWinkError = wink.phase === 'error' ? wink.error : null;
+  const isIframeDevError = import.meta.env.DEV && wink.error?.message?.toLowerCase().includes("iframe parent");
+  const fatalWinkError = wink.phase === 'error' && !isIframeDevError ? wink.error : null;
 
   useEffect(() => {
     if (wink.hostPaused) {
@@ -44,10 +46,17 @@ export default function App() {
     }
   }, [wink.phase, wink.refreshLeaderboard]);
 
+  const applyMusicEnabled = useCallback(
+    (requestedMusicEnabled: boolean, options?: { fromGesture?: boolean }) => {
+      blockBlastAudio.setMusicEnabled(requestedMusicEnabled && !wink.parentMuted, options);
+    },
+    [wink.parentMuted]
+  );
+
   // Apply parent mute to audio engine without touching user prefs
   useEffect(() => {
-    blockBlastAudio.setMusicEnabled(musicEnabled && !wink.parentMuted);
-  }, [musicEnabled, wink.parentMuted]);
+    applyMusicEnabled(musicEnabled);
+  }, [musicEnabled, applyMusicEnabled]);
 
   useEffect(() => {
     blockBlastAudio.setSfxEnabled(sfxEnabled && !wink.parentMuted);
@@ -73,6 +82,7 @@ export default function App() {
   }, []);
 
   const handleBoom = useCallback((_event: BoomEvent) => {
+    if (!shakeEnabled) return;
     if (sceneryTimerRef.current !== null) {
       window.clearTimeout(sceneryTimerRef.current);
     }
@@ -82,13 +92,21 @@ export default function App() {
       setScenery("normal");
       sceneryTimerRef.current = null;
     }, 4200);
-  }, []);
+  }, [shakeEnabled]);
 
   useEffect(
     () => () => {
       if (sceneryTimerRef.current !== null) window.clearTimeout(sceneryTimerRef.current);
     },
     []
+  );
+
+  const handleMusicChange = useCallback(
+    (enabled: boolean) => {
+      applyMusicEnabled(enabled, enabled && !wink.parentMuted ? { fromGesture: true } : undefined);
+      setMusicEnabled(enabled);
+    },
+    [applyMusicEnabled, setMusicEnabled, wink.parentMuted]
   );
 
   return (
@@ -143,8 +161,10 @@ export default function App() {
           <SettingsScreen
             musicEnabled={musicEnabled}
             sfxEnabled={sfxEnabled}
-            onMusicChange={setMusicEnabled}
+            shakeEnabled={shakeEnabled}
+            onMusicChange={handleMusicChange}
             onSfxChange={setSfxEnabled}
+            onShakeChange={setShakeEnabled}
             onBack={() => setScreen("game")}
           />
         )}
@@ -175,6 +195,7 @@ export default function App() {
             scoreData={scoreData} 
             sfxEnabled={sfxEnabled} 
             musicEnabled={musicEnabled}
+            shakeEnabled={shakeEnabled}
             scenery={scenery}
             paused={screen !== "game" || wink.hostPaused}
             onBoom={handleBoom}

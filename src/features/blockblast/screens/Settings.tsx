@@ -1,15 +1,17 @@
-import { Music, Settings as SettingsIcon, Volume2, VolumeX } from "lucide-react";
+import { Music, Settings as SettingsIcon, Volume2, VolumeX, Vibrate, VibrateOff } from "lucide-react";
 import { Button } from "@/components/shared/Button";
 
 interface SettingsProps {
   musicEnabled: boolean;
   sfxEnabled: boolean;
+  shakeEnabled: boolean;
   onMusicChange: (enabled: boolean) => void;
   onSfxChange: (enabled: boolean) => void;
+  onShakeChange: (enabled: boolean) => void;
   onBack: () => void;
 }
 
-export function SettingsScreen({ musicEnabled, sfxEnabled, onMusicChange, onSfxChange, onBack }: SettingsProps) {
+export function SettingsScreen({ musicEnabled, sfxEnabled, shakeEnabled, onMusicChange, onSfxChange, onShakeChange, onBack }: SettingsProps) {
   return (
     <div
       className="bg-[#fdf6ea] rounded-[24px] p-[32px_24px] border-[2px] border-[#8a7d65]/15 shadow-[0_14px_40px_rgba(42,36,24,0.18),0_2px_0_rgba(255,255,255,0.6)_inset] flex flex-col gap-[24px] relative w-full box-border"
@@ -47,6 +49,20 @@ export function SettingsScreen({ musicEnabled, sfxEnabled, onMusicChange, onSfxC
             onClick={() => onSfxChange(!sfxEnabled)}
           >
             {sfxEnabled ? "Bật" : "Tắt"}
+          </Button>
+        </div>
+
+        <div className="flex justify-between items-center p-4 bg-[#8a7d65]/10 rounded-[16px]">
+          <div className="font-semibold text-[#2a2418] flex items-center gap-2">
+            {shakeEnabled ? <Vibrate size={20} /> : <VibrateOff size={20} />}
+            Rung màn hình
+          </div>
+          <Button 
+            variant={shakeEnabled ? "primary" : "secondary"} 
+            size="sm" 
+            onClick={() => onShakeChange(!shakeEnabled)}
+          >
+            {shakeEnabled ? "Bật" : "Tắt"}
           </Button>
         </div>
       </div>
