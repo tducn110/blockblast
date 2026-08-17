@@ -152,7 +152,6 @@ export default function App() {
           <DashboardScreen 
             bestScore={scoreData.bestScore}
             stats={scoreData.stats}
-            leaderboard={wink.leaderboard}
             onPlay={() => setScreen("game")}
           />
         )}
