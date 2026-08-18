@@ -268,6 +268,8 @@ export function useWinkIntegration(): BlockBlastWinkIntegration {
   const [leaderboard, setLeaderboard] = useState<
     readonly WinkLeaderboardEntry[]
   >([]);
+  const [personalBest, setPersonalBest] =
+    useState<WinkLeaderboardEntry | null>(null);
 
   useEffect(() => {
     const client = connection.client;
@@ -345,6 +347,7 @@ export function useWinkIntegration(): BlockBlastWinkIntegration {
   const refreshLeaderboard = useCallback(async () => {
     if (offline) {
       setLeaderboard([]);
+      setPersonalBest(null);
       return;
     }
     if (!connection.client) {
@@ -354,8 +357,10 @@ export function useWinkIntegration(): BlockBlastWinkIntegration {
       throw recordError(undefined, "CAPABILITY_DENIED");
     }
     try {
-      const entries = await connection.client.getLeaderboard({ limit: 100 });
-      setLeaderboard(entries);
+      // 30 is the server's cap; anything larger is trimmed to it server-side.
+      const board = await connection.client.getLeaderboard({ limit: 30 });
+      setLeaderboard(board.entries);
+      setPersonalBest(board.me);
       setError(null);
       setState((current) => stateWithError(current, null));
     } catch (value) {
@@ -426,6 +431,7 @@ export function useWinkIntegration(): BlockBlastWinkIntegration {
     parentMuted,
     error,
     leaderboard,
+    personalBest,
     refreshLeaderboard,
     submitFinalScore,
     startRound,
