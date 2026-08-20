@@ -2,18 +2,35 @@ import { Trophy } from "lucide-react";
 import type { LocalStats } from "@/features/blockblast/game/localStats";
 import { Button } from "@/components/shared/Button";
 import { BADGE_COLORS, buildLeaderboardModel, getRank, type RankedLeaderboardEntry } from "@/features/blockblast/lib/dashboardHelpers";
+import type { LeaderboardEntry } from "@/integrations/wink/wink-bridge";
 
 interface DashboardProps {
   bestScore: number;
   stats: LocalStats;
+  leaderboard?: readonly LeaderboardEntry[];
   onPlay: () => void;
 }
 
-export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
+export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: DashboardProps) {
   // Use "Người chơi" since we don't have username input yet
-  const { topEntries, currentPlayer } = buildLeaderboardModel(stats, "Người chơi");
-  const playerInTopTen = topEntries.find((entry) => entry.isLocal) ?? null;
-  const playerRow = playerInTopTen ?? currentPlayer;
+  const { topEntries: localTopEntries, currentPlayer } = buildLeaderboardModel(stats, "Người chơi");
+  const playerInTopTen = localTopEntries.find((entry) => entry.isLocal) ?? null;
+  let playerRow = playerInTopTen ?? currentPlayer;
+
+  const isWinkLeaderboard = leaderboard !== undefined;
+  let topEntries = localTopEntries;
+  if (isWinkLeaderboard) {
+    topEntries = leaderboard.map((entry) => ({
+      name: entry.displayName || "Anonymous",
+      score: entry.score,
+      maxCombo: 0,
+      linesCleared: 0,
+      rank: entry.rank,
+      isLocal: false,
+      isNew: false,
+    }));
+    playerRow = null;
+  }
 
   return (
     <div
@@ -54,8 +71,8 @@ export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
               <RankingRow key={`${entry.name}-${entry.rank}`} entry={entry} highlight={entry.isLocal} />
             ))
           ) : (
-            <div className="rounded-[16px] border-2 border-[#8a7d65]/15 bg-[#8a7d65]/5 p-[18px_14px] text-center text-[13px] font-bold text-[#8a7d65]">
-              Chưa có thành tích. Hãy chơi để thiết lập kỷ lục đầu tiên.
+            <div className="text-[14px] text-center text-[#8a7d65] font-bold mt-4">
+              Chưa có dữ liệu Ranking từ Wink.
             </div>
           )}
         </div>

@@ -3,6 +3,7 @@ import { Application, Container, Rectangle } from "pixi.js";
 
 import { createGameWorldTransform } from "@/features/blockblast/layout/gameViewport";
 import { useMeasuredGameViewport } from "@/features/blockblast/layout/useMeasuredGameViewport";
+import { clearTextureCache } from "@/features/blockblast/game/pixiDrawUtils";
 
 const MAX_PIXI_RESOLUTION = 2;
 
@@ -44,7 +45,7 @@ export function usePixiApp() {
       });
 
       if (cancelled || !hostRef.current) {
-        app.destroy({ removeView: true, releaseGlobalResources: true }, { children: true });
+        app.destroy({ removeView: true }, { children: true });
         return;
       }
 
@@ -89,8 +90,9 @@ export function usePixiApp() {
       dragLayerRef.current = null;
       
       if (appRef.current) {
+        clearTextureCache();
         appRef.current.destroy(
-          { removeView: true, releaseGlobalResources: true },
+          { removeView: true },
           { children: true }
         );
       }

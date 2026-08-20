@@ -43,6 +43,7 @@ export class BlockBlastAudio {
   private unlockListenersBound = false;
   private visibilityListenerBound = false;
   private musicPlayPromise: Promise<void> | null = null;
+  private programmaticSuspend = false;
 
   preload() {
     this.ensureMusicElement();
@@ -87,6 +88,9 @@ export class BlockBlastAudio {
       if (this.masterBgmGain && this.musicEnabled) {
         this.masterBgmGain.gain.value = 1;
       }
+      if (this.context?.state === "suspended" && !this.programmaticSuspend) {
+        this.addUnlockListeners();
+      }
     }
   };
 
@@ -95,6 +99,8 @@ export class BlockBlastAudio {
   };
 
   unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}) {
+    if (this.programmaticSuspend) return;
+    
     const context = this.ensureContext();
     if (context?.state === "suspended") {
       void context.resume().catch(() => this.addUnlockListeners());
@@ -330,6 +336,12 @@ export class BlockBlastAudio {
     
     this.masterBgmGain.connect(this.context.destination);
     this.masterSfxGain.connect(this.context.destination);
+
+    this.context.onstatechange = () => {
+      if (this.context?.state === "suspended") {
+        this.addUnlockListeners();
+      }
+    };
 
     return this.context;
   }
@@ -589,14 +601,16 @@ export class BlockBlastAudio {
   }
 
   suspend() {
+    this.programmaticSuspend = true;
     if (this.context && this.context.state === "running") {
       void this.context.suspend();
     }
   }
 
   resume() {
+    this.programmaticSuspend = false;
     if (this.context && this.context.state === "suspended") {
-      void this.context.resume();
+      void this.context.resume().catch(() => this.addUnlockListeners());
     }
   }
 }

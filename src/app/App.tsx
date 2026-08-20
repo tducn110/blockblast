@@ -152,7 +152,7 @@ export default function App() {
           <DashboardScreen 
             bestScore={scoreData.bestScore}
             stats={scoreData.stats}
-            leaderboard={wink.leaderboard}
+            leaderboard={wink.mode === 'wink' ? wink.leaderboard : undefined}
             onPlay={() => setScreen("game")}
           />
         )}

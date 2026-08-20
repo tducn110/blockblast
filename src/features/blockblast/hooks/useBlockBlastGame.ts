@@ -493,8 +493,6 @@ export function useBlockBlastGame({
       generationRafRef.current = requestAnimationFrame(() => {
         generationRafRef.current = null;
         if (capturedRunId !== runIdRef.current) return;
-        if (gameStateRef.current.status !== "resolving") return;
-        if (gameStateRef.current.adPending || mockAdSessionRef.current) return;
 
         const generatedPieces = createSmartPieces(board, score, Date.now());
 
