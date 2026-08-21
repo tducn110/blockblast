@@ -66,7 +66,7 @@ export function generateWinkRuntimeConfig(input) {
       origins.some((origin, index) => origin !== expected[index])
     ) {
       throw new Error(
-        'Production Wink runtime config requires the exact pilot parent',
+        'Production Wink runtime config requires the exact production parents',
       );
     }
   } else {
