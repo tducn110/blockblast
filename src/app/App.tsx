@@ -22,7 +22,7 @@ export default function App() {
 
   // Wink bridge integration
   const wink = useWinkIntegration();
-  const scoreData = useScoreData(wink.bestScore);
+  const scoreData = useScoreData(wink.personalBest?.score ?? 0);
   const {
     submitError,
     onRoundStart,

@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState } from "react";
-import type { WinkRound } from "@/integrations/wink/client";
+import type {
+  BlockBlastWinkIntegration,
+  WinkRound,
+} from "@/integrations/wink/useWinkIntegration";
 
 interface FinalizationState {
   roundId: string;
@@ -11,28 +14,30 @@ interface FinalizationState {
   promise: Promise<void> | null;
 }
 
-export function useRoundFinalization(wink: any) {
+export function useRoundFinalization(wink: BlockBlastWinkIntegration) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const activeRoundRef = useRef<WinkRound | null>(null);
   const finalizationRef = useRef<FinalizationState | null>(null);
 
   const onRoundStart = useCallback(() => {
     if (activeRoundRef.current) return;
-    const round = wink.startRound();
-    activeRoundRef.current = round;
+    activeRoundRef.current = wink.startRound();
   }, [wink]);
 
   const onGameEnd = useCallback((score: number) => {
     const round = activeRoundRef.current;
     if (!round) return Promise.resolve();
 
-    if (finalizationRef.current?.roundId === round.roundId) {
-      if (finalizationRef.current.promise) {
-        return finalizationRef.current.promise;
-      }
+    const existing = finalizationRef.current;
+    let state: FinalizationState;
+    if (existing && existing.roundId === round.roundId) {
+      // A finalization for this round is already in flight — join it instead of
+      // starting a second submit/complete pair for the same game-over.
+      if (existing.promise) return existing.promise;
+      state = existing;
     } else {
       const playTimeMs = Date.now() - round.startedAtMs;
-      finalizationRef.current = {
+      state = {
         roundId: round.roundId,
         finalScore: score,
         playTimeMs,
@@ -41,10 +46,9 @@ export function useRoundFinalization(wink: any) {
         completed: false,
         promise: null,
       };
+      finalizationRef.current = state;
     }
 
-    const state = finalizationRef.current;
-    
     state.promise = (async () => {
       let hasError = false;
 
@@ -61,7 +65,7 @@ export function useRoundFinalization(wink: any) {
         } catch (err: any) {
           if (err?.code === "CAPABILITY_DENIED") {
             setSubmitError("Bạn chưa đăng nhập để lưu điểm lên Wink");
-            state.scoreSubmitted = true; 
+            state.scoreSubmitted = true;
           } else {
             console.error("[Wink] submitFinalScore failed", err);
             setSubmitError(err?.message || "Lỗi lưu điểm");
@@ -72,7 +76,10 @@ export function useRoundFinalization(wink: any) {
 
       if (!state.completed) {
         try {
-          wink.completeRound(round, state.playTimeMs);
+          // Awaited deliberately: completeRound is async, so an un-awaited call
+          // would mark the round completed on a promise that later rejects and
+          // leave the failure as an unhandled rejection.
+          await wink.completeRound(round, state.playTimeMs);
           state.completed = true;
         } catch (err) {
           console.error("[Wink] completeRound failed", err);
@@ -81,7 +88,8 @@ export function useRoundFinalization(wink: any) {
         }
       }
 
-      // THIS IS THE CRITICAL FIX REQUESTED BY USER
+      // Only release the round once both halves have landed, so a retry keeps
+      // reporting against the same roundId.
       if (state.completed && state.scoreSubmitted) {
         activeRoundRef.current = null;
       }

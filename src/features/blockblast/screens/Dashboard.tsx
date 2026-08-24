@@ -2,12 +2,12 @@ import { Trophy } from "lucide-react";
 import type { LocalStats } from "@/features/blockblast/game/localStats";
 import { Button } from "@/components/shared/Button";
 import { BADGE_COLORS, buildLeaderboardModel, getRank, type RankedLeaderboardEntry } from "@/features/blockblast/lib/dashboardHelpers";
-import type { LeaderboardEntry } from "@/integrations/wink/wink-bridge";
+import type { WinkLeaderboardEntry } from "@/integrations/wink/types";
 
 interface DashboardProps {
   bestScore: number;
   stats: LocalStats;
-  leaderboard?: readonly LeaderboardEntry[];
+  leaderboard?: readonly WinkLeaderboardEntry[];
   onPlay: () => void;
 }
 

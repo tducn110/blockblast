@@ -6,11 +6,11 @@
  * artifact is certified by version, protocol, byte length, and checksum.
  */
 
-export const BRIDGE_VERSION = '9.0.0';
+export const BRIDGE_VERSION = '9.1.0';
 export const PROTOCOL_VERSION = 1;
 export const BRIDGE_SHA256 =
-  'afe2a789466c3d68f4eec7d8cf2e718f45a29a19a5d8b9eb8c4cec10b18f31eb';
-export const BRIDGE_BYTES = 35_128;
+  '1193bfc2ebab1151806bb09f1fe9226c61da9efa674135ccf0bd92da977acfc4';
+export const BRIDGE_BYTES = 37676;
 
 /**
  * Provenance of the certified artifact in the Wink repository. This records
@@ -20,44 +20,81 @@ export const BRIDGE_BYTES = 35_128;
  */
 export const BRIDGE_SOURCE = Object.freeze({
   repository: 'wink',
-  commit: 'efc50ed4a27cb55f351c257350e1993d385e4a3f',
+  commit: '096244cc4c28e0fb909a8ea0a2d205859084d45b',
   artifact: 'game-template/wink-bridge.js',
   manifest: 'game-template/wink-bridge.manifest.json',
 });
 
 export const LOCAL_GAME_ORIGIN = 'http://127.0.0.1:5173';
+/** A Wink front end run from a checkout, framing a deployed game. */
+export const LOCAL_WINK_FE_ORIGIN = 'http://localhost:3000';
 export const HARNESS_ORIGIN = 'http://127.0.0.1:8787';
 
-export const ENVIRONMENTS = Object.freeze(['dev', 'prod']);
+/**
+ * There is one deployed environment. It answers on winkgames.papastudio.net, the
+ * team uses it as their development environment, and its runtime still reports
+ * the label `prod` because that is the label a NODE_ENV=production host had
+ * before WINK_ENV existed. Both labels therefore describe the same deployment.
+ *
+ * `staging` is gone. It was added only because `dev` was occupied by
+ * dev-winkgames.papastudio.net, which was decommissioned on 2026-08-20. The
+ * certified 9.0.2 artifact still accepts a `staging` runtime config — an artifact
+ * is certified by its bytes and is not rebuilt for a vocabulary change — but the
+ * platform no longer derives anything for that label, so nothing can mint one.
+ */
+export const ENVIRONMENTS = Object.freeze([
+  'local',
+  'dev',
+  'prod',
+]);
 
 /**
  * Per-environment public authorities and deployment naming.
  *
- * `dev` is the certified pilot environment. `prod` names are derived with the
- * same scheme and are pinned to the pilot production parent that
- * `generate-wink-runtime-config.mjs` has always enforced; promoting a game to
- * production still requires the separate platform-owner approval described in
- * game-template/docs/PRODUCTION_READINESS.md.
+ * Two entries describe the same machine — see ENVIRONMENTS above — and `local`
+ * describes a laptop. Nothing here has a `dev-` prefix any more; that prefix
+ * belonged to a second deployment that no longer exists.
  */
 export const ENVIRONMENT_CONTRACT = Object.freeze({
-  dev: Object.freeze({
+  // A laptop. It never deploys, so the naming fields exist only so that
+  // `deriveGamePlan` stays total; the origins and API base are the ones the
+  // backend already defaults to (GAME_SESSION_PARENT_ORIGINS, PUBLIC_API_BASE).
+  local: Object.freeze({
     parentOrigins: Object.freeze([
-      'https://dev-winkgames.papastudio.net',
+      'http://127.0.0.1:3001',
       HARNESS_ORIGIN,
     ]),
-    apiBase: 'https://dev-api-winkgames.papastudio.net/api/v1',
-    domainPrefix: 'dev-',
-    stackName: 'papastudio-winkgames-dev-games',
-    imagePrefix: 'winkgames/dev/',
-    routerPrefix: 'winkgames-minigame-dev-',
+    apiBase: 'http://127.0.0.1:3000/api/v1',
+    domainPrefix: 'local-',
+    stackName: 'papastudio-winkgames-local-games',
+    imagePrefix: 'winkgames/local/',
+    routerPrefix: 'winkgames-minigame-local-',
   }),
-  // Production is not a target a game developer may point anything at. It is
-  // recorded here only so derived names stay in one place. `verify-handoff.mjs`
-  // refuses any manifest whose environment is not `dev`, the harness refuses a
-  // production API base, and promoting a game to production additionally needs
-  // the platform-owner approval described in docs/PRODUCTION_READINESS.md.
+  // The one deployed environment. Its naming has no prefix and its image prefix
+  // still reads `winkgames/prod/`: renaming 152 Harbor repositories and every
+  // Swarm service to match a label is churn with no benefit, and the registry
+  // cannot even accept writes today. The path is a name, not a claim.
+  dev: Object.freeze({
+    parentOrigins: Object.freeze([
+      'https://winkgames.papastudio.net',
+      LOCAL_WINK_FE_ORIGIN,
+    ]),
+    apiBase: 'https://api-winkgames.papastudio.net/api/v1',
+    domainPrefix: '',
+    stackName: 'papastudio-winkgames-games',
+    imagePrefix: 'winkgames/prod/',
+    routerPrefix: 'winkgames-minigame-prod-',
+  }),
+  // The same deployment under the label its runtime still reports. Kept because
+  // every live game's runtime config, the backend's WINK_ENV and the front end's
+  // toWinkEnvironment all resolve to `prod` today; removing it would invalidate
+  // all of them at once. A real production VPS does not exist yet — when it is
+  // built, this is the entry that changes and `dev` stays as it is.
   prod: Object.freeze({
-    parentOrigins: Object.freeze(['https://winkgames.papastudio.net']),
+    parentOrigins: Object.freeze([
+      'https://winkgames.papastudio.net',
+      LOCAL_WINK_FE_ORIGIN,
+    ]),
     apiBase: 'https://api-winkgames.papastudio.net/api/v1',
     domainPrefix: '',
     stackName: 'papastudio-winkgames-games',
@@ -72,8 +109,10 @@ export const DOMAIN_SUFFIX = '.papastudio.net';
 /** Hostnames a game may never claim, even if its slug would produce them. */
 export const RESERVED_HOSTNAMES = Object.freeze([
   'winkgames.papastudio.net',
-  'dev-winkgames.papastudio.net',
   'api-winkgames.papastudio.net',
+  // Decommissioned 2026-08-20. Still reserved so no slug can claim a name the
+  // DNS zone and old documents may still point at.
+  'dev-winkgames.papastudio.net',
   'dev-api-winkgames.papastudio.net',
 ]);
 
@@ -183,7 +222,10 @@ export function deriveGamePlan({ slug, environment }) {
  * the game before it is deployed anywhere.
  */
 export function catalogAllowedOrigins(plan) {
-  return plan.environment === 'dev'
+  // Only `local` gets the loopback game origin. It used to be `dev`, when `dev`
+  // meant a throwaway deployment; `dev` is the live catalog now, and a row there
+  // that accepts a laptop origin weakens the origin check for a real game.
+  return plan.environment === 'local'
     ? [plan.gameOrigin, LOCAL_GAME_ORIGIN]
     : [plan.gameOrigin];
 }

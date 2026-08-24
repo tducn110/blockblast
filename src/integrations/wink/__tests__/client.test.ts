@@ -1,210 +1,373 @@
-/**
- * Contract tests for the game's Wink adapter.
- *
- * These cover the boundaries the handoff matrix checks that a unit test can
- * reach. The remaining rows (top-level PARENT_REQUIRED, the secret boundary,
- * and real pause/resume behaviour) must still be exercised against the running
- * game through the local harness.
- */
+import { describe, expect, it, vi } from 'vitest';
+import {
+  WinkGameClientError,
+  createWinkGameClient,
+} from '../client';
+import type {
+  RawWinkBridge,
+  RawWinkBridgeState,
+} from '../types';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WinkGameIntegration } from '../client';
-import type { WinkBridgeApi, WinkBridgeCapabilities } from '../wink-bridge';
+const ROUND_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const ROUND_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const GAME_ID = '27d74846-b8ca-44b1-87fe-a909d8b9eef9'; // 2048 GAME ID
 
-type LifecycleKind = 'pause' | 'resume' | 'mute' | 'unmute';
-
-function makeBridge(capabilities: WinkBridgeCapabilities) {
-  const lifecycle: Record<LifecycleKind, Array<() => void>> = {
-    pause: [],
-    resume: [],
-    mute: [],
-    unmute: [],
+function rawState(
+  overrides: Partial<RawWinkBridgeState> = {},
+): RawWinkBridgeState {
+  return {
+    phase: 'ready_authenticated',
+    gameId: GAME_ID,
+    environment: 'dev',
+    sessionId: '33333333-3333-4333-8333-333333333333',
+    identityType: 'user',
+    capabilities: {
+      getLeaderboard: true,
+      submitScore: true,
+      complete: true,
+    },
+    expiresAt: '2026-07-29T15:05:00.000Z',
+    lifecycle: { paused: false, muted: false },
+    error: null,
+    ...overrides,
   };
-  const register =
-    (kind: LifecycleKind) =>
-    (listener: () => void) => {
-      lifecycle[kind].push(listener);
-      return () => {
-        lifecycle[kind] = lifecycle[kind].filter((fn) => fn !== listener);
-      };
+}
+
+function rawEntry(overrides: Record<string, unknown> = {}) {
+  return {
+    id: '12',
+    userId: '44444444-4444-4444-8444-444444444444',
+    isAnonymous: false,
+    displayName: 'Winkgames Pilot User',
+    score: 321,
+    playTime: 18,
+    gameMode: 'classic',
+    counter: 2,
+    metadata: { roundId: ROUND_A },
+    rank: 1,
+    createdAt: '2026-07-29T15:00:00.000Z',
+    updatedAt: '2026-07-29T15:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function bridge(
+  overrides: Partial<RawWinkBridge> = {},
+): RawWinkBridge {
+  const state = rawState();
+  return {
+    subscribe: vi.fn((listener) => {
+      listener(state);
+      return vi.fn();
+    }),
+    getState: vi.fn(() => state),
+    getCapabilities: vi.fn(() => state.capabilities),
+    getLeaderboard: vi.fn(async () => ({
+      entries: [rawEntry()],
+      total: 1,
+    })),
+    submitScore: vi.fn(async () => ({
+      entry: rawEntry(),
+      isNewBest: true,
+      previousBest: null,
+    })),
+    complete: vi.fn(),
+    onPause: vi.fn(() => vi.fn()),
+    onResume: vi.fn(() => vi.fn()),
+    onMute: vi.fn(() => vi.fn()),
+    onUnmute: vi.fn(() => vi.fn()),
+    help: vi.fn(() => ({
+      bridgeVersion: '9.1.0',
+      protocolVersion: 1,
+      phase: state.phase,
+      gameId: state.gameId,
+      environment: state.environment,
+      hasSession: true,
+      capabilities: state.capabilities,
+      lifecycle: state.lifecycle,
+      errorCode: null,
+    })),
+    ...overrides,
+  };
+}
+
+describe('createWinkGameClient (2048)', () => {
+  it('projects ready state and capabilities without raw authority fields', () => {
+    const source = rawState() as RawWinkBridgeState & {
+      accessToken: string;
+      apiBase: string;
+      anonymousId: string;
+    };
+    source.accessToken = 'scoped-secret';
+    source.apiBase = 'https://api.example.test';
+    source.anonymousId = '22222222-2222-4222-8222-222222222222';
+    const client = createWinkGameClient(
+      bridge({
+        getState: vi.fn(() => source),
+        getCapabilities: vi.fn(() => source.capabilities),
+      }),
+    );
+
+    expect(client.getState()).toEqual(rawState());
+    expect(client.getCapabilities()).toEqual({
+      getLeaderboard: true,
+      submitScore: true,
+      complete: true,
+    });
+    expect(JSON.stringify(client.getState())).not.toMatch(
+      /scoped-secret|api\.example|22222222/,
+    );
+  });
+
+  it('maps the exact R1 leaderboard response to the UI-safe shape', async () => {
+    const client = createWinkGameClient(bridge());
+
+    await expect(
+      client.getLeaderboard({ limit: 10, offset: 0 }),
+    ).resolves.toEqual({
+      entries: [
+        {
+          rank: 1,
+          score: 321,
+          playTime: 18,
+          displayName: 'Winkgames Pilot User',
+          avatarUrl: null,
+          createdAt: '2026-07-29T15:00:00.000Z',
+        },
+      ],
+      me: null,
+    });
+  });
+
+  it('projects the viewer own best, which need not appear in the page', async () => {
+    const client = createWinkGameClient(
+      bridge({
+        getLeaderboard: vi.fn(async () => ({
+          entries: [rawEntry()],
+          total: 4213,
+          me: rawEntry({ rank: 812, score: 99 }),
+        })),
+      }),
+    );
+
+    await expect((await client.getLeaderboard()).me).toEqual({
+      rank: 812,
+      score: 99,
+      playTime: 18,
+      displayName: 'Winkgames Pilot User',
+      avatarUrl: null,
+      createdAt: '2026-07-29T15:00:00.000Z',
+    });
+  });
+
+  it('reads a null me, and an absent me, as no personal best', async () => {
+    const nulled = createWinkGameClient(
+      bridge({
+        getLeaderboard: vi.fn(async () => ({ entries: [], total: 0, me: null })),
+      }),
+    );
+
+    expect((await nulled.getLeaderboard()).me).toBeNull();
+
+    // A server that predates the field must read as "nothing to show" rather
+    // than as a broken response, or rollout order alone breaks the board.
+    const absent = createWinkGameClient(
+      bridge({
+        getLeaderboard: vi.fn(async () => ({ entries: [], total: 0 })),
+      }),
+    );
+
+    expect((await absent.getLeaderboard()).me).toBeNull();
+  });
+
+  it.each([
+    [{ score: Number.NaN, metadata: { roundId: ROUND_A } }, 'INVALID_SCORE'],
+    [{ score: -1, metadata: { roundId: ROUND_A } }, 'INVALID_SCORE'],
+    [{ score: 1.5, metadata: { roundId: ROUND_A } }, 'INVALID_SCORE'],
+    [
+      { score: 1, playTime: 86_401, metadata: { roundId: ROUND_A } },
+      'INVALID_SCORE',
+    ],
+    [{ score: 1, metadata: { roundId: 'not-a-uuid' } }, 'INVALID_ROUND'],
+  ])('rejects invalid score input %# before the bridge', async (input, code) => {
+    const raw = bridge();
+    const client = createWinkGameClient(raw);
+
+    await expect(client.submitScore(input)).rejects.toMatchObject({ code });
+    expect(raw.submitScore).not.toHaveBeenCalled();
+  });
+
+  it('maps anonymous denial and still permits independent completion', async () => {
+    const raw = bridge({
+      submitScore: vi.fn().mockRejectedValue({
+        code: 'CAPABILITY_DENIED',
+        message: 'Capability is not available',
+        recoverable: false,
+      }),
+    });
+    const client = createWinkGameClient(raw);
+
+    await expect(
+      client.submitScore({
+        score: 50,
+        metadata: { roundId: ROUND_A },
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining({
+        code: 'CAPABILITY_DENIED',
+        retryable: false,
+      }),
+    );
+    await expect(
+      client.complete({ roundId: ROUND_A, playDurationMs: 5_000 }),
+    ).resolves.toBeUndefined();
+    expect(raw.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('memoizes score and completion promises separately per round', async () => {
+    let resolveScore!: (value: unknown) => void;
+    const scoreResult = new Promise((resolve) => {
+      resolveScore = resolve;
+    });
+    const raw = bridge({
+      submitScore: vi.fn(() => scoreResult),
+    });
+    const client = createWinkGameClient(raw);
+    const scoreInput = {
+      score: 99,
+      metadata: { roundId: ROUND_A },
     };
 
-  const api = {
-    subscribe: vi.fn(() => () => {}),
-    getState: vi.fn(() => ({ capabilities }) as never),
-    getCapabilities: vi.fn(() => capabilities),
-    getLeaderboard: vi.fn(async () => ({ entries: [], total: 0 })),
-    submitScore: vi.fn(async () => {
-      if (!capabilities.submitScore) {
-        throw Object.assign(new Error('Capability denied'), {
-          code: 'CAPABILITY_DENIED',
-        });
-      }
-      return { entry: {}, isNewBest: true, previousBest: null };
-    }),
-    complete: vi.fn(),
+    const firstScore = client.submitScore(scoreInput);
+    const duplicateScore = client.submitScore(scoreInput);
+    const firstComplete = client.complete({
+      roundId: ROUND_A,
+      playDurationMs: 10_000,
+    });
+    const duplicateComplete = client.complete({
+      roundId: ROUND_A,
+      playDurationMs: 10_000,
+    });
+
+    expect(duplicateScore).toBe(firstScore);
+    expect(duplicateComplete).toBe(firstComplete);
+    expect(raw.submitScore).toHaveBeenCalledTimes(1);
+    expect(raw.complete).toHaveBeenCalledTimes(1);
+
+    resolveScore({
+      entry: rawEntry(),
+      isNewBest: true,
+      previousBest: null,
+    });
+    await expect(firstScore).resolves.toBeUndefined();
+    await expect(firstComplete).resolves.toBeUndefined();
+
+    await client.submitScore({
+      score: 100,
+      metadata: { roundId: ROUND_B },
+    });
+    await client.complete({ roundId: ROUND_B });
+    expect(raw.submitScore).toHaveBeenCalledTimes(2);
+    expect(raw.complete).toHaveBeenCalledTimes(2);
+  });
+
+  it('memoizes completion failure without coupling it to score', async () => {
+    const raw = bridge({
+      complete: vi.fn(() => {
+        throw {
+          code: 'MESSAGE_REJECTED',
+          message: 'Message rejected',
+          recoverable: true,
+        };
+      }),
+    });
+    const client = createWinkGameClient(raw);
+    const completion = client.complete({ roundId: ROUND_A });
+
+    await expect(completion).rejects.toMatchObject({
+      code: 'MESSAGE_REJECTED',
+      retryable: true,
+    });
+    await expect(
+      client.submitScore({
+        score: 1,
+        metadata: { roundId: ROUND_A },
+      }),
+    ).resolves.toBeUndefined();
+    expect(raw.complete).toHaveBeenCalledTimes(1);
+    expect(raw.submitScore).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      getLeaderboard: vi.fn(async () => ({
+        entries: [rawEntry({ displayName: 123 })],
+        total: 1,
+      })),
+    },
+    {
+      getLeaderboard: vi.fn(async () => ({
+        entries: [],
+        total: -1,
+      })),
+    },
+  ])('rejects malformed leaderboard output', async (overrides) => {
+    const client = createWinkGameClient(bridge(overrides));
+
+    await expect(client.getLeaderboard()).rejects.toMatchObject({
+      code: 'API_NETWORK_ERROR',
+      retryable: true,
+    });
+  });
+
+  it('fails visibly when the canonical bridge is missing', () => {
+    expect(() => createWinkGameClient(null)).toThrow(
+      expect.objectContaining({
+        code: 'BRIDGE_MISSING',
+        retryable: false,
+      }),
+    );
+    expect(() => createWinkGameClient(null)).toThrow(WinkGameClientError);
+  });
+});
+
+function makeLifecycleBridge() {
+  const lifecycle = {
+    pause: new Set<() => void>(),
+    resume: new Set<() => void>(),
+    mute: new Set<() => void>(),
+    unmute: new Set<() => void>(),
+  };
+
+  const register = (kind: keyof typeof lifecycle) => (cb: () => void) => {
+    lifecycle[kind].add(cb);
+    return () => lifecycle[kind].delete(cb);
+  };
+
+  const raw = bridge({
     onPause: vi.fn(register('pause')),
     onResume: vi.fn(register('resume')),
     onMute: vi.fn(register('mute')),
     onUnmute: vi.fn(register('unmute')),
-    help: vi.fn(() => ({}) as never),
-  } as unknown as WinkBridgeApi;
+  });
 
-  const emit = (kind: LifecycleKind) =>
-    lifecycle[kind].forEach((listener) => listener());
-  return { api, emit };
+  const emit = (kind: keyof typeof lifecycle) => {
+    lifecycle[kind].forEach((cb) => cb());
+  };
+
+  return { raw, emit };
 }
-
-const ANONYMOUS: WinkBridgeCapabilities = {
-  getLeaderboard: true,
-  submitScore: false,
-  complete: true,
-};
-const AUTHENTICATED: WinkBridgeCapabilities = {
-  getLeaderboard: true,
-  submitScore: true,
-  complete: true,
-};
-
-function install(capabilities: WinkBridgeCapabilities) {
-  const bridge = makeBridge(capabilities);
-  vi.stubGlobal('window', { WinkBridge: bridge.api });
-  return bridge;
-}
-
-beforeEach(() => {
-  // Start every case with a window that has no bridge installed, so the
-  // facade's "not installed" behaviour is the default rather than leakage
-  // from a previous test.
-  vi.stubGlobal('window', {});
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
-
-describe('without the certified bridge installed', () => {
-  it('denies every capability instead of inventing one', () => {
-    const wink = new WinkGameIntegration();
-    expect(wink.capabilities).toEqual({
-      getLeaderboard: false,
-      submitScore: false,
-      complete: false,
-    });
-    expect(wink.canSubmitScore).toBe(false);
-  });
-
-  it('rejects leaderboard reads rather than returning fake data', async () => {
-    const wink = new WinkGameIntegration();
-    await expect(wink.refreshLeaderboard()).rejects.toThrow(
-      /WinkBridge is not installed/,
-    );
-  });
-});
-
-describe('anonymous identity', () => {
-  it('can read the leaderboard and complete a round', async () => {
-    const { api } = install(ANONYMOUS);
-    const wink = new WinkGameIntegration();
-
-    await expect(wink.refreshLeaderboard({ limit: 10 })).resolves.toEqual({
-      entries: [],
-      total: 0,
-    });
-
-    const round = wink.startRound();
-    expect(wink.completeRound(round)).toBe(true);
-    expect(api.complete).toHaveBeenCalledTimes(1);
-  });
-
-  it('surfaces CAPABILITY_DENIED for score submission', async () => {
-    install(ANONYMOUS);
-    const wink = new WinkGameIntegration();
-
-    await expect(wink.submitFinalScore({ score: 100 })).rejects.toMatchObject({
-      code: 'CAPABILITY_DENIED',
-    });
-    expect(wink.canSubmitScore).toBe(false);
-  });
-});
-
-describe('round semantics', () => {
-  it('keeps one stable round id for the whole round', () => {
-    const { api } = install(AUTHENTICATED);
-    const wink = new WinkGameIntegration();
-
-    const round = wink.startRound();
-    wink.completeRound(round);
-
-    expect(api.complete).toHaveBeenCalledWith(
-      expect.objectContaining({ roundId: round.roundId }),
-    );
-  });
-
-  it('gives different rounds different ids', () => {
-    install(AUTHENTICATED);
-    const wink = new WinkGameIntegration();
-    expect(wink.startRound().roundId).not.toBe(wink.startRound().roundId);
-  });
-
-  it('reports completion exactly once per round', () => {
-    const { api } = install(AUTHENTICATED);
-    const wink = new WinkGameIntegration();
-
-    const round = wink.startRound();
-    expect(wink.completeRound(round)).toBe(true);
-    expect(wink.completeRound(round)).toBe(false);
-    expect(wink.completeRound(round)).toBe(false);
-    expect(api.complete).toHaveBeenCalledTimes(1);
-  });
-
-  it('never emits a negative play duration', () => {
-    const { api } = install(AUTHENTICATED);
-    const wink = new WinkGameIntegration();
-
-    wink.completeRound(wink.startRound(), { playDurationMs: -1 });
-
-    expect(api.complete).toHaveBeenCalledWith(
-      expect.objectContaining({ playDurationMs: 0 }),
-    );
-  });
-});
-
-describe('completion and score stay independent', () => {
-  it('does not submit a score when a round completes', () => {
-    const { api } = install(AUTHENTICATED);
-    const wink = new WinkGameIntegration();
-
-    wink.completeRound(wink.startRound());
-
-    expect(api.complete).toHaveBeenCalledTimes(1);
-    expect(api.submitScore).not.toHaveBeenCalled();
-  });
-
-  it('does not complete a round when a score is submitted', async () => {
-    const { api } = install(AUTHENTICATED);
-    const wink = new WinkGameIntegration();
-
-    await wink.submitFinalScore({ score: 1500, playTime: 42 });
-
-    expect(api.submitScore).toHaveBeenCalledTimes(1);
-    expect(api.complete).not.toHaveBeenCalled();
-  });
-});
 
 describe('lifecycle', () => {
-  it('forwards parent pause/resume and mute/unmute to the game', () => {
-    const { emit } = install(AUTHENTICATED);
-    const wink = new WinkGameIntegration();
-    const calls: string[] = [];
+  it('forwards parent pause/resume and mute/unmute to subscribers', () => {
+    const { raw, emit } = makeLifecycleBridge();
+    const client = createWinkGameClient(raw);
 
-    wink.bindLifecycle({
-      onPause: () => calls.push('pause'),
-      onResume: () => calls.push('resume'),
-      onMute: () => calls.push('mute'),
-      onUnmute: () => calls.push('unmute'),
-    });
+    const calls: string[] = [];
+    client.onPause(() => calls.push('pause'));
+    client.onResume(() => calls.push('resume'));
+    client.onMute(() => calls.push('mute'));
+    client.onUnmute(() => calls.push('unmute'));
 
     emit('pause');
     emit('resume');
@@ -214,13 +377,13 @@ describe('lifecycle', () => {
     expect(calls).toEqual(['pause', 'resume', 'mute', 'unmute']);
   });
 
-  it('stops forwarding after dispose', () => {
-    const { emit } = install(AUTHENTICATED);
-    const wink = new WinkGameIntegration();
+  it('stops forwarding after unsubscribe', () => {
+    const { raw, emit } = makeLifecycleBridge();
+    const client = createWinkGameClient(raw);
     const onPause = vi.fn();
 
-    wink.bindLifecycle({ onPause });
-    wink.dispose();
+    const unsubscribe = client.onPause(onPause);
+    unsubscribe();
     emit('pause');
 
     expect(onPause).not.toHaveBeenCalled();

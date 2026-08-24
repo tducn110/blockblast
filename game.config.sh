@@ -12,27 +12,33 @@
 # ----------------------------- PER-GAME INPUT --------------------------------
 # Slug: lowercase letters, digits, single hyphens. Becomes the subdomain, the
 # service name, and the registry path.
-GAME_SLUG="bo-lac-block-blaster-pixijs"
+GAME_SLUG="bo-lac-block-blaster"
 
 # Display metadata (not used by the runtime contract).
 GAME_TITLE="BlockBlast"
 GAME_DESCRIPTION="BlockBlast — Winkgames mini-game"
 
 # The game UUID. Must match public/wink-runtime-config.json and the catalog row
-# id of the environment below — the two environments have different ids. On dev
-# it is the UUID the developer generated before building; on prod it is the one
-# the CMS generated when the row was created, so that row has to exist first.
-GAME_ID="70735b2e-8005-40e9-81ff-1c53e2a6ec01"
+# id. There is one deployed catalog now, so there is one id per game: the one the
+# CMS generated when the row was created, which means the row has to exist first.
+GAME_ID="ba16a10f-ebd7-4252-92c5-75e58f806021"
 
-# "dev" or "prod". Promoting to prod additionally requires the platform-owner
-# approval described in game-template/docs/PRODUCTION_READINESS.md.
-ENVIRONMENT="dev"
+# "local", "dev" or "prod".
+#
+# `dev` and `prod` derive identical names because they are the same deployment:
+# winkgames.papastudio.net, which the team develops against and whose runtime
+# still reports `prod`. See scripts/wink-contract.mjs. When a real production
+# host exists, `prod` is what changes.
+#
+# "local" never deploys — its derived names exist only so this file and the Node
+# contract stay in step.
+ENVIRONMENT="prod"
 # ---------------------------- /PER-GAME INPUT --------------------------------
 
 
 # ============================ DERIVED — DO NOT EDIT ==========================
 PROTOCOL_VERSION="1"
-BRIDGE_VERSION="9.0.0"
+BRIDGE_VERSION="9.1.0"
 REGISTRY="registry2.papagroup.net"
 NETWORK="traefik-public"
 NGINX_PORT="80"
@@ -41,16 +47,25 @@ REPLICAS="1"
 RESTART_POLICY="on-failure"
 
 case "${ENVIRONMENT}" in
+  local)
+    DOMAIN="local-${GAME_SLUG}.papastudio.net"
+    ALLOWED_PARENT_ORIGINS="http://127.0.0.1:3001 http://127.0.0.1:8787"
+    STACK_NAME="papastudio-winkgames-local-games"
+    IMAGE_NAME="winkgames/local/${GAME_SLUG}"
+    ROUTER_NAME="winkgames-minigame-local-${GAME_SLUG}"
+    ;;
+  # `dev` and `prod` name the same deployment — see scripts/wink-contract.mjs.
+  # `staging` was removed with the dev-winkgames deployment on 2026-08-20.
   dev)
-    DOMAIN="dev-${GAME_SLUG}.papastudio.net"
-    ALLOWED_PARENT_ORIGINS="https://dev-winkgames.papastudio.net http://127.0.0.1:8787"
-    STACK_NAME="papastudio-winkgames-dev-games"
-    IMAGE_NAME="winkgames/dev/${GAME_SLUG}"
-    ROUTER_NAME="winkgames-minigame-dev-${GAME_SLUG}"
+    DOMAIN="${GAME_SLUG}.papastudio.net"
+    ALLOWED_PARENT_ORIGINS="https://winkgames.papastudio.net http://localhost:3000"
+    STACK_NAME="papastudio-winkgames-games"
+    IMAGE_NAME="winkgames/prod/${GAME_SLUG}"
+    ROUTER_NAME="winkgames-minigame-prod-${GAME_SLUG}"
     ;;
   prod)
     DOMAIN="${GAME_SLUG}.papastudio.net"
-    ALLOWED_PARENT_ORIGINS="https://winkgames.papastudio.net"
+    ALLOWED_PARENT_ORIGINS="https://winkgames.papastudio.net http://localhost:3000"
     STACK_NAME="papastudio-winkgames-games"
     IMAGE_NAME="winkgames/prod/${GAME_SLUG}"
     ROUTER_NAME="winkgames-minigame-prod-${GAME_SLUG}"
