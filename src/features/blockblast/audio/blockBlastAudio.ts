@@ -447,12 +447,11 @@ export class BlockBlastAudio {
 
     if (context.state === "suspended") {
       this.addUnlockListeners();
-      void context.resume()
-        .then(() => callback(context))
-        .catch(() => this.addUnlockListeners());
-    } else {
-      callback(context);
+      void context.resume().catch(() => this.addUnlockListeners());
     }
+    
+    // Call synchronously so Safari schedules the Web Audio event within the same user gesture frame
+    callback(context);
   }
 
   private tone(
@@ -526,18 +525,18 @@ export class BlockBlastAudio {
   private addUnlockListeners() {
     if (typeof window === "undefined" || this.unlockListenersBound) return;
 
-    window.addEventListener("touchend", this.unlock, { passive: true });
-    window.addEventListener("click", this.unlock, { passive: true });
-    window.addEventListener("keydown", this.unlock, { passive: true });
+    window.addEventListener("pointerdown", this.unlock, { capture: true, passive: true });
+    window.addEventListener("touchstart", this.unlock, { capture: true, passive: true });
+    window.addEventListener("keydown", this.unlock, { capture: true, passive: true });
     this.unlockListenersBound = true;
   }
 
   private removeUnlockListeners() {
     if (typeof window === "undefined" || !this.unlockListenersBound) return;
 
-    window.removeEventListener("touchend", this.unlock);
-    window.removeEventListener("click", this.unlock);
-    window.removeEventListener("keydown", this.unlock);
+    window.removeEventListener("pointerdown", this.unlock, { capture: true });
+    window.removeEventListener("touchstart", this.unlock, { capture: true });
+    window.removeEventListener("keydown", this.unlock, { capture: true });
     this.unlockListenersBound = false;
   }
 

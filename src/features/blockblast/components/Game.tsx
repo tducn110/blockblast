@@ -28,8 +28,6 @@ interface GameProps {
   shakeEnabled: boolean;
   scenery: "normal" | "boom";
   paused: boolean;
-  audioStatus: "idle" | "ready";
-  unlockAudio: () => void;
   onBoom: (event: BoomEvent) => void;
   onRoundStart?: () => void;
   onGameEnd?: (score: number) => Promise<void>;
@@ -44,8 +42,6 @@ export function Game({
   shakeEnabled,
   scenery,
   paused,
-  audioStatus,
-  unlockAudio,
   onBoom,
   onRoundStart,
   onGameEnd,
@@ -331,13 +327,6 @@ export function Game({
             onUseReserveSlot={game.useReserveSlot}
           />
           <SlashScoreOverlay items={game.feedback} />
-          {audioStatus === "idle" && (
-            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-[12px] bg-white/80 backdrop-blur-[4px] cursor-default rounded-[12px]">
-              <Button type="button" size="md" variant="primary" onClick={unlockAudio} style={{ minWidth: 132 }}>
-                Chơi
-              </Button>
-            </div>
-          )}
           {game.status === "gameOver" && (
             <div className="absolute inset-0 z-30 backdrop-blur-[6px] bg-white/10 rounded-[12px] animate-[fadeScaleIn_0.32s_ease] pointer-events-none" />
           )}
