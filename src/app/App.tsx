@@ -15,6 +15,8 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("game");
   const [scenery, setScenery] = useState<"normal" | "boom">("normal");
   const sceneryTimerRef = useRef<number | null>(null);
+  const [audioStatus, setAudioStatus] = useState<"idle" | "ready">("idle");
+
 
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
@@ -62,21 +64,15 @@ export default function App() {
     blockBlastAudio.setSfxEnabled(sfxEnabled && !wink.parentMuted);
   }, [sfxEnabled, wink.parentMuted]);
 
+  const handleUnlockAudio = useCallback(() => {
+    blockBlastAudio.unlockFromGesture({ removeFallbackListeners: true });
+    setAudioStatus("ready");
+    applyMusicEnabled(musicEnabled, { fromGesture: true });
+  }, [musicEnabled, applyMusicEnabled]);
+
   useEffect(() => {
     blockBlastAudio.preload();
-
-    const unlockAudio = () => {
-      blockBlastAudio.unlockFromGesture();
-    };
-
-    document.addEventListener("pointerdown", unlockAudio, { capture: true, passive: true });
-    document.addEventListener("touchstart", unlockAudio, { capture: true, passive: true });
-    document.addEventListener("keydown", unlockAudio, { capture: true });
-
     return () => {
-      document.removeEventListener("pointerdown", unlockAudio, { capture: true });
-      document.removeEventListener("touchstart", unlockAudio, { capture: true });
-      document.removeEventListener("keydown", unlockAudio, { capture: true });
       blockBlastAudio.dispose();
     };
   }, []);
@@ -191,17 +187,19 @@ export default function App() {
             minHeight: 0,
           }}
         >
-          <Game 
-            scoreData={scoreData} 
-            sfxEnabled={sfxEnabled} 
+          <Game
+            scoreData={scoreData}
+            sfxEnabled={sfxEnabled}
             musicEnabled={musicEnabled}
             shakeEnabled={shakeEnabled}
             scenery={scenery}
-            paused={screen !== "game" || wink.hostPaused}
+            paused={wink.hostPaused}
+            audioStatus={audioStatus}
+            unlockAudio={handleUnlockAudio}
             onBoom={handleBoom}
             onRoundStart={onRoundStart}
             onGameEnd={onGameEnd}
-            onDashboard={() => setScreen("dashboard")} 
+            onDashboard={() => setScreen("dashboard")}
             onSettings={() => setScreen("settings")}
           />
         </div>
