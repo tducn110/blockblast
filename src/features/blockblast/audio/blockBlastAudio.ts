@@ -526,17 +526,17 @@ export class BlockBlastAudio {
   private addUnlockListeners() {
     if (typeof window === "undefined" || this.unlockListenersBound) return;
 
-    window.addEventListener("pointerdown", this.unlock, { passive: true });
-    window.addEventListener("touchstart", this.unlock, { passive: true });
-    window.addEventListener("keydown", this.unlock);
+    window.addEventListener("touchend", this.unlock, { passive: true });
+    window.addEventListener("click", this.unlock, { passive: true });
+    window.addEventListener("keydown", this.unlock, { passive: true });
     this.unlockListenersBound = true;
   }
 
   private removeUnlockListeners() {
     if (typeof window === "undefined" || !this.unlockListenersBound) return;
 
-    window.removeEventListener("pointerdown", this.unlock);
-    window.removeEventListener("touchstart", this.unlock);
+    window.removeEventListener("touchend", this.unlock);
+    window.removeEventListener("click", this.unlock);
     window.removeEventListener("keydown", this.unlock);
     this.unlockListenersBound = false;
   }

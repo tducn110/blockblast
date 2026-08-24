@@ -200,39 +200,81 @@ function getPlacements(
   return placements;
 }
 
+const ROW_MASKS = Array.from({length: 8}, (_, r) => 0xFFn << BigInt(r * 8));
+const COL_MASKS = Array.from({length: 8}, (_, c) => 0x0101010101010101n << BigInt(c));
+
+function boardToBitmask(board: BoardGrid): bigint {
+  let mask = 0n;
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      if (board[r][c].filled) {
+        mask |= (1n << BigInt(r * 8 + c));
+      }
+    }
+  }
+  return mask;
+}
+
+function solveBitboard(boardMask: bigint, remainingPieces: { index: number, placements: bigint[] }[]): boolean {
+  if (remainingPieces.length === 0) return true;
+
+  const candidates = remainingPieces.map(p => ({
+    ...p,
+    validPlacements: p.placements.filter(mask => (boardMask & mask) === 0n)
+  })).filter(c => c.validPlacements.length > 0);
+
+  if (candidates.length === 0) return false;
+
+  candidates.sort((a, b) => a.validPlacements.length - b.validPlacements.length);
+
+  for (const candidate of candidates) {
+    const nextRemaining = remainingPieces.filter(p => p.index !== candidate.index);
+    for (const mask of candidate.validPlacements) {
+      let nextBoard = boardMask | mask;
+      
+      let clearMask = 0n;
+      for (let i = 0; i < 8; i++) {
+        if ((nextBoard & ROW_MASKS[i]) === ROW_MASKS[i]) clearMask |= ROW_MASKS[i];
+        if ((nextBoard & COL_MASKS[i]) === COL_MASKS[i]) clearMask |= COL_MASKS[i];
+      }
+      nextBoard &= ~clearMask;
+
+      if (solveBitboard(nextBoard, nextRemaining)) return true;
+    }
+  }
+
+  return false;
+}
+
 export function canPlaceAllInAnyOrder(
   board: BoardGrid,
   pieces: BlockPiece[]
 ): boolean {
   if (pieces.length === 0) return true;
 
-  const candidates = pieces
-    .map((piece, index) => ({
-      piece,
-      index,
-      placements: getPlacements(board, piece)
-    }))
-    .filter((candidate) => candidate.placements.length > 0)
-    .sort((a, b) => a.placements.length - b.placements.length);
-
-  if (candidates.length === 0) {
-    return false;
-  }
-
-  for (const candidate of candidates) {
-    const remainingPieces = pieces.filter((_, i) => i !== candidate.index);
-
-    for (const placement of candidate.placements) {
-      const placedBoard = placePiece(board, candidate.piece, placement.row, placement.col);
-      const { board: nextBoard } = clearLines(placedBoard);
-      
-      if (canPlaceAllInAnyOrder(nextBoard, remainingPieces)) {
-        return true;
+  const boardMask = boardToBitmask(board);
+  const remainingPieces = pieces.map((piece, index) => {
+    const placements: bigint[] = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        let outOfBounds = false;
+        let mask = 0n;
+        for (const cell of piece.cells) {
+          const rr = r + cell.row;
+          const cc = c + cell.col;
+          if (rr < 0 || rr >= 8 || cc < 0 || cc >= 8) {
+            outOfBounds = true;
+            break;
+          }
+          mask |= (1n << BigInt(rr * 8 + cc));
+        }
+        if (!outOfBounds) placements.push(mask);
       }
     }
-  }
+    return { index, placements };
+  });
 
-  return false;
+  return solveBitboard(boardMask, remainingPieces);
 }
 
 function shapeWeight(shape: { cells: Array<{ row: number; col: number }> }, score: number): number {
