@@ -330,3 +330,62 @@ describe('createWinkGameClient (2048)', () => {
     expect(() => createWinkGameClient(null)).toThrow(WinkGameClientError);
   });
 });
+
+function makeLifecycleBridge() {
+  const lifecycle = {
+    pause: new Set<() => void>(),
+    resume: new Set<() => void>(),
+    mute: new Set<() => void>(),
+    unmute: new Set<() => void>(),
+  };
+
+  const register = (kind: keyof typeof lifecycle) => (cb: () => void) => {
+    lifecycle[kind].add(cb);
+    return () => lifecycle[kind].delete(cb);
+  };
+
+  const raw = bridge({
+    onPause: vi.fn(register('pause')),
+    onResume: vi.fn(register('resume')),
+    onMute: vi.fn(register('mute')),
+    onUnmute: vi.fn(register('unmute')),
+  });
+
+  const emit = (kind: keyof typeof lifecycle) => {
+    lifecycle[kind].forEach((cb) => cb());
+  };
+
+  return { raw, emit };
+}
+
+describe('lifecycle', () => {
+  it('forwards parent pause/resume and mute/unmute to subscribers', () => {
+    const { raw, emit } = makeLifecycleBridge();
+    const client = createWinkGameClient(raw);
+
+    const calls: string[] = [];
+    client.onPause(() => calls.push('pause'));
+    client.onResume(() => calls.push('resume'));
+    client.onMute(() => calls.push('mute'));
+    client.onUnmute(() => calls.push('unmute'));
+
+    emit('pause');
+    emit('resume');
+    emit('mute');
+    emit('unmute');
+
+    expect(calls).toEqual(['pause', 'resume', 'mute', 'unmute']);
+  });
+
+  it('stops forwarding after unsubscribe', () => {
+    const { raw, emit } = makeLifecycleBridge();
+    const client = createWinkGameClient(raw);
+    const onPause = vi.fn();
+
+    const unsubscribe = client.onPause(onPause);
+    unsubscribe();
+    emit('pause');
+
+    expect(onPause).not.toHaveBeenCalled();
+  });
+});

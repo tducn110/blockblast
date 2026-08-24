@@ -43,6 +43,7 @@ export class BlockBlastAudio {
   private unlockListenersBound = false;
   private visibilityListenerBound = false;
   private musicPlayPromise: Promise<void> | null = null;
+  private programmaticSuspend = false;
 
   preload() {
     this.ensureMusicElement();
@@ -87,6 +88,9 @@ export class BlockBlastAudio {
       if (this.masterBgmGain && this.musicEnabled) {
         this.masterBgmGain.gain.value = 1;
       }
+      if (this.context?.state === "suspended" && !this.programmaticSuspend) {
+        this.addUnlockListeners();
+      }
     }
   };
 
@@ -95,9 +99,26 @@ export class BlockBlastAudio {
   };
 
   unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}) {
+    if (this.programmaticSuspend) return;
+    
     const context = this.ensureContext();
-    if (context?.state === "suspended") {
-      void context.resume().catch(() => this.addUnlockListeners());
+    if (context) {
+      if (context.state === "suspended") {
+        void context.resume().catch(() => this.addUnlockListeners());
+      }
+      
+      // Play a silent oscillator to force iOS to unlock the Web Audio API
+      try {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        gain.gain.value = 0;
+        osc.connect(gain);
+        gain.connect(context.destination);
+        osc.start(context.currentTime);
+        osc.stop(context.currentTime + 0.001);
+      } catch (e) {
+        // Ignore errors
+      }
     }
 
     if (removeFallbackListeners && (!context || context.state === "running")) {
@@ -120,7 +141,6 @@ export class BlockBlastAudio {
       if (this.musicElement) {
         this.musicElement.pause();
         this.musicElement.currentTime = 0;
-        this.musicElement.load();
       }
       this.removeUnlockListeners();
       this.removeVisibilityListener();
@@ -331,6 +351,12 @@ export class BlockBlastAudio {
     this.masterBgmGain.connect(this.context.destination);
     this.masterSfxGain.connect(this.context.destination);
 
+    this.context.onstatechange = () => {
+      if (this.context?.state === "suspended") {
+        this.addUnlockListeners();
+      }
+    };
+
     return this.context;
   }
 
@@ -421,10 +447,12 @@ export class BlockBlastAudio {
 
     if (context.state === "suspended") {
       this.addUnlockListeners();
-      void context.resume().catch(() => this.addUnlockListeners());
+      void context.resume()
+        .then(() => callback(context))
+        .catch(() => this.addUnlockListeners());
+    } else {
+      callback(context);
     }
-
-    callback(context);
   }
 
   private tone(
@@ -589,14 +617,16 @@ export class BlockBlastAudio {
   }
 
   suspend() {
+    this.programmaticSuspend = true;
     if (this.context && this.context.state === "running") {
       void this.context.suspend();
     }
   }
 
   resume() {
+    this.programmaticSuspend = false;
     if (this.context && this.context.state === "suspended") {
-      void this.context.resume();
+      void this.context.resume().catch(() => this.addUnlockListeners());
     }
   }
 }

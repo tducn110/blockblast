@@ -33,6 +33,11 @@ function borderOf(colorId?: string): number {
 
 const textureCache = new Map<string, Texture>();
 
+export function clearTextureCache() {
+  textureCache.forEach(texture => texture.destroy(true));
+  textureCache.clear();
+}
+
 export function getBlockTexture(app: Application, size: number, colorId: string, alpha = 1): Texture {
   const key = `${colorId}-${size}-${alpha}`;
   if (textureCache.has(key)) return textureCache.get(key)!;
