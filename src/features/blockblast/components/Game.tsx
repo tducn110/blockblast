@@ -19,6 +19,7 @@ import {
   BLOCK_COLOR_MAP,
   type BlockPiece,
 } from "@/features/blockblast/game/blockBlastLogic";
+import { showRewardedVideo } from "@/integrations/ads/googleH5Ads";
 
 interface GameProps {
   scoreData: ScoreData;
@@ -114,30 +115,38 @@ export function Game({
   const adActionDisabled =
     game.status !== "playing" || game.reserveUnlocked || isReserveAdLoading || game.adPending;
   const handleUnlockReserve = useCallback(async () => {
-    if (adActionDisabled || !game.beginMockAd("reserve")) return;
+    if (adActionDisabled || !game.beginAd("reserve")) return;
 
     setIsReserveAdLoading(true);
     try {
-      const reward = await playMockAd();
-      game.completeMockAd("reserve", reward.granted);
+      const rewarded = await showRewardedVideo({
+        name: "unlock_reserve_slot",
+        beforeAd: () => blockBlastAudio.suspend(),
+        afterAd: () => blockBlastAudio.resume(),
+      });
+      game.completeAd("reserve", rewarded);
     } finally {
       setIsReserveAdLoading(false);
     }
-  }, [adActionDisabled, game.beginMockAd, game.completeMockAd]);
+  }, [adActionDisabled, game.beginAd, game.completeAd]);
   const handleReserveAction = () => {
     game.useReserveSlot();
   };
   const handleAdReplay = useCallback(async () => {
-    if (adReplayStatus !== "idle" || !game.beginMockAd("revive")) return;
+    if (adReplayStatus !== "idle" || !game.beginAd("revive")) return;
 
     setAdReplayStatus("loading");
     try {
-      const reward = await playMockAd();
-      game.completeMockAd("revive", reward.granted);
+      const rewarded = await showRewardedVideo({
+        name: "revive_after_loss",
+        beforeAd: () => blockBlastAudio.suspend(),
+        afterAd: () => blockBlastAudio.resume(),
+      });
+      game.completeAd("revive", rewarded);
     } finally {
       setAdReplayStatus("idle");
     }
-  }, [adReplayStatus, game.beginMockAd, game.completeMockAd]);
+  }, [adReplayStatus, game.beginAd, game.completeAd]);
 
   const handleRestart = useCallback(async () => {
     if (finalizingRef.current) return;
@@ -250,12 +259,12 @@ export function Game({
             <div className="flex min-w-0 flex-col justify-center gap-[10px] rounded-[20px] border-[2px] border-[#e87432]/40 bg-[#f5ecd7]/64 p-[14px]">
               <div>
                 <div className="text-[13px] font-black uppercase tracking-[0.8px] text-[#8e4e22]">
-                  Mock ads
+                  Quảng cáo thưởng
                 </div>
                 <div className="mt-[2px] text-[12px] font-bold leading-[1.4] text-[#8a7d65]">
                   {game.reserveUnlocked
                     ? "Kho phụ đã mở. Chọn khối rồi cất bên dưới."
-                    : "Xem mock ads để mở thêm 1 ô cất khối."}
+                    : "Xem quảng cáo để mở thêm 1 ô cất khối."}
                 </div>
               </div>
 
@@ -266,7 +275,7 @@ export function Game({
                 onClick={handleUnlockReserve}
                 style={{ alignSelf: "flex-start", minWidth: 132, minHeight: 38, paddingLeft: 14, paddingRight: 14 }}
               >
-                {isReserveAdLoading ? GAME_TEXT.BTN_AD_LOADING : game.reserveUnlocked ? "Đã mở kho" : "Xem mock ads"}
+                {isReserveAdLoading ? GAME_TEXT.BTN_AD_LOADING : game.reserveUnlocked ? "Đã mở kho" : "Xem quảng cáo"}
               </Button>
             </div>
           </div>
@@ -410,8 +419,13 @@ export function Game({
                 disabled={continuePromptState === "doubled" || adReplayStatus !== "idle" || roundSealed}
                 onClick={async () => {
                   setAdReplayStatus("loading");
-                  await playMockAd();
+                  const rewarded = await showRewardedVideo({
+                    name: "double_final_score",
+                    beforeAd: () => blockBlastAudio.suspend(),
+                    afterAd: () => blockBlastAudio.resume(),
+                  });
                   setAdReplayStatus("idle");
+                  if (!rewarded) return;
                   const doubledScore = game.score * 2;
                   scoreData.updateLatestGameResult({
                     score: doubledScore,
@@ -471,12 +485,6 @@ function RewardedAdIndicator() {
       <Video size={13} className="text-[#8a7d65]" strokeWidth={2.4} />
     </span>
   );
-}
-
-function playMockAd(): Promise<{ granted: boolean }> {
-  return new Promise((resolve) => {
-    window.setTimeout(() => resolve({ granted: true }), 900);
-  });
 }
 
 function useIsMobileReserveTray() {

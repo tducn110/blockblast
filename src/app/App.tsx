@@ -13,7 +13,6 @@ type Screen = "game" | "dashboard" | "settings";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("game");
-  const scoreData = useScoreData();
   const [scenery, setScenery] = useState<"normal" | "boom">("normal");
   const sceneryTimerRef = useRef<number | null>(null);
 
@@ -23,6 +22,7 @@ export default function App() {
 
   // Wink bridge integration
   const wink = useWinkIntegration();
+  const scoreData = useScoreData(wink.bestScore);
   const {
     submitError,
     onRoundStart,
@@ -152,7 +152,7 @@ export default function App() {
           <DashboardScreen 
             bestScore={scoreData.bestScore}
             stats={scoreData.stats}
-            leaderboard={wink.mode === 'wink' ? wink.leaderboard : undefined}
+            leaderboard={wink.leaderboard}
             onPlay={() => setScreen("game")}
           />
         )}

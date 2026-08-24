@@ -200,18 +200,35 @@ function getPlacements(
   return placements;
 }
 
-function canPlaceAllInAnyOrder(board: BoardGrid, pieces: BlockPiece[]): boolean {
+export function canPlaceAllInAnyOrder(
+  board: BoardGrid,
+  pieces: BlockPiece[]
+): boolean {
   if (pieces.length === 0) return true;
 
-  for (let i = 0; i < pieces.length; i += 1) {
-    const piece = pieces[i];
-    const rest = pieces.filter((_, index) => index !== i);
-    const placements = getPlacements(board, piece);
+  const candidates = pieces
+    .map((piece, index) => ({
+      piece,
+      index,
+      placements: getPlacements(board, piece)
+    }))
+    .filter((candidate) => candidate.placements.length > 0)
+    .sort((a, b) => a.placements.length - b.placements.length);
 
-    for (const placement of placements) {
-      const placedBoard = placePiece(board, piece, placement.row, placement.col);
+  if (candidates.length === 0) {
+    return false;
+  }
+
+  for (const candidate of candidates) {
+    const remainingPieces = pieces.filter((_, i) => i !== candidate.index);
+
+    for (const placement of candidate.placements) {
+      const placedBoard = placePiece(board, candidate.piece, placement.row, placement.col);
       const { board: nextBoard } = clearLines(placedBoard);
-      if (canPlaceAllInAnyOrder(nextBoard, rest)) return true;
+      
+      if (canPlaceAllInAnyOrder(nextBoard, remainingPieces)) {
+        return true;
+      }
     }
   }
 

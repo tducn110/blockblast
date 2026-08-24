@@ -447,10 +447,12 @@ export class BlockBlastAudio {
 
     if (context.state === "suspended") {
       this.addUnlockListeners();
-      void context.resume().catch(() => this.addUnlockListeners());
+      void context.resume()
+        .then(() => callback(context))
+        .catch(() => this.addUnlockListeners());
+    } else {
+      callback(context);
     }
-
-    callback(context);
   }
 
   private tone(

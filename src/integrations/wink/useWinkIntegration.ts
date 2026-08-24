@@ -9,6 +9,8 @@ export function isOfflineModeEnabled(env: { dev: boolean; flag: string | undefin
 export function useWinkIntegration() {
   const [state, setState] = useState<WinkBridgeState | null>(winkGame.state);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [bestScore, setBestScore] = useState(0);
+  const [currentEntryId, setCurrentEntryId] = useState<string | null>(null);
   const [hostPaused, setHostPaused] = useState(false);
   const [parentMuted, setParentMuted] = useState(false);
 
@@ -32,15 +34,22 @@ export function useWinkIntegration() {
   const refreshLeaderboard = useCallback(async () => {
     const res = await winkGame.refreshLeaderboard({ limit: 100 });
     setLeaderboard(res.entries);
-  }, []);
+    const current = currentEntryId
+      ? res.entries.find((entry) => entry.id === currentEntryId)
+      : null;
+    if (current) setBestScore(current.score);
+  }, [currentEntryId]);
 
   const submitFinalScore = useCallback(async (input: { roundId: string, score: number, playTimeSec: number, qualifies: boolean }) => {
     if (!input.qualifies) return;
-    return winkGame.submitFinalScore({
+    const response = await winkGame.submitFinalScore({
       score: input.score,
       playTime: input.playTimeSec,
       metadata: { roundId: input.roundId }
     });
+    setCurrentEntryId(response.entry.id);
+    setBestScore(Math.max(response.entry.score, response.previousBest ?? 0));
+    return response;
   }, []);
   
   const completeRound = useCallback((round: WinkRound, playDurationMs: number) => {
@@ -58,6 +67,8 @@ export function useWinkIntegration() {
       state: null,
       capabilities: { getLeaderboard: false, submitScore: false, complete: false },
       leaderboard: [],
+      bestScore: 0,
+      currentEntryId: null,
       refreshLeaderboard: async () => { throw new Error("WinkBridge is missing"); },
       submitFinalScore: async () => { throw new Error("WinkBridge is missing"); },
       completeRound: () => { throw new Error("WinkBridge is missing"); },
@@ -74,6 +85,8 @@ export function useWinkIntegration() {
     state,
     capabilities: winkGame.capabilities,
     leaderboard,
+    bestScore,
+    currentEntryId,
     refreshLeaderboard,
     submitFinalScore,
     completeRound,

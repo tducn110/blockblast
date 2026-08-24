@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  getLocalScoreData,
-  saveLocalGameResult,
-  updateLatestLocalGameResult,
-  type GameResult,
-} from "@/features/blockblast/lib/localScores";
+import type { GameResult } from "@/features/blockblast/lib/localScores";
 import type { LocalStats } from "@/features/blockblast/game/localStats";
 
 export interface ScoreData {
@@ -20,65 +15,60 @@ export interface ScoreData {
   refreshStats: () => void;
 }
 
-export function useScoreData(): ScoreData {
-  const [stats, setStats] = useState<LocalStats>(() => getLocalScoreData());
+export function useScoreData(winkBestScore = 0): ScoreData {
+  const [stats, setStats] = useState<LocalStats>({
+    bestScore: winkBestScore,
+    lastScore: 0,
+    totalGames: 0,
+    history: [],
+  });
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savingScore, setSavingScore] = useState(false);
 
   const refreshStats = useCallback(() => {
-    setStats(getLocalScoreData());
-  }, []);
+    setStats((current) => ({ ...current, bestScore: winkBestScore, history: [] }));
+  }, [winkBestScore]);
 
   useEffect(() => {
-    const onStorageChange = (event: StorageEvent) => {
-      if (!event.key || event.key === "xep-khoi-bo-lac") refreshStats();
-    };
-
-    window.addEventListener("focus", refreshStats);
-    window.addEventListener("storage", onStorageChange);
-    return () => {
-      window.removeEventListener("focus", refreshStats);
-      window.removeEventListener("storage", onStorageChange);
-    };
+    refreshStats();
   }, [refreshStats]);
 
   const handleGameOver = useCallback((result: GameResult) => {
     setSavingScore(true);
-    const outcome = saveLocalGameResult(result);
+    const valid = Number.isFinite(result.score) && result.score >= 0;
     setSavingScore(false);
-    setStats(outcome.stats);
-
-    if (!outcome.saved) {
-      setSaveError(
-        outcome.error === "invalid-score"
-          ? "Điểm không hợp lệ nên chưa được lưu."
-          : "Không thể lưu điểm trên thiết bị này."
-      );
+    if (!valid) {
+      setSaveError("Điểm không hợp lệ nên chưa được gửi lên Wink.");
       return false;
     }
-
+    setStats((current) => ({
+      ...current,
+      bestScore: winkBestScore,
+      lastScore: result.score,
+      totalGames: current.totalGames + 1,
+      history: [],
+    }));
     setSaveError(null);
     return true;
-  }, []);
+  }, [winkBestScore]);
 
   const updateLatestGameResult = useCallback((result: GameResult) => {
     setSavingScore(true);
-    const outcome = updateLatestLocalGameResult(result);
+    const valid = Number.isFinite(result.score) && result.score >= 0;
     setSavingScore(false);
-    setStats(outcome.stats);
-
-    if (!outcome.saved) {
-      setSaveError(
-        outcome.error === "invalid-score"
-          ? "Điểm không hợp lệ nên chưa được cập nhật."
-          : "Không thể cập nhật điểm trên thiết bị này."
-      );
+    if (!valid) {
+      setSaveError("Điểm không hợp lệ nên chưa được gửi lên Wink.");
       return false;
     }
-
+    setStats((current) => ({
+      ...current,
+      bestScore: winkBestScore,
+      lastScore: result.score,
+      history: [],
+    }));
     setSaveError(null);
     return true;
-  }, []);
+  }, [winkBestScore]);
 
   return {
     stats,

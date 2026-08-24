@@ -82,7 +82,7 @@ export interface GameState {
   adPending: boolean;
 }
 
-export type MockAdRewardKind = "reserve" | "revive";
+export type AdRewardKind = "reserve" | "revive";
 
 type GameActions = {
   selectPiece: (id: string | null) => void;
@@ -95,8 +95,8 @@ type GameActions = {
   resetGame: () => void;
   revive: () => boolean;
   declineRevive: () => void;
-  beginMockAd: (kind: MockAdRewardKind) => boolean;
-  completeMockAd: (kind: MockAdRewardKind, granted: boolean) => boolean;
+  beginAd: (kind: AdRewardKind) => boolean;
+  completeAd: (kind: AdRewardKind, granted: boolean) => boolean;
   unlockReserveSlot: () => void;
   useReserveSlot: () => boolean;
   toggleSfx: () => void;
@@ -148,8 +148,8 @@ type GameAction =
       status: GameCoreState["status"];
     }
   | { type: "unlockReserveSlot" }
-  | { type: "beginMockAd" }
-  | { type: "cancelMockAd" }
+  | { type: "beginAd" }
+  | { type: "cancelAd" }
   | { type: "completeReserveAd"; granted: boolean }
   | { type: "completeReviveAd"; granted: boolean; pieces: BlockPiece[] | null }
   | { type: "revive"; pieces: BlockPiece[] }
@@ -267,7 +267,7 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
       return state.status === "reviveOffer" ? { ...state, status: "gameOver" } : state;
     case "unlockReserveSlot":
       return { ...state, reserveUnlocked: true };
-    case "beginMockAd":
+    case "beginAd":
       return {
         ...state,
         adPending: true,
@@ -275,7 +275,7 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
         draggingPieceId: null,
         hoverAnchor: null,
       };
-    case "cancelMockAd":
+    case "cancelAd":
       return {
         ...state,
         adPending: false,
@@ -432,7 +432,7 @@ export function useBlockBlastGame({
   const placementAnimationTimers = useRef<number[]>([]);
   const generationRafRef = useRef<number | null>(null);
   const runIdRef = useRef(0);
-  const mockAdSessionRef = useRef<{ kind: MockAdRewardKind; runId: number } | null>(null);
+  const adSessionRef = useRef<{ kind: AdRewardKind; runId: number } | null>(null);
   const sfxEnabled = controlledSfxEnabled ?? internalSfxEnabled;
   const musicEnabled = controlledMusicEnabled ?? internalMusicEnabled;
 
@@ -523,7 +523,7 @@ export function useBlockBlastGame({
   const doPlace = useCallback(
     (pieceId: string, row: number, col: number): boolean => {
       const state = gameStateRef.current;
-      if (paused || state.status !== "playing" || state.adPending || mockAdSessionRef.current) return false;
+      if (paused || state.status !== "playing" || state.adPending || adSessionRef.current) return false;
 
       const trayPiece = state.pieces.find((p) => p.id === pieceId && !p.placed);
       const reservePiece =
@@ -702,7 +702,7 @@ export function useBlockBlastGame({
       paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
-      mockAdSessionRef.current
+      adSessionRef.current
     ) {
       return;
     }
@@ -714,7 +714,7 @@ export function useBlockBlastGame({
       paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
-      mockAdSessionRef.current
+      adSessionRef.current
     ) {
       return;
     }
@@ -726,7 +726,7 @@ export function useBlockBlastGame({
       paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
-      mockAdSessionRef.current
+      adSessionRef.current
     ) {
       return;
     }
@@ -738,7 +738,7 @@ export function useBlockBlastGame({
       paused ||
       gameStateRef.current.status !== "playing" ||
       gameStateRef.current.adPending ||
-      mockAdSessionRef.current
+      adSessionRef.current
     ) {
       return;
     }
@@ -770,14 +770,14 @@ export function useBlockBlastGame({
 
   const resetGame = useCallback(() => {
     runIdRef.current += 1;
-    mockAdSessionRef.current = null;
+    adSessionRef.current = null;
     cancelPendingTrayGeneration();
     dispatch({ type: "reset", bestScore: externalBestScore });
   }, [cancelPendingTrayGeneration, externalBestScore]);
 
   const revive = useCallback((): boolean => {
     const state = gameStateRef.current;
-    if (state.status !== "reviveOffer" || state.reviveUsed || state.adPending || mockAdSessionRef.current) {
+    if (state.status !== "reviveOffer" || state.reviveUsed || state.adPending || adSessionRef.current) {
       return false;
     }
 
@@ -797,7 +797,7 @@ export function useBlockBlastGame({
 
   const declineRevive = useCallback(() => {
     const state = gameStateRef.current;
-    if (state.status !== "reviveOffer" || state.adPending || mockAdSessionRef.current) return;
+    if (state.status !== "reviveOffer" || state.adPending || adSessionRef.current) return;
 
     dispatch({ type: "declineRevive" });
     if (sfxEnabled) blockBlastAudio.playGameOver();
@@ -809,10 +809,10 @@ export function useBlockBlastGame({
     });
   }, [onGameOver, sfxEnabled]);
 
-  const beginMockAd = useCallback(
-    (kind: MockAdRewardKind): boolean => {
+  const beginAd = useCallback(
+    (kind: AdRewardKind): boolean => {
       const state = gameStateRef.current;
-      if (state.adPending || mockAdSessionRef.current) return false;
+      if (state.adPending || adSessionRef.current) return false;
 
       if (kind === "reserve") {
         if (state.status !== "playing" || state.reserveUnlocked) return false;
@@ -821,22 +821,22 @@ export function useBlockBlastGame({
       }
 
       cancelPendingTrayGeneration();
-      mockAdSessionRef.current = { kind, runId: runIdRef.current };
-      dispatch({ type: "beginMockAd" });
+      adSessionRef.current = { kind, runId: runIdRef.current };
+      dispatch({ type: "beginAd" });
       return true;
     },
     [cancelPendingTrayGeneration]
   );
 
-  const completeMockAd = useCallback(
-    (kind: MockAdRewardKind, granted: boolean): boolean => {
-      const session = mockAdSessionRef.current;
+  const completeAd = useCallback(
+    (kind: AdRewardKind, granted: boolean): boolean => {
+      const session = adSessionRef.current;
       if (!session || session.kind !== kind) return false;
 
-      mockAdSessionRef.current = null;
+      adSessionRef.current = null;
       const state = gameStateRef.current;
       if (session.runId !== runIdRef.current || !granted) {
-        dispatch({ type: "cancelMockAd" });
+        dispatch({ type: "cancelAd" });
         return false;
       }
 
@@ -872,13 +872,13 @@ export function useBlockBlastGame({
 
   const unlockReserveSlot = useCallback(() => {
     const state = gameStateRef.current;
-    if (state.status !== "playing" || state.adPending || mockAdSessionRef.current) return;
+    if (state.status !== "playing" || state.adPending || adSessionRef.current) return;
     dispatch({ type: "unlockReserveSlot" });
   }, []);
 
   const useReserveSlot = useCallback((): boolean => {
     const state = gameStateRef.current;
-    if (state.status !== "playing" || !state.reserveUnlocked || state.adPending || mockAdSessionRef.current) {
+    if (state.status !== "playing" || !state.reserveUnlocked || state.adPending || adSessionRef.current) {
       return false;
     }
 
@@ -961,8 +961,8 @@ export function useBlockBlastGame({
     resetGame,
     revive,
     declineRevive,
-    beginMockAd,
-    completeMockAd,
+    beginAd,
+    completeAd,
     unlockReserveSlot,
     useReserveSlot,
     toggleSfx,
