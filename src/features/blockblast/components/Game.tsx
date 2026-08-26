@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Trophy, RotateCcw, Settings, Heart, Video } from "lucide-react";
+import { Trophy, RotateCcw, Settings, Heart, Clapperboard } from "lucide-react";
 import { useBlockBlastGame, type BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { Button } from "@/components/shared/Button";
 import { IconButton } from "@/components/shared/IconButton";
@@ -9,9 +9,9 @@ import { GameHUD } from "@/features/blockblast/components/GameHUD";
 import { Mascot } from "@/features/blockblast/components/Mascot";
 import { PixiBlockBlastCanvas } from "@/features/blockblast/components/PixiBlockBlastCanvas";
 import { SlashScoreOverlay } from "@/features/blockblast/components/SlashScoreOverlay";
-import { GAME_TEXT } from "@/features/blockblast/lib/gameText";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import { buildLeaderboardModel } from "@/features/blockblast/lib/dashboardHelpers";
+import { useTranslation } from "react-i18next";
 import { RankingRow } from "@/features/blockblast/screens/Dashboard";
 import type { ScoreData } from "@/features/blockblast/hooks/useScoreData";
 import {
@@ -19,13 +19,22 @@ import {
   BLOCK_COLOR_MAP,
   type BlockPiece,
 } from "@/features/blockblast/game/blockBlastLogic";
-import { showRewardedVideo } from "@/integrations/ads/googleH5Ads";
-
+const showRewardedVideo = ({ beforeAd, afterAd }: { name: string, beforeAd?: () => void, afterAd?: () => void }) => {
+  return new Promise<boolean>((resolve) => {
+    beforeAd?.();
+    setTimeout(() => {
+      afterAd?.();
+      resolve(true);
+    }, 1000);
+  });
+};
 interface GameProps {
   scoreData: ScoreData;
   sfxEnabled: boolean;
   musicEnabled: boolean;
   shakeEnabled: boolean;
+  audioStatus: "idle" | "ready";
+  unlockAudio: () => void | Promise<void>;
   scenery: "normal" | "boom";
   paused: boolean;
   onBoom: (event: BoomEvent) => void;
@@ -40,6 +49,8 @@ export function Game({
   sfxEnabled,
   musicEnabled,
   shakeEnabled,
+  audioStatus,
+  unlockAudio,
   scenery,
   paused,
   onBoom,
@@ -49,6 +60,7 @@ export function Game({
   onSettings,
 }: GameProps) {
   const [roundSealed, setRoundSealed] = useState(false);
+  const { t } = useTranslation();
 
   const game = useBlockBlastGame({
     bestScore: scoreData.bestScore,
@@ -99,14 +111,14 @@ export function Game({
 
   const reserveStoreLabel =
     game.selectedPieceId === game.reservePiece?.id
-      ? "Bỏ chọn"
+      ? t('UNSELECT')
       : game.selectedPieceId && game.reservePiece
-        ? "Đổi khối"
+        ? t('SWAP')
         : game.selectedPieceId
-          ? "Cất khối"
+          ? t('STORE')
         : game.reservePiece
-          ? "Lấy ra"
-          : "Cất khối";
+          ? t('TAKE_OUT')
+          : t('STORE');
   const reserveStoreDisabled =
     game.status !== "playing" ||
     game.adPending ||
@@ -194,6 +206,24 @@ export function Game({
             : undefined,
       }}
     >
+      {audioStatus !== "ready" && (
+        <div
+          className="absolute inset-0 z-[80] flex items-center justify-center bg-[#2a2418]/18 p-6 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="blockblast-audio-start-title"
+        >
+          <button
+            type="button"
+            className="flex min-h-[132px] w-full max-w-[320px] flex-col items-center justify-center gap-2 rounded-[26px] border-2 border-[#c8920c] bg-[#fdf6ea] px-6 py-5 text-center text-[#2a2418] shadow-[0_18px_42px_rgba(42,36,24,0.24)]"
+            onClick={() => void unlockAudio()}
+          >
+            <span id="blockblast-audio-start-title" className="text-[20px] font-black">
+              {t("AUDIO_START_TITLE")}
+            </span>
+          </button>
+        </div>
+      )}
       
       {/* Left Column: UI Controls (Header, HUD, Instructions) */}
       <div className="blockblast-game-controls flex shrink-0 flex-col gap-[12px] lg:gap-[18px] lg:w-[340px] lg:shrink-0 lg:py-[8px]">
@@ -203,22 +233,22 @@ export function Game({
             <LogoBubble size={34} />
             <div className="min-w-0">
               <div className="text-[15px] lg:text-[20px] font-black text-[#2a2418] leading-[1.05]">
-                {GAME_TEXT.TITLE}
+                {t('TITLE')}
               </div>
               <div className="text-[9px] lg:text-[11px] font-extrabold text-[#8a7d65] tracking-[0.5px] mt-0.5">
-                {GAME_TEXT.SUBTITLE}
+                {t('SUBTITLE')}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2 lg:gap-3">
-            <IconButton label={GAME_TEXT.TOOLTIP_LEADERBOARD} onClick={handleDashboard} size={40} disabled={isFinalizing || roundSealed}>
+            <IconButton label={t('TOOLTIP_LEADERBOARD')} onClick={handleDashboard} size={40} disabled={isFinalizing || roundSealed}>
               <Trophy size={20} />
             </IconButton>
-            <IconButton label="Cài đặt" onClick={onSettings} size={40} disabled={isFinalizing || roundSealed}>
+            <IconButton label={t('SETTINGS')} onClick={onSettings} size={40} disabled={isFinalizing || roundSealed}>
               <Settings size={22} />
             </IconButton>
-            <IconButton label={GAME_TEXT.TOOLTIP_PLAY_AGAIN} onClick={handleRestart} size={40} disabled={isFinalizing}>
+            <IconButton label={t('TOOLTIP_PLAY_AGAIN')} onClick={handleRestart} size={40} disabled={isFinalizing}>
               <RotateCcw size={20} />
             </IconButton>
           </div>
@@ -259,12 +289,12 @@ export function Game({
             <div className="flex min-w-0 flex-col justify-center gap-[10px] rounded-[20px] border-[2px] border-[#e87432]/40 bg-[#f5ecd7]/64 p-[14px]">
               <div>
                 <div className="text-[13px] font-black uppercase tracking-[0.8px] text-[#8e4e22]">
-                  Quảng cáo thưởng
+                  {t('REWARD_AD')}
                 </div>
                 <div className="mt-[2px] text-[12px] font-bold leading-[1.4] text-[#8a7d65]">
                   {game.reserveUnlocked
-                    ? "Kho phụ đã mở. Chọn khối rồi cất bên dưới."
-                    : "Xem quảng cáo để mở thêm 1 ô cất khối."}
+                    ? t('RESERVE_UNLOCKED')
+                    : t('RESERVE_LOCKED')}
                 </div>
               </div>
 
@@ -275,7 +305,12 @@ export function Game({
                 onClick={handleUnlockReserve}
                 style={{ alignSelf: "flex-start", minWidth: 132, minHeight: 38, paddingLeft: 14, paddingRight: 14 }}
               >
-                {isReserveAdLoading ? GAME_TEXT.BTN_AD_LOADING : game.reserveUnlocked ? "Đã mở kho" : "Xem quảng cáo"}
+                {isReserveAdLoading ? t('BTN_AD_LOADING') : game.reserveUnlocked ? t('ALREADY_UNLOCKED') : (
+                  <>
+                    <Clapperboard size={18} strokeWidth={2.25} />
+                    <span>{t('WATCH_AD')}</span>
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -285,10 +320,10 @@ export function Game({
               <ReservePiecePreview piece={game.reserveUnlocked ? game.reservePiece : null} unlocked={game.reserveUnlocked} />
               <div>
                 <div className="text-[12px] font-black uppercase tracking-[0.7px] text-[#8e4e22]">
-                  Ô cất khối
+                  {t('RESERVE_BOX')}
                 </div>
                 <div className="text-[11px] font-bold leading-[1.35] text-[#8a7d65]">
-                  Chọn khối ở khay rồi cất vào đây.
+                  {t('RESERVE_BOX_HINT')}
                 </div>
               </div>
             </div>
@@ -338,7 +373,7 @@ export function Game({
           
           <div role="dialog" aria-modal="true" className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col items-center gap-[24px] w-full max-w-[340px] max-h-[calc(100dvh-32px)] overflow-y-auto border-2 border-[#8a7d65]/20">
             <h2 className="text-[24px] font-extrabold text-[#e87432] text-center uppercase">
-              Tiếp tục?
+              {t('CONTINUE')}
             </h2>
             <div className="flex gap-[16px] w-full">
               <Button
@@ -350,13 +385,13 @@ export function Game({
               >
                 {adReplayStatus === "idle" ? (
                   <span className="flex items-center justify-center gap-2">
-                    <RewardedAdIndicator />
+                    <Clapperboard size={18} strokeWidth={2.25} />
                     <span className="flex items-center justify-center gap-1.5">
-                      Có <Heart size={20} className="fill-current" />
+                      {t('YES')} <Heart size={20} className="fill-current" />
                     </span>
                   </span>
                 ) : (
-                  GAME_TEXT.BTN_AD_LOADING
+                  t('BTN_AD_LOADING')
                 )}
               </Button>
               <Button
@@ -366,7 +401,7 @@ export function Game({
                 onClick={game.declineRevive}
                 style={{ flex: 1, minHeight: 56, fontSize: 16 }}
               >
-                Không
+                {t('NO')}
               </Button>
             </div>
           </div>
@@ -380,7 +415,7 @@ export function Game({
           <div role="dialog" aria-modal="true" className="relative bg-[#fdf6ea] shadow-[0_24px_48px_rgba(42,36,24,0.25)] rounded-[32px] p-[28px_24px] flex flex-col gap-[18px] w-full max-w-[420px] max-h-[calc(100dvh-32px)] overflow-y-auto border-2 border-[#8a7d65]/20">
             {/* Header: Score */}
             <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px] shrink-0">
-              <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">ĐIỂM</div>
+              <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">{t('SCORE')}</div>
               <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">
                 {game.score.toLocaleString("vi-VN")}
               </div>
@@ -392,11 +427,11 @@ export function Game({
                 <div className="flex items-center gap-[8px]">
                   <Trophy size={22} className="text-[#e87432]" />
                   <h2 className="m-0 text-[18px] leading-[1.2] text-[#2a2418] font-extrabold">
-                    Thành tích
+                    {t('ACHIEVEMENTS')}
                   </h2>
                 </div>
                 <span className="text-[12px] font-extrabold text-[#8a7d65] uppercase tracking-[0.08em]">
-                  Xếp hạng
+                  {t('RANKING')}
                 </span>
               </div>
 
@@ -405,7 +440,7 @@ export function Game({
                   <RankingRow key={`${currentPlayer.name}-${currentPlayer.rank ?? "new"}`} entry={currentPlayer} highlight={true} />
                 ) : (
                   <div className="rounded-[16px] border-2 border-[#e87432]/30 bg-[#e87432]/10 p-[12px_14px] text-[13px] font-extrabold text-[#4a4232]">
-                    Người chơi chưa có điểm lưu.
+                    {t('UNRANKED')}
                   </div>
                 )}
               </div>
@@ -444,13 +479,13 @@ export function Game({
                 }}
               >
                 {adReplayStatus === "loading"
-                  ? GAME_TEXT.BTN_AD_LOADING
+                  ? t('BTN_AD_LOADING')
                   : continuePromptState === "doubled"
-                    ? "Đã nhân đôi điểm"
+                    ? t('DOUBLED')
                     : (
                       <span className="flex items-center justify-center gap-2">
-                        <RewardedAdIndicator />
-                        <span>x2</span>
+                        <Clapperboard size={18} strokeWidth={2.25} />
+                        <span>{t('DOUBLE_REWARD')}</span>
                       </span>
                     )}
               </Button>
@@ -465,7 +500,7 @@ export function Game({
                   fontSize: 15,
                 }}
               >
-                Chơi lại
+                {t('BTN_PLAY_AGAIN')}
               </Button>
             </div>
           </div>
@@ -473,17 +508,6 @@ export function Game({
         document.body
       )}
     </section>
-  );
-}
-
-function RewardedAdIndicator() {
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-flex h-[22px] items-center justify-center rounded-[6px] border border-[#8a7d65]/65 bg-[#fffaf0]/92 px-[6px] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]"
-    >
-      <Video size={13} className="text-[#8a7d65]" strokeWidth={2.4} />
-    </span>
   );
 }
 

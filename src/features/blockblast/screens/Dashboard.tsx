@@ -2,35 +2,22 @@ import { Trophy } from "lucide-react";
 import type { LocalStats } from "@/features/blockblast/game/localStats";
 import { Button } from "@/components/shared/Button";
 import { BADGE_COLORS, buildLeaderboardModel, getRank, type RankedLeaderboardEntry } from "@/features/blockblast/lib/dashboardHelpers";
-import type { WinkLeaderboardEntry } from "@/integrations/wink/types";
+import { useTranslation } from "react-i18next";
 
 interface DashboardProps {
   bestScore: number;
   stats: LocalStats;
-  leaderboard?: readonly WinkLeaderboardEntry[];
   onPlay: () => void;
 }
 
-export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: DashboardProps) {
+export function DashboardScreen({ bestScore, stats, onPlay }: DashboardProps) {
+  const { t } = useTranslation();
   // Use "Người chơi" since we don't have username input yet
-  const { topEntries: localTopEntries, currentPlayer } = buildLeaderboardModel(stats, "Người chơi");
+  const { topEntries: localTopEntries, currentPlayer } = buildLeaderboardModel(stats, t('PLAYER'));
   const playerInTopTen = localTopEntries.find((entry) => entry.isLocal) ?? null;
   let playerRow = playerInTopTen ?? currentPlayer;
 
-  const isWinkLeaderboard = leaderboard !== undefined;
   let topEntries = localTopEntries;
-  if (isWinkLeaderboard) {
-    topEntries = leaderboard.map((entry) => ({
-      name: entry.displayName || "Anonymous",
-      score: entry.score,
-      maxCombo: 0,
-      linesCleared: 0,
-      rank: entry.rank,
-      isLocal: false,
-      isNew: false,
-    }));
-    playerRow = null;
-  }
 
   return (
     <div
@@ -39,16 +26,16 @@ export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: Dashb
       <div className="flex shrink-0 items-center justify-center gap-3">
         <Trophy size={28} className="text-[#e87432]" />
         <h1 className="font-['Be_Vietnam_Pro',sans-serif] font-extrabold text-[clamp(24px,5vw,28px)] text-[#2a2418] m-0 leading-[1.2]">
-          Kỷ Lục
+          {t('RECORD')}
         </h1>
       </div>
       <div className="bg-[#8a7d65]/10 p-[16px_18px] sm:p-[20px_24px] rounded-[20px] flex shrink-0 flex-col items-center gap-[8px]">
-        <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">Kỷ Lục Của Bạn</div>
+        <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">{t('YOUR_RECORD')}</div>
         <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">
           {bestScore.toLocaleString("vi-VN")}
         </div>
         <div className="text-[11px] text-[#2a2418] font-extrabold">
-          Danh hiệu: {getRank(bestScore)}
+          {t('TITLE_RANK')} {getRank(bestScore)}
         </div>
       </div>
 
@@ -57,11 +44,11 @@ export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: Dashb
           <div className="flex items-center gap-[8px]">
             <Trophy size={22} className="text-[#e87432]" />
             <h2 className="m-0 text-[18px] leading-[1.2] text-[#2a2418] font-extrabold">
-              Ranking 1-10
+              {t('RANKING_1_10')}
             </h2>
           </div>
           <span className="text-[12px] font-extrabold text-[#8a7d65] uppercase tracking-[0.08em]">
-            Top điểm
+            {t('TOP_SCORE')}
           </span>
         </div>
 
@@ -72,7 +59,7 @@ export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: Dashb
             ))
           ) : (
             <div className="text-[14px] text-center text-[#8a7d65] font-bold mt-4">
-              Chưa có dữ liệu Ranking từ Wink.
+              {t('NO_RANKING_DATA')}
             </div>
           )}
         </div>
@@ -88,14 +75,14 @@ export function DashboardScreen({ bestScore, stats, leaderboard, onPlay }: Dashb
           }}
         >
           <div className="text-[12px] font-extrabold text-[#e87432] uppercase tracking-[0.06em]">
-            Bảng xếp hạng của bạn
+            {t('YOUR_RANKING')}
           </div>
           <RankingRow entry={playerRow} isInner />
         </section>
       )}
 
       <Button onClick={onPlay} size="md" variant="secondary" className="shrink-0">
-        ← Quay lại
+        {t('BACK')}
       </Button>
     </div>
   );
@@ -110,6 +97,7 @@ export function RankingRow({
   highlight?: boolean;
   isInner?: boolean;
 }) {
+  const { t } = useTranslation();
   const isTopThree = entry.rank != null && entry.rank <= 3;
   const medal = isTopThree ? BADGE_COLORS[entry.rank! - 1] : null;
 
@@ -142,7 +130,7 @@ export function RankingRow({
           color: medal?.text ?? "var(--pencil-gray)",
         }}
       >
-        {entry.rank ? `#${entry.rank}` : "Mới"}
+        {entry.rank ? `#${entry.rank}` : t('NEW')}
       </div>
 
       <div className="min-w-0">
@@ -154,14 +142,14 @@ export function RankingRow({
             <span
               className="text-[10px] sm:text-[11px] font-extrabold p-[2px_6px] rounded-[6px] bg-[#e87432] text-white shrink-0"
             >
-              Combo {entry.maxCombo}
+              {t('COMBO')} {entry.maxCombo}
             </span>
           )}
         </div>
       </div>
 
       <div className="min-w-0 whitespace-nowrap text-[#e87432] text-[12px] sm:text-[14px] font-extrabold text-right">
-        {entry.score > 0 ? entry.score.toLocaleString("vi-VN") : "Chưa có"}
+        {entry.score > 0 ? entry.score.toLocaleString("vi-VN") : t('NOT_YET')}
       </div>
     </div>
   );

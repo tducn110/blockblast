@@ -98,13 +98,16 @@ export class BlockBlastAudio {
     this.unlockFromGesture({ removeFallbackListeners: true });
   };
 
-  unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}) {
-    if (this.programmaticSuspend) return;
-    
+  async unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}) {
+    if (this.programmaticSuspend) return false;
+
     const context = this.ensureContext();
+    let resumePromise: Promise<void> = Promise.resolve();
     if (context) {
       if (context.state === "suspended") {
-        void context.resume().catch(() => this.addUnlockListeners());
+        // Start resume from the trusted gesture, but let the caller wait until
+        // the context is actually running before enabling gameplay.
+        resumePromise = context.resume().catch(() => this.addUnlockListeners());
       }
       
       // Play a silent oscillator to force iOS to unlock the Web Audio API
@@ -128,6 +131,11 @@ export class BlockBlastAudio {
     if (this.musicEnabled) {
       this.startMusicTrack({ fromGesture: true });
     }
+
+    await resumePromise;
+    const ready = !context || context.state === "running";
+    if (removeFallbackListeners && ready) this.removeUnlockListeners();
+    return ready;
   }
 
   setMusicEnabled(enabled: boolean, { fromGesture = false }: { fromGesture?: boolean } = {}) {
@@ -447,7 +455,10 @@ export class BlockBlastAudio {
 
     if (context.state === "suspended") {
       this.addUnlockListeners();
+      // Do not schedule gameplay feedback against a suspended context. The
+      // next trusted gesture will unlock it and the next semantic event plays.
       void context.resume().catch(() => this.addUnlockListeners());
+      return;
     }
     
     // Call synchronously so Safari schedules the Web Audio event within the same user gesture frame

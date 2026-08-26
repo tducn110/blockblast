@@ -6,8 +6,6 @@ import { SettingsScreen } from "@/features/blockblast/screens/Settings";
 import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
-import { useWinkIntegration } from "@/integrations/wink/useWinkIntegration";
-import { useRoundFinalization } from "./useRoundFinalization";
 
 type Screen = "game" | "dashboard" | "settings";
 
@@ -19,64 +17,35 @@ export default function App() {
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [shakeEnabled, setShakeEnabled] = useState(true);
+  const [audioStatus, setAudioStatus] = useState<"idle" | "ready">("idle");
 
-  // Wink bridge integration
-  const wink = useWinkIntegration();
-  const scoreData = useScoreData(wink.personalBest?.score ?? 0);
-  const {
-    submitError,
-    onRoundStart,
-    onGameEnd
-  } = useRoundFinalization(wink);
-
-  const isIframeDevError = import.meta.env.DEV && wink.error?.message?.toLowerCase().includes("iframe parent");
-  const fatalWinkError = wink.phase === 'error' && !isIframeDevError ? wink.error : null;
-
-  useEffect(() => {
-    if (wink.hostPaused) {
-      blockBlastAudio.suspend();
-    } else {
-      blockBlastAudio.resume();
-    }
-  }, [wink.hostPaused]);
-
-  useEffect(() => {
-    if (wink.phase === "ready_anonymous" || wink.phase === "ready_authenticated") {
-      void wink.refreshLeaderboard();
-    }
-  }, [wink.phase, wink.refreshLeaderboard]);
+  const scoreData = useScoreData(0);
+  const submitError = null;
 
   const applyMusicEnabled = useCallback(
     (requestedMusicEnabled: boolean, options?: { fromGesture?: boolean }) => {
-      blockBlastAudio.setMusicEnabled(requestedMusicEnabled && !wink.parentMuted, options);
+      blockBlastAudio.setMusicEnabled(requestedMusicEnabled, options);
     },
-    [wink.parentMuted]
+    []
   );
 
-  // Apply parent mute to audio engine without touching user prefs
+  const handleUnlockAudio = useCallback(async () => {
+    const ready = await blockBlastAudio.unlockFromGesture({ removeFallbackListeners: true });
+    if (ready) setAudioStatus("ready");
+  }, []);
+
   useEffect(() => {
     applyMusicEnabled(musicEnabled);
   }, [musicEnabled, applyMusicEnabled]);
 
   useEffect(() => {
-    blockBlastAudio.setSfxEnabled(sfxEnabled && !wink.parentMuted);
-  }, [sfxEnabled, wink.parentMuted]);
+    blockBlastAudio.setSfxEnabled(sfxEnabled);
+  }, [sfxEnabled]);
 
   useEffect(() => {
     blockBlastAudio.preload();
 
-    const unlockAudio = () => {
-      blockBlastAudio.unlockFromGesture();
-    };
-
-    document.addEventListener("pointerdown", unlockAudio, { capture: true, passive: true });
-    document.addEventListener("touchstart", unlockAudio, { capture: true, passive: true });
-    document.addEventListener("keydown", unlockAudio, { capture: true });
-
     return () => {
-      document.removeEventListener("pointerdown", unlockAudio, { capture: true });
-      document.removeEventListener("touchstart", unlockAudio, { capture: true });
-      document.removeEventListener("keydown", unlockAudio, { capture: true });
       blockBlastAudio.dispose();
     };
   }, []);
@@ -103,10 +72,10 @@ export default function App() {
 
   const handleMusicChange = useCallback(
     (enabled: boolean) => {
-      applyMusicEnabled(enabled, enabled && !wink.parentMuted ? { fromGesture: true } : undefined);
+      applyMusicEnabled(enabled, enabled ? { fromGesture: true } : undefined);
       setMusicEnabled(enabled);
     },
-    [applyMusicEnabled, setMusicEnabled, wink.parentMuted]
+    [applyMusicEnabled, setMusicEnabled]
   );
 
   return (
@@ -152,7 +121,6 @@ export default function App() {
           <DashboardScreen 
             bestScore={scoreData.bestScore}
             stats={scoreData.stats}
-            leaderboard={wink.leaderboard}
             onPlay={() => setScreen("game")}
           />
         )}
@@ -170,7 +138,7 @@ export default function App() {
         )}
 
         {/* Keep Game mounted so we don't lose progress */}
-        {(submitError || fatalWinkError) && (
+        {submitError && (
           <div
             role="alert"
             style={{
@@ -179,7 +147,7 @@ export default function App() {
               padding: "8px 20px", borderRadius: 8, fontSize: 13, textAlign: "center",
             }}
           >
-            {submitError || fatalWinkError?.message}
+            {submitError}
           </div>
         )}
         <div
@@ -191,16 +159,18 @@ export default function App() {
             minHeight: 0,
           }}
         >
-          <Game 
+          <Game
             scoreData={scoreData} 
             sfxEnabled={sfxEnabled} 
             musicEnabled={musicEnabled}
             shakeEnabled={shakeEnabled}
             scenery={scenery}
-            paused={screen !== "game" || wink.hostPaused}
+            paused={screen !== "game"}
+            audioStatus={audioStatus}
+            unlockAudio={handleUnlockAudio}
             onBoom={handleBoom}
-            onRoundStart={onRoundStart}
-            onGameEnd={onGameEnd}
+            onRoundStart={() => {}}
+            onGameEnd={async () => {}}
             onDashboard={() => setScreen("dashboard")} 
             onSettings={() => setScreen("settings")}
           />

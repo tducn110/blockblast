@@ -8,7 +8,10 @@ interface GameHUDProps {
   feedback: FeedbackItem[];
 }
 
+import { useTranslation } from "react-i18next";
+
 export function GameHUD({ score, bestScore, feedback }: GameHUDProps) {
+  const { t } = useTranslation();
   const scoreDeltaItems = useMemo(
     () => feedback.filter((item) => item.type === "placement").slice(-2),
     [feedback]
@@ -16,10 +19,10 @@ export function GameHUD({ score, bestScore, feedback }: GameHUDProps) {
 
   return (
     <div className="flex items-stretch justify-between w-full gap-2 px-1 lg:flex-col lg:px-0">
-      <StatBox label="Điểm" value={score.toLocaleString()} accent>
+      <StatBox label={t('SCORE_LABEL')} value={score.toLocaleString()} accent>
         <ScoreDeltaStack items={scoreDeltaItems} />
       </StatBox>
-      <StatBox label="Tốt nhất" value={bestScore.toLocaleString()} />
+      <StatBox label={t('STAT_BEST')} value={bestScore.toLocaleString()} />
     </div>
   );
 }
