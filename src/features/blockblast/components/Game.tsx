@@ -131,11 +131,7 @@ export function Game({
 
     setIsReserveAdLoading(true);
     try {
-      const rewarded = await showRewardedVideo({
-        name: "unlock_reserve_slot",
-        beforeAd: () => blockBlastAudio.suspend(),
-        afterAd: () => blockBlastAudio.resume(),
-      });
+      const rewarded = await showRewardedVideo({ name: "unlock_reserve_slot" });
       game.completeAd("reserve", rewarded);
     } finally {
       setIsReserveAdLoading(false);
@@ -149,11 +145,7 @@ export function Game({
 
     setAdReplayStatus("loading");
     try {
-      const rewarded = await showRewardedVideo({
-        name: "revive_after_loss",
-        beforeAd: () => blockBlastAudio.suspend(),
-        afterAd: () => blockBlastAudio.resume(),
-      });
+      const rewarded = await showRewardedVideo({ name: "revive_after_loss" });
       game.completeAd("revive", rewarded);
     } finally {
       setAdReplayStatus("idle");
@@ -454,11 +446,7 @@ export function Game({
                 disabled={continuePromptState === "doubled" || adReplayStatus !== "idle" || roundSealed}
                 onClick={async () => {
                   setAdReplayStatus("loading");
-                  const rewarded = await showRewardedVideo({
-                    name: "double_final_score",
-                    beforeAd: () => blockBlastAudio.suspend(),
-                    afterAd: () => blockBlastAudio.resume(),
-                  });
+                  const rewarded = await showRewardedVideo({ name: "double_final_score" });
                   setAdReplayStatus("idle");
                   if (!rewarded) return;
                   const doubledScore = game.score * 2;

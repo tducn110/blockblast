@@ -43,7 +43,6 @@ export class BlockBlastAudio {
   private unlockListenersBound = false;
   private visibilityListenerBound = false;
   private musicPlayPromise: Promise<void> | null = null;
-  private programmaticSuspend = false;
 
   preload() {
     this.ensureMusicElement();
@@ -88,7 +87,7 @@ export class BlockBlastAudio {
       if (this.masterBgmGain && this.musicEnabled) {
         this.masterBgmGain.gain.value = 1;
       }
-      if (this.context?.state === "suspended" && !this.programmaticSuspend) {
+      if (this.context?.state === "suspended") {
         this.addUnlockListeners();
       }
     }
@@ -99,8 +98,6 @@ export class BlockBlastAudio {
   };
 
   async unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}) {
-    if (this.programmaticSuspend) return false;
-
     const context = this.ensureContext();
     let resumePromise: Promise<void> = Promise.resolve();
     if (context) {
@@ -624,20 +621,6 @@ export class BlockBlastAudio {
     this.slashSourceNode = null;
     this.musicElement = null;
     this.slashElement = null;
-  }
-
-  suspend() {
-    this.programmaticSuspend = true;
-    if (this.context && this.context.state === "running") {
-      void this.context.suspend();
-    }
-  }
-
-  resume() {
-    this.programmaticSuspend = false;
-    if (this.context && this.context.state === "suspended") {
-      void this.context.resume().catch(() => this.addUnlockListeners());
-    }
   }
 }
 
