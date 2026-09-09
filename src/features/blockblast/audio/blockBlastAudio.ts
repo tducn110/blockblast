@@ -8,19 +8,19 @@ type ToneOptions = {
 
 const DESKTOP_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.35,
-  sfxVolume: 1.5,
+  musicVolume: 0.85,
+  sfxVolume: 0.85,
 };
 
 const MOBILE_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.35,
-  sfxVolume: 1.5,
+  musicVolume: 0.85,
+  sfxVolume: 0.85,
 };
 
-const MUSIC_ASSET_GAIN = 0.45;
-const TONE_SFX_GAIN = 1.6;
-const SLASH_SFX_GAIN = 1.1;
+const MUSIC_ASSET_GAIN = 0.65;
+const TONE_SFX_GAIN = 1.8;
+const SLASH_SFX_GAIN = 0.70;
 
 function clampVolume(volume: number) {
   const clamped = Math.min(1, Math.max(0, volume));
@@ -369,12 +369,23 @@ export class BlockBlastAudio {
     this.masterSfxGain = this.context.createGain();
     this.masterBusGain = this.context.createGain();
     
+    const isSafari =
+      typeof navigator !== "undefined" &&
+      (/^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+        /iPad|iPhone|iPod/.test(navigator.userAgent));
+
     this.masterBgmGain.gain.value = this.musicEnabled ? 1 : 0;
     this.masterSfxGain.gain.value = this.sfxEnabled ? 1 : 0;
-    this.masterBusGain.gain.value = 1;
+    this.masterBusGain.gain.value = isSafari ? 1.4 : 1.0;
     
     this.masterBgmGain.connect(this.masterBusGain);
     this.masterSfxGain.connect(this.masterBusGain);
+
+    if (typeof navigator !== "undefined" && "audioSession" in navigator) {
+      try {
+        (navigator as unknown as { audioSession: { type: string } }).audioSession.type = "playback";
+      } catch {}
+    }
 
     if (typeof this.context.createDynamicsCompressor === "function") {
       const limiter = this.context.createDynamicsCompressor();
