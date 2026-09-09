@@ -8,19 +8,19 @@ type ToneOptions = {
 
 const DESKTOP_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.85,
-  sfxVolume: 0.85,
+  musicVolume: 0.38,
+  sfxVolume: 1.5,
 };
 
 const MOBILE_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.85,
-  sfxVolume: 0.85,
+  musicVolume: 0.38,
+  sfxVolume: 1.5,
 };
 
-const MUSIC_ASSET_GAIN = 0.65;
-const TONE_SFX_GAIN = 1.8;
-const SLASH_SFX_GAIN = 0.70;
+const MUSIC_ASSET_GAIN = 0.50;
+const TONE_SFX_GAIN = 2.4;
+const SLASH_SFX_GAIN = 1.1;
 
 function clampVolume(volume: number) {
   const clamped = Math.min(1, Math.max(0, volume));
@@ -57,7 +57,10 @@ export class BlockBlastAudio {
   private async loadSlashBuffer() {
     if (this.slashBuffer || typeof window === "undefined" || typeof fetch === "undefined") return;
     try {
-      const response = await fetch("/assets/audio/slash-clear.mp3");
+      const url = typeof window !== "undefined" && window.location?.origin
+        ? new URL("/assets/audio/slash-clear.mp3", window.location.href).href
+        : "/assets/audio/slash-clear.mp3";
+      const response = await fetch(url);
       const arrayBuffer = await response.arrayBuffer();
       const context = this.ensureContext();
       if (context && typeof context.decodeAudioData === "function") {
@@ -146,6 +149,10 @@ export class BlockBlastAudio {
 
     if (this.musicEnabled) {
       this.startMusicTrack({ fromGesture: true });
+    }
+
+    if (!this.slashBuffer) {
+      void this.loadSlashBuffer();
     }
 
     await resumePromise;
@@ -478,8 +485,11 @@ export class BlockBlastAudio {
 
   private playSlashSound(volume: number, playbackRate: number) {
     const context = this.ensureContext();
-    if (context && this.slashBuffer && context.state === "running") {
+    if (context && this.slashBuffer) {
       try {
+        if (context.state === "suspended") {
+          void context.resume().catch(() => {});
+        }
         const source = context.createBufferSource();
         source.buffer = this.slashBuffer;
         source.playbackRate.value = Math.max(0.75, Math.min(1.35, playbackRate));
@@ -496,6 +506,10 @@ export class BlockBlastAudio {
       } catch (e) {
         // Fallback to audio element
       }
+    }
+
+    if (!this.slashBuffer) {
+      void this.loadSlashBuffer();
     }
 
     const audio = this.ensureSlashElement();
@@ -519,10 +533,7 @@ export class BlockBlastAudio {
 
     if (context.state === "suspended") {
       this.addUnlockListeners();
-      // Do not schedule gameplay feedback against a suspended context. The
-      // next trusted gesture will unlock it and the next semantic event plays.
       void context.resume().catch(() => this.addUnlockListeners());
-      return;
     }
     
     // Call synchronously so Safari schedules the Web Audio event within the same user gesture frame
