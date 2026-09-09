@@ -158,6 +158,7 @@ type GameAction =
   | { type: "clearPlacementAnimation"; id: string }
   | { type: "clearClearAnimation"; id: string }
   | { type: "dismissFeedback"; id: string }
+  | { type: "dismissFeedbackBatch"; ids: Set<string> }
   | { type: "doubleScore" };
 
 function createInitialCoreState(bestScore: number): GameCoreState {
@@ -337,6 +338,8 @@ function gameReducer(state: GameCoreState, action: GameAction): GameCoreState {
       };
     case "dismissFeedback":
       return { ...state, feedback: state.feedback.filter((item) => item.id !== action.id) };
+    case "dismissFeedbackBatch":
+      return { ...state, feedback: state.feedback.filter((item) => !action.ids.has(item.id)) };
     default:
       return state;
   }
@@ -467,11 +470,11 @@ export function useBlockBlastGame({
   );
 
   const scheduleFeedbackDismissal = useCallback((items: FeedbackItem[]) => {
-    items.forEach((item) => {
-      setTimeout(() => {
-        dispatch({ type: "dismissFeedback", id: item.id });
-      }, 1800);
-    });
+    if (items.length === 0) return;
+    const ids = new Set(items.map((item) => item.id));
+    setTimeout(() => {
+      dispatch({ type: "dismissFeedbackBatch", ids });
+    }, 1800);
   }, []);
 
   const scheduleDeferredTrayGeneration = useCallback(

@@ -97,6 +97,7 @@ export function usePixiAnimations(
   const particlesRef = useRef<Particle[]>([]);
   const particleContainerRef = useRef<Container | null>(null);
   const shardTexturesRef = useRef<Texture[]>([]);
+  const activeCountRef = useRef(0);
 
   useEffect(() => {
     if (!ready || !app || !animationLayer) return;
@@ -129,7 +130,10 @@ export function usePixiAnimations(
     }
 
     const tick = (ticker: Ticker) => {
+      if (activeCountRef.current <= 0) return;
+
       const dt = Math.min(ticker.deltaMS, 50);
+      const drag = Math.pow(0.99, dt / 16.67);
       const particles = particlesRef.current;
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -139,10 +143,10 @@ export function usePixiAnimations(
         if (p.life <= 0) {
           p.active = false;
           p.sprite.visible = false;
+          activeCountRef.current--;
           continue;
         }
 
-        const drag = Math.pow(p.drag, dt / 16.67);
         p.vx *= drag;
         p.vy = p.vy * drag + p.gravity * dt;
         p.x += p.vx * dt;
@@ -153,7 +157,7 @@ export function usePixiAnimations(
         p.sprite.x = p.x;
         p.sprite.y = p.y;
         p.sprite.rotation = p.rotation;
-        p.sprite.alpha = Math.max(0, 1 - Math.pow(progress, 1.65));
+        p.sprite.alpha = Math.max(0, 1 - progress * progress);
         p.sprite.scale.set(p.baseScale * Math.max(0.24, 1 - progress * 0.42));
       }
     };
@@ -170,6 +174,7 @@ export function usePixiAnimations(
       particlesRef.current = [];
       shardTexturesRef.current.forEach((texture) => texture.destroy(true));
       shardTexturesRef.current = [];
+      activeCountRef.current = 0;
     };
   }, [ready, app, animationLayer]);
 
@@ -267,12 +272,22 @@ export function usePixiAnimations(
 
       if (age >= totalDuration) {
         app.ticker.remove(tick);
-        animationLayer.removeChild(group);
-        group.destroy({ children: true });
+        if (animationLayer && !group.destroyed) {
+          animationLayer.removeChild(group);
+          group.destroy({ children: true });
+        }
       }
     };
 
     app.ticker.add(tick);
+
+    return () => {
+      app.ticker.remove(tick);
+      if (animationLayer && !group.destroyed) {
+        animationLayer.removeChild(group);
+        group.destroy({ children: true });
+      }
+    };
   }, [placementAnimation, ready, app, animationLayer]);
 
   useEffect(() => {
@@ -282,8 +297,6 @@ export function usePixiAnimations(
     comboShakeEventIdRef.current = comboShakeEvent.id;
 
     const stage = app.stage;
-    const baseX = stage.x;
-    const baseY = stage.y;
     const duration = 240 + Math.min(comboShakeEvent.combo, 6) * 18;
     const baseIntensity = comboShakeEvent.intensity;
     let age = 0;
@@ -295,12 +308,12 @@ export function usePixiAnimations(
       const intensity = baseIntensity * decay;
       const wave = Math.sin(progress * Math.PI * (7 + comboShakeEvent.combo));
 
-      stage.x = baseX + wave * intensity + (Math.random() - 0.5) * intensity * 0.75;
-      stage.y = baseY + Math.cos(progress * Math.PI * 9) * intensity * 0.45;
+      stage.x = wave * intensity + (Math.random() - 0.5) * intensity * 0.75;
+      stage.y = Math.cos(progress * Math.PI * 9) * intensity * 0.45;
 
       if (progress >= 1) {
-        stage.x = baseX;
-        stage.y = baseY;
+        stage.x = 0;
+        stage.y = 0;
         app.ticker.remove(tick);
       }
     };
@@ -309,8 +322,8 @@ export function usePixiAnimations(
 
     return () => {
       app.ticker.remove(tick);
-      stage.x = baseX;
-      stage.y = baseY;
+      stage.x = 0;
+      stage.y = 0;
     };
   }, [comboShakeEvent, ready, app]);
 
@@ -431,6 +444,7 @@ export function usePixiAnimations(
           const stretch = 0.84 + Math.random() * 0.42;
 
           p.active = true;
+          activeCountRef.current++;
           p.x = c.x + radiusX;
           p.y = c.y + radiusY;
           p.vx = Math.cos(angle) * speed + (Math.random() - 0.5) * 0.12;

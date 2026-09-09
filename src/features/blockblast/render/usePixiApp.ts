@@ -3,7 +3,7 @@ import { Application, Container, Rectangle } from "pixi.js";
 
 import { createGameWorldTransform } from "@/features/blockblast/layout/gameViewport";
 import { useMeasuredGameViewport } from "@/features/blockblast/layout/useMeasuredGameViewport";
-import { clearTextureCache } from "@/features/blockblast/game/pixiDrawUtils";
+import { clearTextureCache, prewarmBlockTextures } from "@/features/blockblast/game/pixiDrawUtils";
 
 const MAX_PIXI_RESOLUTION = 2;
 
@@ -75,7 +75,8 @@ export function usePixiApp() {
 
       gameWorld.addChild(boardLayer, piecesLayer, dragLayer, animationLayer);
       app.stage.addChild(gameWorld);
-      
+
+      prewarmBlockTextures(app);
       setReady(true);
     }
 

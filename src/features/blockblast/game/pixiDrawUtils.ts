@@ -34,36 +34,47 @@ function borderOf(colorId?: string): number {
 const textureCache = new Map<string, Texture>();
 
 export function clearTextureCache() {
-  textureCache.forEach(texture => texture.destroy(true));
+  textureCache.forEach((texture) => texture.destroy(true));
   textureCache.clear();
 }
 
-export function getBlockTexture(app: Application, size: number, colorId: string, alpha = 1): Texture {
-  const key = `${colorId}-${size}-${alpha}`;
-  if (textureCache.has(key)) return textureCache.get(key)!;
+export function getBlockTexture(
+  app: Application,
+  size: number,
+  colorId: string,
+  _alpha = 1
+): Texture {
+  const key = `${colorId}-${size}`;
+  const cached = textureCache.get(key);
+  if (cached) return cached;
 
   const g = new Graphics();
   const radius = Math.max(7, size * 0.2);
   const color = colorOf(colorId);
   const border = borderOf(colorId);
 
-  g.roundRect(2, 4, size - 2, size - 1, radius)
-    .fill({ color: 0x000000, alpha: 0.2 * alpha });
+  g.roundRect(2, 4, size - 2, size - 1, radius).fill({ color: 0x000000, alpha: 0.2 });
   g.roundRect(0, 0, size - 2, size - 2, radius)
-    .fill({ color, alpha })
-    .stroke({ width: 3, color: border, alpha: 1 * alpha });
-  g.roundRect(5, 5, size - 13, Math.max(5, size * 0.18), radius * 0.7)
-    .fill({ color: 0xffffff, alpha: 0.34 * alpha });
-  g.roundRect(5, size - 11, size - 13, 4, radius * 0.5)
-    .fill({ color: border, alpha: 0.28 * alpha });
+    .fill({ color, alpha: 1 })
+    .stroke({ width: 3, color: border, alpha: 1 });
+  g.roundRect(5, 5, size - 13, Math.max(5, size * 0.18), radius * 0.7).fill({
+    color: 0xffffff,
+    alpha: 0.34,
+  });
+  g.roundRect(5, size - 11, size - 13, 4, radius * 0.5).fill({ color: border, alpha: 0.28 });
 
   const texture = app.renderer.generateTexture(g);
   textureCache.set(key, texture);
-  
-  // Free the graphics object memory
   g.destroy();
-  
+
   return texture;
+}
+
+export function prewarmBlockTextures(app: Application) {
+  const colors = ["peanut", "bamboo", "orange", "brown", "cream"];
+  for (const c of colors) {
+    getBlockTexture(app, CELL, c);
+  }
 }
 
 

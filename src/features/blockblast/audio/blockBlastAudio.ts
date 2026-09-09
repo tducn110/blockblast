@@ -8,19 +8,19 @@ type ToneOptions = {
 
 const DESKTOP_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.08,
-  sfxVolume: 2.2,
+  musicVolume: 0.35,
+  sfxVolume: 1.5,
 };
 
 const MOBILE_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.2,
-  sfxVolume: 2.2,
+  musicVolume: 0.35,
+  sfxVolume: 1.5,
 };
 
 const MUSIC_ASSET_GAIN = 0.45;
-const TONE_SFX_GAIN = 1.35;
-const SLASH_SFX_GAIN = 1.18;
+const TONE_SFX_GAIN = 1.6;
+const SLASH_SFX_GAIN = 1.1;
 
 function clampVolume(volume: number) {
   const clamped = Math.min(1, Math.max(0, volume));
@@ -34,12 +34,16 @@ export class BlockBlastAudio {
   private mobileAudioMode = false;
   private musicElement: HTMLAudioElement | null = null;
   private slashElement: HTMLAudioElement | null = null;
+  private slashBuffer: AudioBuffer | null = null;
+  private noiseBuffer: AudioBuffer | null = null;
   private musicSourceNode: MediaElementAudioSourceNode | null = null;
   private musicGainNode: GainNode | null = null;
   private slashSourceNode: MediaElementAudioSourceNode | null = null;
   private slashGainNode: GainNode | null = null;
   private masterBgmGain: GainNode | null = null;
   private masterSfxGain: GainNode | null = null;
+  private masterBusGain: GainNode | null = null;
+  private masterLimiter: DynamicsCompressorNode | null = null;
   private unlockListenersBound = false;
   private visibilityListenerBound = false;
   private musicPlayPromise: Promise<void> | null = null;
@@ -47,6 +51,21 @@ export class BlockBlastAudio {
   preload() {
     this.ensureMusicElement();
     this.ensureSlashElement();
+    void this.loadSlashBuffer();
+  }
+
+  private async loadSlashBuffer() {
+    if (this.slashBuffer || typeof window === "undefined" || typeof fetch === "undefined") return;
+    try {
+      const response = await fetch("/assets/audio/slash-clear.mp3");
+      const arrayBuffer = await response.arrayBuffer();
+      const context = this.ensureContext();
+      if (context && typeof context.decodeAudioData === "function") {
+        this.slashBuffer = await context.decodeAudioData(arrayBuffer);
+      }
+    } catch {
+      // Fallback to HTMLAudioElement if fetch or decodeAudioData is unavailable
+    }
   }
 
   private setupWebAudioRouting() {
@@ -256,7 +275,6 @@ export class BlockBlastAudio {
   playCombo(combo: number) {
     if (!this.sfxEnabled) return;
 
-    this.playSlashSound(0.72, Math.min(1.18, 1.03 + combo * 0.03));
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.02;
       const notes = [523.25, 659.25, 783.99, 1046.5];
@@ -349,12 +367,29 @@ export class BlockBlastAudio {
     this.context = new AudioCtor();
     this.masterBgmGain = this.context.createGain();
     this.masterSfxGain = this.context.createGain();
+    this.masterBusGain = this.context.createGain();
     
     this.masterBgmGain.gain.value = this.musicEnabled ? 1 : 0;
     this.masterSfxGain.gain.value = this.sfxEnabled ? 1 : 0;
+    this.masterBusGain.gain.value = 1;
     
-    this.masterBgmGain.connect(this.context.destination);
-    this.masterSfxGain.connect(this.context.destination);
+    this.masterBgmGain.connect(this.masterBusGain);
+    this.masterSfxGain.connect(this.masterBusGain);
+
+    if (typeof this.context.createDynamicsCompressor === "function") {
+      const limiter = this.context.createDynamicsCompressor();
+      limiter.threshold.setValueAtTime(-3.0, this.context.currentTime);
+      limiter.knee.setValueAtTime(4.0, this.context.currentTime);
+      limiter.ratio.setValueAtTime(20.0, this.context.currentTime);
+      limiter.attack.setValueAtTime(0.003, this.context.currentTime);
+      limiter.release.setValueAtTime(0.12, this.context.currentTime);
+
+      this.masterBusGain.connect(limiter);
+      limiter.connect(this.context.destination);
+      this.masterLimiter = limiter;
+    } else {
+      this.masterBusGain.connect(this.context.destination);
+    }
 
     this.context.onstatechange = () => {
       if (this.context?.state === "suspended") {
@@ -431,6 +466,27 @@ export class BlockBlastAudio {
   }
 
   private playSlashSound(volume: number, playbackRate: number) {
+    const context = this.ensureContext();
+    if (context && this.slashBuffer && context.state === "running") {
+      try {
+        const source = context.createBufferSource();
+        source.buffer = this.slashBuffer;
+        source.playbackRate.value = Math.max(0.75, Math.min(1.35, playbackRate));
+        const gain = context.createGain();
+        gain.gain.value = this.sfxSlashVolume(volume);
+        source.connect(gain);
+        if (this.masterSfxGain) {
+          gain.connect(this.masterSfxGain);
+        } else {
+          gain.connect(context.destination);
+        }
+        source.start();
+        return;
+      } catch (e) {
+        // Fallback to audio element
+      }
+    }
+
     const audio = this.ensureSlashElement();
     if (!audio) return;
 
@@ -494,21 +550,27 @@ export class BlockBlastAudio {
     oscillator.stop(stopTime + 0.02);
   }
 
+  private getNoiseBuffer(context: AudioContext): AudioBuffer {
+    if (this.noiseBuffer && this.noiseBuffer.sampleRate === context.sampleRate) {
+      return this.noiseBuffer;
+    }
+    const sampleCount = Math.floor(context.sampleRate * 0.4);
+    const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
+    const output = buffer.getChannelData(0);
+    for (let i = 0; i < sampleCount; i += 1) {
+      output[i] = Math.random() * 2 - 1;
+    }
+    this.noiseBuffer = buffer;
+    return buffer;
+  }
+
   private noiseBurst(
     context: AudioContext,
     startTime: number,
     duration: number,
     volume: number
   ) {
-    const sampleCount = Math.max(1, Math.floor(context.sampleRate * duration));
-    const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
-    const output = buffer.getChannelData(0);
-
-    for (let i = 0; i < sampleCount; i += 1) {
-      const fade = 1 - i / sampleCount;
-      output[i] = (Math.random() * 2 - 1) * fade;
-    }
-
+    const buffer = this.getNoiseBuffer(context);
     const source = context.createBufferSource();
     const filter = context.createBiquadFilter();
     const gain = context.createGain();
@@ -612,6 +674,14 @@ export class BlockBlastAudio {
     if (this.context && this.context.state !== "closed") {
       void this.context.close();
     }
+    if (this.masterLimiter) {
+      this.masterLimiter.disconnect();
+      this.masterLimiter = null;
+    }
+    if (this.masterBusGain) {
+      this.masterBusGain.disconnect();
+      this.masterBusGain = null;
+    }
     this.context = null;
     this.masterBgmGain = null;
     this.masterSfxGain = null;
@@ -621,6 +691,8 @@ export class BlockBlastAudio {
     this.slashSourceNode = null;
     this.musicElement = null;
     this.slashElement = null;
+    this.slashBuffer = null;
+    this.noiseBuffer = null;
   }
 }
 

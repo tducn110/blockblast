@@ -51,7 +51,6 @@ export function useMeasuredGameViewport() {
     window.addEventListener("resize", scheduleResize, { passive: true });
     window.addEventListener("orientationchange", scheduleResize);
     window.visualViewport?.addEventListener("resize", scheduleResize, { passive: true });
-    window.visualViewport?.addEventListener("scroll", scheduleResize, { passive: true });
 
     return () => {
       resizeObserver?.disconnect();
@@ -61,7 +60,6 @@ export function useMeasuredGameViewport() {
       window.removeEventListener("resize", scheduleResize);
       window.removeEventListener("orientationchange", scheduleResize);
       window.visualViewport?.removeEventListener("resize", scheduleResize);
-      window.visualViewport?.removeEventListener("scroll", scheduleResize);
     };
   }, [scheduleResize]);
 

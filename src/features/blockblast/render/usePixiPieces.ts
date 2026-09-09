@@ -298,13 +298,16 @@ function drawPiecePreview(
   const pieceHeight = bounds.height * previewCell + (bounds.height - 1) * layout.previewGap;
   const startX = (layout.slotWidth - pieceWidth) / 2;
   const startY = (layout.slotHeight - pieceHeight) / 2;
-  const texture = getBlockTexture(app, previewCell, piece.colorId, alpha);
+  const texture = getBlockTexture(app, CELL, piece.colorId);
 
   let spriteIndex = 0;
   for (const cell of piece.cells) {
     const sprite = sprites[spriteIndex++];
     if (!sprite) break;
     sprite.texture = texture;
+    sprite.width = previewCell;
+    sprite.height = previewCell;
+    sprite.alpha = alpha;
     sprite.x = startX + (cell.col - bounds.minCol) * (previewCell + layout.previewGap);
     sprite.y = startY + (cell.row - bounds.minRow) * (previewCell + layout.previewGap);
     sprite.visible = true;
@@ -611,11 +614,9 @@ export function usePixiPieces(
               ctx.dragTargetPosition.y - ctx.dragRenderPosition.y
           );
 
-          if (dist < 1 || ctx.animationAge > 100) {
-              // Impact! Visual snap first, logic deferred.
+          if (dist < 2 || ctx.animationAge > 60) {
               ctx.state = "committing";
 
-              // Snap ghost to exact board position immediately (visual)
               ctx.dragRenderPosition.x = ctx.dragTargetPosition.x;
               ctx.dragRenderPosition.y = ctx.dragTargetPosition.y;
               if (ctx.ghostContainer) {
@@ -628,24 +629,15 @@ export function usePixiPieces(
                   const capturedRow = ctx.candidateCell.row;
                   const capturedCol = ctx.candidateCell.col;
 
-                  // Defer logic to after this render frame
-                  requestAnimationFrame(() => {
-                    const placed = latestRef.current.onPlacePiece(
-                      capturedPieceId,
-                      capturedRow,
-                      capturedCol
-                    );
-                    if (placed) {
-                      navigator.vibrate?.(10);
-                      // Keep the ghost block visible for a few frames while React/Pixi update the board.
-                      // Since it perfectly overlaps the final board block, this prevents any 1-frame flicker.
-                      setTimeout(() => {
-                        cleanupDrag();
-                      }, 50);
-                    } else {
-                      cleanupDrag();
-                    }
-                  });
+                  const placed = latestRef.current.onPlacePiece(
+                    capturedPieceId,
+                    capturedRow,
+                    capturedCol
+                  );
+                  if (placed) {
+                    navigator.vibrate?.(10);
+                  }
+                  cleanupDrag();
               } else {
                   cleanupDrag();
               }
@@ -698,7 +690,7 @@ export function usePixiPieces(
         if (valid) {
               ctx.candidateCell = candidate;
               const bounds = pieceBounds(piece);
-              const tex = getBlockTexture(app, CELL, piece.colorId, 0.4);
+              const tex = getBlockTexture(app, CELL, piece.colorId);
               const clearCells = getClearPreviewCells(current.board, piece, targetRow, targetCol);
               
               previewCells.forEach(s => s.visible = false);
@@ -706,6 +698,9 @@ export function usePixiPieces(
               for (const cell of piece.cells) {
                   const s = previewCells[i++];
                   s.texture = tex;
+                  s.width = CELL;
+                  s.height = CELL;
+                  s.alpha = 0.4;
                   s.x = BOARD_X + (targetCol + cell.col - bounds.minCol) * (CELL + GAP);
                   s.y = BOARD_Y + (targetRow + cell.row - bounds.minRow) * (CELL + GAP);
                   s.visible = true;
@@ -839,7 +834,16 @@ export function usePixiPieces(
         container.on("pointerdown", (event: FederatedPointerEvent) => {
           const current = latestRef.current;
           if (current.status !== "playing" || current.interactionLocked) return;
-          if (event.button !== 0 || (event.pointerType === "touch" && !event.isPrimary)) return;
+          if (event.button !== 0) return;
+
+          const ctx = dragCtx.current;
+          if (ctx.state !== "idle") {
+            if (ctx.state === "committing" || ctx.state === "returning" || ctx.state === "snapping") {
+              cleanupDragRef.current?.();
+            } else {
+              return;
+            }
+          }
 
           const isReserveSlot = showMobileReserveSlot && index === reserveSlotIndex;
           if (isReserveSlot) {
@@ -851,7 +855,7 @@ export function usePixiPieces(
               hasSelectedPiece ||
               current.reservePiece !== null;
 
-            if (!actionable || dragCtx.current.state !== "idle") return;
+            if (!actionable) return;
             blockBlastAudio.playButtonClick();
             if (!current.reserveUnlocked) {
               void current.onUnlockReserve();
@@ -864,11 +868,8 @@ export function usePixiPieces(
           const slot = slotsRef.current[index];
           if (!slot || !slot.pieceId) return;
 
-          const piece = current.pieces.find(p => p.id === slot.pieceId);
+          const piece = current.pieces.find((p) => p.id === slot.pieceId);
           if (!piece || piece.placed) return;
-
-          const ctx = dragCtx.current;
-          if (ctx.state !== "idle") return;
 
           ctx.state = "pickup";
           blockBlastAudio.playButtonClick();

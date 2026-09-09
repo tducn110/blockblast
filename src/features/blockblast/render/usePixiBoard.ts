@@ -5,6 +5,8 @@ import { cellPoint, CELL, getBlockTexture } from "@/features/blockblast/game/pix
 
 interface CellGraphics {
   block: Sprite;
+  filled: boolean;
+  colorId?: string;
 }
 
 export function usePixiBoard(app: Application, boardLayer: Container | null, board: BoardGrid, ready: boolean) {
@@ -44,7 +46,7 @@ export function usePixiBoard(app: Application, boardLayer: Container | null, boa
           block.visible = false;
           
           blocksContainer.addChild(block);
-          cells[row][col] = { block };
+          cells[row][col] = { block, filled: false, colorId: undefined };
         }
       }
       cellsRef.current = cells;
@@ -52,15 +54,20 @@ export function usePixiBoard(app: Application, boardLayer: Container | null, boa
     }
 
     if (!cellsRef.current) return;
-    
 
-
-    const cells = cellsRef.current!;
+    const cells = cellsRef.current;
     for (let row = 0; row < BOARD_SIZE; row++) {
       for (let col = 0; col < BOARD_SIZE; col++) {
         const cellState = board[row][col];
         const cellG = cells[row][col];
         
+        if (cellG.filled === cellState.filled && cellG.colorId === cellState.colorId) {
+          continue;
+        }
+
+        cellG.filled = cellState.filled;
+        cellG.colorId = cellState.colorId;
+
         if (cellState.filled) {
           cellG.block.texture = getBlockTexture(app, CELL, cellState.colorId || "peanut");
           cellG.block.visible = true;
@@ -70,7 +77,7 @@ export function usePixiBoard(app: Application, boardLayer: Container | null, boa
       }
     }
 
-  }, [board, boardLayer, ready]);
+  }, [board, boardLayer, ready, app]);
 
   useEffect(() => {
     return () => {
