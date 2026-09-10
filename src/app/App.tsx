@@ -6,10 +6,12 @@ import { SettingsScreen } from "@/features/blockblast/screens/Settings";
 import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
+import { useWinkIntegration } from "@/integrations/wink/useWinkIntegration";
 
 type Screen = "game" | "dashboard" | "settings";
 
 export default function App() {
+  const wink = useWinkIntegration();
   const [screen, setScreen] = useState<Screen>("game");
   const [scenery, setScenery] = useState<"normal" | "boom">("normal");
   const sceneryTimerRef = useRef<number | null>(null);
@@ -165,12 +167,22 @@ export default function App() {
             musicEnabled={musicEnabled}
             shakeEnabled={shakeEnabled}
             scenery={scenery}
-            paused={screen !== "game"}
+            paused={screen !== "game" || wink.hostPaused}
             audioStatus={audioStatus}
             unlockAudio={handleUnlockAudio}
             onBoom={handleBoom}
-            onRoundStart={() => {}}
-            onGameEnd={async () => {}}
+            onRoundStart={wink.gameplayStart}
+            onGameEnd={async (finalScore) => {
+              wink.gameplayStop();
+              if (wink.can("submitScore")) {
+                try {
+                  await wink.submitFinalScore({ score: finalScore });
+                  await wink.refreshLeaderboard();
+                } catch (e) {
+                  console.warn("[Wink] submitScore error", e);
+                }
+              }
+            }}
             onDashboard={() => setScreen("dashboard")} 
             onSettings={() => setScreen("settings")}
           />
