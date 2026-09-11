@@ -59,8 +59,17 @@ export default function App() {
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [shakeEnabled, setShakeEnabled] = useState(true);
 
-  const scoreData = useScoreData(0);
+  const scoreData = useScoreData(wink.bestScore);
   const submitError = null;
+
+  useEffect(() => {
+    if (screen !== "dashboard" || wink.status === "standalone") return;
+    void wink.refreshLeaderboard().catch(() => {});
+  }, [screen, wink.refreshLeaderboard, wink.status]);
+
+  const openDashboard = useCallback(() => {
+    setScreen("dashboard");
+  }, []);
 
   const applyMusicEnabled = useCallback(
     (requestedMusicEnabled: boolean, options?: { fromGesture?: boolean }) => {
@@ -154,8 +163,11 @@ export default function App() {
       >
         {screen === "dashboard" && (
           <DashboardScreen 
-            bestScore={scoreData.bestScore}
+            bestScore={wink.status === "standalone" ? scoreData.bestScore : wink.bestScore}
             stats={scoreData.stats}
+            leaderboard={wink.leaderboard}
+            player={wink.playerEntry}
+            standalone={wink.status === "standalone"}
             onPlay={() => setScreen("game")}
           />
         )}
@@ -214,7 +226,7 @@ export default function App() {
                 }
               }
             }}
-            onDashboard={() => setScreen("dashboard")} 
+            onDashboard={openDashboard}
             onSettings={() => setScreen("settings")}
           />
         </div>

@@ -1,4 +1,5 @@
 import type { LocalStats } from "@/features/blockblast/game/localStats";
+import type { WinkLeaderboardEntry } from "@/integrations/wink/types";
 
 export const BADGE_COLORS = [
   { bg: "#f0b840", border: "#c8941a", text: "#2a2418", label: "Vàng" },
@@ -63,4 +64,30 @@ export function buildLeaderboardModel(stats: LocalStats, playerName = "Người 
     topEntries,
     currentPlayer,
   };
+}
+
+export function buildRemoteLeaderboardModel(
+  entries: readonly WinkLeaderboardEntry[],
+  player: WinkLeaderboardEntry | null,
+  t: (key: string) => string,
+): LeaderboardModel {
+  const ranked: RankedLeaderboardEntry[] = entries.slice(0, 10).map((entry) => ({
+    name: entry.displayName ?? t("PLAYER"),
+    score: entry.score,
+    maxCombo: 0,
+    isLocal: Boolean(player?.id && entry.id && player.id === entry.id),
+    rank: entry.rank,
+  }));
+
+  const currentPlayer = player
+    ? {
+        name: player.displayName ?? t("PLAYER"),
+        score: player.score,
+        maxCombo: 0,
+        isLocal: true,
+        rank: player.rank,
+      }
+    : null;
+
+  return { topEntries: ranked, currentPlayer };
 }

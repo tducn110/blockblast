@@ -1,22 +1,32 @@
-# Bo Lac Block Blast PixiJS
+# Block Blast
 
-Wink mini-game chạy trong iframe của `https://winkgames.papastudio.net`.
-Production game origin là `https://bo-lac-block-blaster.papastudio.net`.
+Block Blast is a Vite/PixiJS mini-game using the Wink SDK v1 contract.
 
-## Local verification
+## Wink integration
+
+The canonical SDK is loaded before `/src/main.tsx`:
+
+```html
+<script src="https://sdk.winkgames.fun/v1/wink.js"></script>
+<script type="module" src="/src/main.tsx"></script>
+```
+
+`src/integrations/wink/useWinkIntegration.ts` is the only platform adapter.
+It handles host lifecycle/mute/locale events, capability-gated leaderboard and
+personal-best reads, and final score submission. The Dashboard renders the
+remote Wink leaderboard in Wink runtime and only uses local stats in explicit
+standalone mode.
+
+No custom tracking, credentials, direct Wink HTTP, copied bridge, runtime
+config, or custom messaging protocol is part of this repository.
+
+## Local checks
 
 ```bash
-npm ci
-npm run verify:wink-bridge
-npm test
 npm run typecheck
+npm test
 npm run build
 ```
 
-Production bắt buộc chạy trong Wink iframe. Mở game trực tiếp ngoài parent
-được cho phép sẽ dừng với lỗi `PARENT_REQUIRED`. Runtime config chỉ chứa public
-metadata; access token và session authority luôn nằm trong bridge closure.
-
-- Protocol version: `1`
-- Bridge version: `9.0.1`
-- Allowed parent: `https://winkgames.papastudio.net`
+The output is the static `dist/` directory. `wink.game.json` is the source of
+truth for the platform build profile.
