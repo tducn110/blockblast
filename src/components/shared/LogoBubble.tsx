@@ -1,9 +1,8 @@
 interface LogoBubbleProps {
-  label?: string;
   size?: number;
 }
 
-export function LogoBubble({ label = "L", size = 34 }: LogoBubbleProps) {
+export function LogoBubble({ size = 34 }: LogoBubbleProps) {
   return (
     <div
       aria-hidden="true"
@@ -24,7 +23,12 @@ export function LogoBubble({ label = "L", size = 34 }: LogoBubbleProps) {
         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55), 0 5px 12px rgba(42,36,24,0.16)",
       }}
     >
-      {label}
+      <img
+        src="/assets/brand/PapaStudio_Logo_Symbol_White.png"
+        alt=""
+        draggable={false}
+        style={{ width: "72%", height: "72%", objectFit: "contain", display: "block" }}
+      />
     </div>
   );
 }
