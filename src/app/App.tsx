@@ -7,10 +7,28 @@ import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { useWinkIntegration } from "@/integrations/wink/useWinkIntegration";
+import { preloadCriticalResources, preloadNonCriticalResources } from "../utils/game-loader";
+import { completeGameLoading, onGameLoadingDismiss, setGameLoadingProgress } from "../utils/loading-controller";
+
 
 type Screen = "game" | "dashboard" | "settings";
 
 export default function App() {
+  // Unified PapaStudio loading screen lifecycle barrier
+  useEffect(() => {
+    setGameLoadingProgress(25);
+    const criticalPromise = preloadCriticalResources((pct) => {
+      setGameLoadingProgress(Math.min(95, pct));
+    });
+    void Promise.allSettled([criticalPromise]).then(() => {
+      completeGameLoading();
+    });
+    const unbind = onGameLoadingDismiss(() => {
+      preloadNonCriticalResources();
+    });
+    return unbind;
+  }, []);
+
   const wink = useWinkIntegration();
   const [screen, setScreen] = useState<Screen>("game");
   const [scenery, setScenery] = useState<"normal" | "boom">("normal");
