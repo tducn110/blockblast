@@ -40,7 +40,7 @@ export function SettingsScreen({ musicEnabled, sfxEnabled, shakeEnabled, onMusic
             onClick={() => void i18n.changeLanguage(nextLanguage)}
             aria-label={t('LANGUAGE')}
           >
-            {nextLanguage.toUpperCase()}
+            {currentLanguage.toUpperCase()}
           </Button>
         </div>
 
