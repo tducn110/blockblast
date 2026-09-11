@@ -203,4 +203,14 @@ describe("BlockBlastAudio music lifecycle", () => {
     expect(musicElement.pause).toHaveBeenCalledTimes(1);
     expect(musicElement.paused).toBe(true);
   });
+
+  it("preloads audio elements, context, and buffers safely without throwing", async () => {
+    const audio = new BlockBlastAudio();
+
+    await expect(audio.preload()).resolves.toBeUndefined();
+    // Preloads both music and slash elements
+    expect(createdAudio.length).toBeGreaterThanOrEqual(2);
+    expect(createdAudio[0].load).toHaveBeenCalled();
+    expect(createdAudio[1].load).toHaveBeenCalled();
+  });
 });

@@ -33,8 +33,8 @@ interface GameProps {
   sfxEnabled: boolean;
   musicEnabled: boolean;
   shakeEnabled: boolean;
-  audioStatus: "idle" | "ready";
-  unlockAudio: () => void | Promise<void>;
+  audioStatus?: "idle" | "ready";
+  unlockAudio?: () => void | Promise<void>;
   scenery: "normal" | "boom";
   paused: boolean;
   onBoom: (event: BoomEvent) => void;
@@ -49,8 +49,6 @@ export function Game({
   sfxEnabled,
   musicEnabled,
   shakeEnabled,
-  audioStatus,
-  unlockAudio,
   scenery,
   paused,
   onBoom,
@@ -198,25 +196,6 @@ export function Game({
             : undefined,
       }}
     >
-      {audioStatus !== "ready" && (
-        <div
-          className="absolute inset-0 z-[80] flex items-center justify-center bg-[#2a2418]/18 p-6 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="blockblast-audio-start-title"
-        >
-          <button
-            type="button"
-            className="flex min-h-[132px] w-full max-w-[320px] flex-col items-center justify-center gap-2 rounded-[26px] border-2 border-[#c8920c] bg-[#fdf6ea] px-6 py-5 text-center text-[#2a2418] shadow-[0_18px_42px_rgba(42,36,24,0.24)]"
-            onClick={() => void unlockAudio()}
-          >
-            <span id="blockblast-audio-start-title" className="text-[20px] font-black">
-              {t("AUDIO_START_TITLE")}
-            </span>
-          </button>
-        </div>
-      )}
-      
       {/* Left Column: UI Controls (Header, HUD, Instructions) */}
       <div className="blockblast-game-controls flex shrink-0 flex-col gap-[12px] lg:gap-[18px] lg:w-[340px] lg:shrink-0 lg:py-[8px]">
         {/* Header Row (Mobile) / Stack (PC) */}

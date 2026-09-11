@@ -48,13 +48,17 @@ export class BlockBlastAudio {
   private visibilityListenerBound = false;
   private musicPlayPromise: Promise<void> | null = null;
 
-  preload() {
+  async preload(): Promise<void> {
+    const context = this.ensureContext();
     this.ensureMusicElement();
     this.ensureSlashElement();
-    void this.loadSlashBuffer();
+    await this.loadSlashBuffer();
+    if (context) {
+      this.getNoiseBuffer(context);
+    }
   }
 
-  private async loadSlashBuffer() {
+  private async loadSlashBuffer(): Promise<void> {
     if (this.slashBuffer || typeof window === "undefined" || typeof fetch === "undefined") return;
     try {
       const url = typeof window !== "undefined" && window.location?.origin
@@ -64,7 +68,12 @@ export class BlockBlastAudio {
       const arrayBuffer = await response.arrayBuffer();
       const context = this.ensureContext();
       if (context && typeof context.decodeAudioData === "function") {
-        this.slashBuffer = await context.decodeAudioData(arrayBuffer);
+        this.slashBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
+          const res = context.decodeAudioData(arrayBuffer, resolve, reject);
+          if (res && typeof res.then === "function") {
+            res.then(resolve, reject);
+          }
+        });
       }
     } catch {
       // Fallback to HTMLAudioElement if fetch or decodeAudioData is unavailable
@@ -409,6 +418,10 @@ export class BlockBlastAudio {
       this.masterBusGain.connect(this.context.destination);
     }
 
+    if (this.context.state === "suspended") {
+      this.addUnlockListeners();
+    }
+
     this.context.onstatechange = () => {
       if (this.context?.state === "suspended") {
         this.addUnlockListeners();
@@ -572,12 +585,14 @@ export class BlockBlastAudio {
     oscillator.stop(stopTime + 0.02);
   }
 
-  private getNoiseBuffer(context: AudioContext): AudioBuffer {
+  private getNoiseBuffer(context: AudioContext): AudioBuffer | null {
+    if (typeof context.createBuffer !== "function") return null;
     if (this.noiseBuffer && this.noiseBuffer.sampleRate === context.sampleRate) {
       return this.noiseBuffer;
     }
-    const sampleCount = Math.floor(context.sampleRate * 0.4);
-    const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
+    const sampleRate = context.sampleRate || 44100;
+    const sampleCount = Math.floor(sampleRate * 0.4);
+    const buffer = context.createBuffer(1, sampleCount, sampleRate);
     const output = buffer.getChannelData(0);
     for (let i = 0; i < sampleCount; i += 1) {
       output[i] = Math.random() * 2 - 1;
@@ -593,6 +608,7 @@ export class BlockBlastAudio {
     volume: number
   ) {
     const buffer = this.getNoiseBuffer(context);
+    if (!buffer) return;
     const source = context.createBufferSource();
     const filter = context.createBiquadFilter();
     const gain = context.createGain();

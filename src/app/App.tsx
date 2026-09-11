@@ -16,7 +16,7 @@ type Screen = "game" | "dashboard" | "settings";
 export default function App() {
   // Unified PapaStudio loading screen lifecycle barrier
   useEffect(() => {
-    setGameLoadingProgress(25);
+    setGameLoadingProgress(20);
     const criticalPromise = preloadCriticalResources((pct) => {
       setGameLoadingProgress(Math.min(95, pct));
     });
@@ -24,9 +24,30 @@ export default function App() {
       completeGameLoading();
     });
     const unbind = onGameLoadingDismiss(() => {
+      void blockBlastAudio.unlockFromGesture().catch(() => {});
       preloadNonCriticalResources();
     });
     return unbind;
+  }, []);
+
+  // Fallback: unlock audio on first user interaction if autoplay was blocked by browser
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      void blockBlastAudio.unlockFromGesture({ removeFallbackListeners: true }).catch(() => {});
+      window.removeEventListener("pointerdown", handleFirstInteraction, true);
+      window.removeEventListener("touchstart", handleFirstInteraction, true);
+      window.removeEventListener("keydown", handleFirstInteraction, true);
+    };
+
+    window.addEventListener("pointerdown", handleFirstInteraction, { capture: true, passive: true });
+    window.addEventListener("touchstart", handleFirstInteraction, { capture: true, passive: true });
+    window.addEventListener("keydown", handleFirstInteraction, { capture: true, passive: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", handleFirstInteraction, true);
+      window.removeEventListener("touchstart", handleFirstInteraction, true);
+      window.removeEventListener("keydown", handleFirstInteraction, true);
+    };
   }, []);
 
   const wink = useWinkIntegration();
@@ -37,7 +58,6 @@ export default function App() {
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [shakeEnabled, setShakeEnabled] = useState(true);
-  const [audioStatus, setAudioStatus] = useState<"idle" | "ready">("idle");
 
   const scoreData = useScoreData(0);
   const submitError = null;
@@ -49,11 +69,6 @@ export default function App() {
     []
   );
 
-  const handleUnlockAudio = useCallback(async () => {
-    const ready = await blockBlastAudio.unlockFromGesture({ removeFallbackListeners: true });
-    if (ready) setAudioStatus("ready");
-  }, []);
-
   useEffect(() => {
     applyMusicEnabled(musicEnabled);
   }, [musicEnabled, applyMusicEnabled]);
@@ -63,7 +78,7 @@ export default function App() {
   }, [sfxEnabled]);
 
   useEffect(() => {
-    blockBlastAudio.preload();
+    void blockBlastAudio.preload();
 
     return () => {
       blockBlastAudio.dispose();
@@ -186,8 +201,6 @@ export default function App() {
             shakeEnabled={shakeEnabled}
             scenery={scenery}
             paused={screen !== "game" || wink.hostPaused}
-            audioStatus={audioStatus}
-            unlockAudio={handleUnlockAudio}
             onBoom={handleBoom}
             onRoundStart={wink.gameplayStart}
             onGameEnd={async (finalScore) => {
