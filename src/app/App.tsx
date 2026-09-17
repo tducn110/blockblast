@@ -6,7 +6,7 @@ import { SettingsScreen } from "@/features/blockblast/screens/Settings";
 import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
-import { useWinkIntegration } from "@/integrations/wink/useWinkIntegration";
+import { useWinkIntegration, resolveGlobalWink } from "@/integrations/wink/useWinkIntegration";
 import { preloadCriticalResources, preloadNonCriticalResources } from "../utils/game-loader";
 import { completeGameLoading, onGameLoadingDismiss, setGameLoadingProgress } from "../utils/loading-controller";
 
@@ -20,7 +20,8 @@ export default function App() {
     const criticalPromise = preloadCriticalResources((pct) => {
       setGameLoadingProgress(Math.min(95, pct));
     });
-    void Promise.allSettled([criticalPromise]).then(() => {
+    const winkPromise = resolveGlobalWink();
+    void Promise.allSettled([criticalPromise, winkPromise]).then(() => {
       completeGameLoading();
     });
     const unbind = onGameLoadingDismiss(() => {
@@ -79,12 +80,12 @@ export default function App() {
   );
 
   useEffect(() => {
-    applyMusicEnabled(musicEnabled);
-  }, [musicEnabled, applyMusicEnabled]);
+    applyMusicEnabled(musicEnabled && !wink.parentMuted);
+  }, [musicEnabled, wink.parentMuted, applyMusicEnabled]);
 
   useEffect(() => {
-    blockBlastAudio.setSfxEnabled(sfxEnabled);
-  }, [sfxEnabled]);
+    blockBlastAudio.setSfxEnabled(sfxEnabled && !wink.parentMuted);
+  }, [sfxEnabled, wink.parentMuted]);
 
   useEffect(() => {
     void blockBlastAudio.preload();
@@ -208,8 +209,8 @@ export default function App() {
         >
           <Game
             scoreData={scoreData} 
-            sfxEnabled={sfxEnabled} 
-            musicEnabled={musicEnabled}
+            sfxEnabled={sfxEnabled && !wink.parentMuted} 
+            musicEnabled={musicEnabled && !wink.parentMuted}
             shakeEnabled={shakeEnabled}
             scenery={scenery}
             paused={screen !== "game" || wink.hostPaused}
