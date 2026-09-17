@@ -12,12 +12,7 @@ const getInitialLanguage = (): SupportedLanguage => {
   } catch {
     // Storage read failure fallback
   }
-  // Contract: Wink-hosted initial language = Wink.locale if supported, otherwise English.
-  const winkLocale = (window as any).Wink?.locale;
-  if (typeof winkLocale === 'string') {
-    const normalized = winkLocale.split('-')[0];
-    if (isSupportedLanguage(normalized)) return normalized;
-  }
+  
   return 'en';
 };
 const persistLanguage = (language: string): void => {
@@ -26,9 +21,23 @@ const persistLanguage = (language: string): void => {
   try { window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized); } catch { /* Optional persistence. */ }
 };
 
+const syncDocumentLang = (language: string): void => {
+  if (typeof document === "undefined") return;
+  const normalized = language.split("-")[0];
+  document.documentElement.lang = isSupportedLanguage(normalized) ? normalized : "en";
+};
+
 const resources = {
   vi: {
     translation: {
+      BOARD_LABEL: "Bảng chơi Xếp Khối",
+      STORE_SHORT: "Cất",
+      RANK_LEGEND: "Huyền Thoại",
+      RANK_MASTER: "Cao Thủ",
+      RANK_WARRIOR: "Lãng Tử",
+      RANK_APPRENTICE: "Tập Sự",
+      RANK_NOVICE: "Mầm Non",
+      INVALID_SCORE_HINT: "Điểm không hợp lệ nên chưa được gửi lên Wink.",
       TITLE: "Xếp Khối",
       SUBTITLE: "BỘ LẠC ĐẬU PHỘNG",
       INSTRUCTION: "Kéo khối vào bảng, lấp đầy hàng hoặc cột để dọn ô",
@@ -109,6 +118,14 @@ const resources = {
   },
   en: {
     translation: {
+      BOARD_LABEL: "Block Blast Game Board",
+      STORE_SHORT: "Store",
+      RANK_LEGEND: "Legend",
+      RANK_MASTER: "Master",
+      RANK_WARRIOR: "Warrior",
+      RANK_APPRENTICE: "Apprentice",
+      RANK_NOVICE: "Novice",
+      INVALID_SCORE_HINT: "Invalid score, not submitted to Wink.",
       TITLE: "Block Blast",
       SUBTITLE: "PEANUT TRIBE",
       INSTRUCTION: "Drag blocks to the board, fill rows or cols to clear",
@@ -189,17 +206,23 @@ const resources = {
   }
 };
 
+const initialLanguage = getInitialLanguage();
+syncDocumentLang(initialLanguage);
+
 i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: getInitialLanguage(),
+    lng: initialLanguage,
     supportedLngs: ["vi", "en"],
     fallbackLng: "en",
     interpolation: {
       escapeValue: false
     }
   });
-i18n.on("languageChanged", persistLanguage);
+i18n.on("languageChanged", (lang) => {
+  persistLanguage(lang);
+  syncDocumentLang(lang);
+});
 
 export default i18n;

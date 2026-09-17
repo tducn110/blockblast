@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Application, Container, Graphics, Sprite, Rectangle, FederatedPointerEvent, Ticker, Text } from "pixi.js";
+import i18n from "@/i18n";
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import { BlockPiece, BOARD_SIZE, canPlacePiece } from "@/features/blockblast/game/blockBlastLogic";
 import {
@@ -400,6 +401,15 @@ export function usePixiPieces(
   const previewContainerRef = useRef<Container | null>(null);
   const fitCacheRef = useRef<Map<string, boolean>>(new Map());
   const cleanupDragRef = useRef<(() => void) | null>(null);
+
+  const [currentLang, setCurrentLang] = useState(i18n.language);
+  useEffect(() => {
+    const handleLangChange = (lang: string) => setCurrentLang(lang);
+    i18n.on("languageChanged", handleLangChange);
+    return () => {
+      i18n.off("languageChanged", handleLangChange);
+    };
+  }, []);
 
   const dragCtx = useRef<DragContext>({
     state: "idle",
@@ -1039,7 +1049,7 @@ export function usePixiPieces(
             .moveTo(layout.slotWidth / 2, 29)
             .lineTo(layout.slotWidth / 2, 43)
             .stroke({ width: 4, color: 0x93ad72, alpha: hasSelectedPiece ? 0.86 : 0.44, cap: "round" });
-          slot.label.text = "Cất";
+          slot.label.text = i18n.t("STORE_SHORT", "Cất");
           slot.label.style.fill = hasSelectedPiece ? 0x6b8e3d : 0x9ba883;
           slot.label.x = layout.slotWidth / 2;
           slot.label.y = layout.slotHeight - 24;
@@ -1060,6 +1070,7 @@ export function usePixiPieces(
     dragLayer,
     board,
     app,
+    currentLang,
   ]);
 
   useEffect(() => {

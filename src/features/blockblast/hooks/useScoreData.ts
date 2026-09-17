@@ -38,7 +38,7 @@ export function useScoreData(winkBestScore = 0): ScoreData {
     const valid = Number.isFinite(result.score) && result.score >= 0;
     setSavingScore(false);
     if (!valid) {
-      setSaveError("Điểm không hợp lệ nên chưa được gửi lên Wink.");
+      setSaveError("INVALID_SCORE_HINT");
       return false;
     }
     setStats((current) => ({
@@ -57,7 +57,7 @@ export function useScoreData(winkBestScore = 0): ScoreData {
     const valid = Number.isFinite(result.score) && result.score >= 0;
     setSavingScore(false);
     if (!valid) {
-      setSaveError("Điểm không hợp lệ nên chưa được gửi lên Wink.");
+      setSaveError("INVALID_SCORE_HINT");
       return false;
     }
     setStats((current) => ({

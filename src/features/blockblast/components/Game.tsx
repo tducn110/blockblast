@@ -89,7 +89,7 @@ export function Game({
     }
   }, [game.piecesPlaced, game.status, onRoundStart]);
 
-  const { currentPlayer } = buildLeaderboardModel(scoreData.stats, "Người chơi");
+  const { currentPlayer } = buildLeaderboardModel(scoreData.stats, t("PLAYER", "Player"));
 
 
   useEffect(() => {
@@ -245,7 +245,7 @@ export function Game({
 
             {scoreData.saveError && (
               <p className="m-0 text-[#b85a22] text-[11px] lg:text-[13px] font-bold text-center lg:text-left">
-                {scoreData.saveError}
+                {t(scoreData.saveError, scoreData.saveError)}
               </p>
             )}
           </div>

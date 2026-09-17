@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { BoardGrid, BlockPiece } from "@/features/blockblast/game/blockBlastLogic";
 import type {
   ClearAnimation,
@@ -53,6 +54,7 @@ export function PixiBlockBlastCanvas({
   onUnlockReserve,
   onUseReserveSlot,
 }: PixiBlockBlastCanvasProps) {
+  const { t } = useTranslation();
   const {
     hostRef,
     appRef,
@@ -127,7 +129,7 @@ export function PixiBlockBlastCanvas({
     >
       <div
         ref={hostRef}
-        aria-label="Bảng chơi Xếp Khối"
+        aria-label={t("BOARD_LABEL")}
         style={{
           width: "100%",
           height: "100%",

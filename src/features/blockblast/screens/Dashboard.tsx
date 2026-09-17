@@ -45,7 +45,7 @@ export function DashboardScreen({
           {bestScore.toLocaleString("vi-VN")}
         </div>
         <div className="text-[11px] text-[#2a2418] font-extrabold">
-          {t('TITLE_RANK')} {getRank(bestScore)}
+          {t('TITLE_RANK')} {t(getRank(bestScore))}
         </div>
       </div>
 

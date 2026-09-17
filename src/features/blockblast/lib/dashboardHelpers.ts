@@ -8,11 +8,11 @@ export const BADGE_COLORS = [
 ] as const;
 
 export function getRank(bestScore: number): string {
-  if (bestScore >= 50000) return "Huyền Thoại";
-  if (bestScore >= 20000) return "Cao Thủ";
-  if (bestScore >= 5000)  return "Lãng Tử";
-  if (bestScore >= 1000)  return "Tập Sự";
-  return "Mầm Non";
+  if (bestScore >= 50000) return "RANK_LEGEND";
+  if (bestScore >= 20000) return "RANK_MASTER";
+  if (bestScore >= 5000)  return "RANK_WARRIOR";
+  if (bestScore >= 1000)  return "RANK_APPRENTICE";
+  return "RANK_NOVICE";
 }
 
 interface LeaderboardEntry {
