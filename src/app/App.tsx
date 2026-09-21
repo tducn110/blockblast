@@ -4,7 +4,7 @@ import { Game } from "@/features/blockblast/components/Game";
 import { DashboardScreen } from "@/features/blockblast/screens/Dashboard";
 import { SettingsScreen } from "@/features/blockblast/screens/Settings";
 import { useScoreData } from "@/features/blockblast/hooks/useScoreData";
-import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
+import { blockBlastAudio, LANDING_BGM_VOLUME, GAME_BGM_VOLUME } from "@/features/blockblast/audio/blockBlastAudio";
 import type { BoomEvent } from "@/features/blockblast/hooks/useBlockBlastGame";
 import { useWinkIntegration, resolveGlobalWink } from "@/integrations/wink/useWinkIntegration";
 import { preloadCriticalResources, preloadNonCriticalResources } from "../utils/game-loader";
@@ -25,7 +25,6 @@ export default function App() {
       completeGameLoading();
     });
     const unbind = onGameLoadingDismiss(() => {
-      void blockBlastAudio.unlockFromGesture().catch(() => {});
       preloadNonCriticalResources();
     });
     return unbind;
@@ -37,16 +36,19 @@ export default function App() {
       void blockBlastAudio.unlockFromGesture({ removeFallbackListeners: true }).catch(() => {});
       window.removeEventListener("pointerdown", handleFirstInteraction, true);
       window.removeEventListener("touchstart", handleFirstInteraction, true);
+      window.removeEventListener("touchend", handleFirstInteraction, true);
       window.removeEventListener("keydown", handleFirstInteraction, true);
     };
 
     window.addEventListener("pointerdown", handleFirstInteraction, { capture: true, passive: true });
     window.addEventListener("touchstart", handleFirstInteraction, { capture: true, passive: true });
+    window.addEventListener("touchend", handleFirstInteraction, { capture: true, passive: true });
     window.addEventListener("keydown", handleFirstInteraction, { capture: true, passive: true });
 
     return () => {
       window.removeEventListener("pointerdown", handleFirstInteraction, true);
       window.removeEventListener("touchstart", handleFirstInteraction, true);
+      window.removeEventListener("touchend", handleFirstInteraction, true);
       window.removeEventListener("keydown", handleFirstInteraction, true);
     };
   }, []);
@@ -72,20 +74,56 @@ export default function App() {
     setScreen("dashboard");
   }, []);
 
-  const applyMusicEnabled = useCallback(
-    (requestedMusicEnabled: boolean, options?: { fromGesture?: boolean }) => {
-      blockBlastAudio.setMusicEnabled(requestedMusicEnabled, options);
-    },
-    []
-  );
+  // Sync host mute and pause controls directly from Wink SDK
+  useEffect(() => {
+    blockBlastAudio.setHostMuted(wink.parentMuted);
+    blockBlastAudio.setHostPaused(wink.hostPaused);
+  }, [wink.parentMuted, wink.hostPaused]);
 
   useEffect(() => {
-    applyMusicEnabled(musicEnabled && !wink.parentMuted);
-  }, [musicEnabled, wink.parentMuted, applyMusicEnabled]);
+    blockBlastAudio.setMusicEnabled(musicEnabled);
+  }, [musicEnabled]);
 
   useEffect(() => {
-    blockBlastAudio.setSfxEnabled(sfxEnabled && !wink.parentMuted);
-  }, [sfxEnabled, wink.parentMuted]);
+    blockBlastAudio.setSfxEnabled(sfxEnabled);
+  }, [sfxEnabled]);
+
+  // Screen volume boundary matching 01_fruit and 03_muavu standard
+  useEffect(() => {
+    if (screen === "game") {
+      blockBlastAudio.setBgmVolume(GAME_BGM_VOLUME);
+    } else {
+      blockBlastAudio.setBgmVolume(LANDING_BGM_VOLUME);
+    }
+  }, [screen]);
+
+  // Lifecycle control matching 01_fruit & 03_muavu standard: pause on blur/hidden, resume on focus/visible
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        blockBlastAudio.pauseAll();
+      } else if (!document.hidden && !wink.hostPaused && !wink.parentMuted) {
+        blockBlastAudio.resumeBgm();
+      }
+    };
+    const handleBlur = () => {
+      blockBlastAudio.pauseAll();
+    };
+    const handleFocus = () => {
+      if (!document.hidden && !wink.hostPaused && !wink.parentMuted) {
+        blockBlastAudio.resumeBgm();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [wink.hostPaused, wink.parentMuted]);
 
   useEffect(() => {
     void blockBlastAudio.preload();
@@ -117,10 +155,18 @@ export default function App() {
 
   const handleMusicChange = useCallback(
     (enabled: boolean) => {
-      applyMusicEnabled(enabled, enabled ? { fromGesture: true } : undefined);
       setMusicEnabled(enabled);
+      blockBlastAudio.setMusicEnabled(enabled, { fromGesture: true });
     },
-    [applyMusicEnabled, setMusicEnabled]
+    [setMusicEnabled]
+  );
+
+  const handleSfxChange = useCallback(
+    (enabled: boolean) => {
+      setSfxEnabled(enabled);
+      blockBlastAudio.setSfxEnabled(enabled);
+    },
+    [setSfxEnabled]
   );
 
   return (
@@ -179,7 +225,7 @@ export default function App() {
             sfxEnabled={sfxEnabled}
             shakeEnabled={shakeEnabled}
             onMusicChange={handleMusicChange}
-            onSfxChange={setSfxEnabled}
+            onSfxChange={handleSfxChange}
             onShakeChange={setShakeEnabled}
             onBack={() => setScreen("game")}
           />

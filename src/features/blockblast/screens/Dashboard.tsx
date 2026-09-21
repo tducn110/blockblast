@@ -3,6 +3,7 @@ import type { LocalStats } from "@/features/blockblast/game/localStats";
 import { Button } from "@/components/shared/Button";
 import { BADGE_COLORS, buildLeaderboardModel, buildRemoteLeaderboardModel, getRank, type RankedLeaderboardEntry } from "@/features/blockblast/lib/dashboardHelpers";
 import { useTranslation } from "react-i18next";
+import { formatNumber } from "@/i18n";
 import type { WinkLeaderboardEntry } from "@/integrations/wink/types";
 
 interface DashboardProps {
@@ -42,7 +43,7 @@ export function DashboardScreen({
       <div className="bg-[#8a7d65]/10 p-[16px_18px] sm:p-[20px_24px] rounded-[20px] flex shrink-0 flex-col items-center gap-[8px]">
         <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">{t('YOUR_RECORD')}</div>
         <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">
-          {bestScore.toLocaleString("vi-VN")}
+          {formatNumber(bestScore)}
         </div>
         <div className="text-[11px] text-[#2a2418] font-extrabold">
           {t('TITLE_RANK')} {t(getRank(bestScore))}
@@ -159,7 +160,7 @@ export function RankingRow({
       </div>
 
       <div className="min-w-0 whitespace-nowrap text-[#e87432] text-[12px] sm:text-[14px] font-extrabold text-right">
-        {entry.score > 0 ? entry.score.toLocaleString("vi-VN") : t('NOT_YET')}
+        {entry.score > 0 ? formatNumber(entry.score) : t('NOT_YET')}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { applyHostLocale } from "@/i18n";
 import type {
   WinkCapability,
   WinkIntegration,
@@ -201,7 +202,7 @@ export function useWinkIntegration(): WinkIntegration {
           );
           cleanups.push(
             resolvedSdk.on("locale", (nextLocale: string) => {
-              const normalizedLocale = normalizeLocale(nextLocale);
+              const normalizedLocale = applyHostLocale(typeof nextLocale === "string" ? nextLocale : undefined);
               setLocale(normalizedLocale);
             }),
           );

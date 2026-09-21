@@ -12,6 +12,7 @@ import { SlashScoreOverlay } from "@/features/blockblast/components/SlashScoreOv
 import { blockBlastAudio } from "@/features/blockblast/audio/blockBlastAudio";
 import { buildLeaderboardModel } from "@/features/blockblast/lib/dashboardHelpers";
 import { useTranslation } from "react-i18next";
+import { formatNumber } from "@/i18n";
 import { RankingRow } from "@/features/blockblast/screens/Dashboard";
 import type { ScoreData } from "@/features/blockblast/hooks/useScoreData";
 import {
@@ -388,7 +389,7 @@ export function Game({
             <div className="bg-[#8a7d65]/10 p-[24px_24px] rounded-[20px] flex flex-col items-center gap-[8px] shrink-0">
               <div className="text-[14px] text-[#8a7d65] font-bold uppercase tracking-[0.05em]">{t('SCORE')}</div>
               <div className="text-[40px] leading-[1.05] font-extrabold text-[#e87432]">
-                {game.score.toLocaleString("vi-VN")}
+                {formatNumber(game.score)}
               </div>
             </div>
 

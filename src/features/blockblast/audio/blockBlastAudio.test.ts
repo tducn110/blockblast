@@ -1,19 +1,21 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BlockBlastAudio } from "./blockBlastAudio";
+import { BlockBlastAudio, LANDING_BGM_VOLUME, GAME_BGM_VOLUME } from "./blockBlastAudio";
 
 type MockAudioElement = HTMLAudioElement & {
   play: ReturnType<typeof vi.fn>;
   pause: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
+  setAttribute: ReturnType<typeof vi.fn>;
+  removeAttribute: ReturnType<typeof vi.fn>;
 };
 
 function flushMicrotasks() {
   return Promise.resolve().then(() => Promise.resolve());
 }
 
-describe("BlockBlastAudio music lifecycle", () => {
+describe("BlockBlastAudio music lifecycle & boundaries", () => {
   let audioCtor: ReturnType<typeof vi.fn>;
   let createdAudio: MockAudioElement[];
   let failNextMusicPlay: boolean;
@@ -40,7 +42,10 @@ describe("BlockBlastAudio music lifecycle", () => {
         paused: true,
         ended: false,
         currentTime: 0,
+        volume: 1,
         load: vi.fn(),
+        setAttribute: vi.fn(),
+        removeAttribute: vi.fn(),
         play: vi.fn().mockImplementation(async function (this: MockAudioElement) {
           if (failNextMusicPlay) {
             failNextMusicPlay = false;
@@ -72,6 +77,7 @@ describe("BlockBlastAudio music lifecycle", () => {
           exponentialRampToValueAtTime: vi.fn(),
         },
         connect: vi.fn(),
+        disconnect: vi.fn(),
       })),
       createMediaElementSource: vi.fn(() => ({
         connect: vi.fn(),
@@ -167,13 +173,13 @@ describe("BlockBlastAudio music lifecycle", () => {
     const musicElement = createdAudio[0];
     expect(musicElement.play).toHaveBeenCalledTimes(1);
 
-    audio.unlockFromGesture();
+    await audio.unlockFromGesture();
     await flushMicrotasks();
 
     expect(musicElement.play).toHaveBeenCalledTimes(2);
   });
 
-  it("starts music from the enabling gesture and keeps a single active instance", async () => {
+  it("starts music from the enabling gesture and keeps a single active instance without createMediaElementSource", async () => {
     const audio = new BlockBlastAudio();
 
     audio.setMusicEnabled(true, { fromGesture: true });
@@ -187,7 +193,8 @@ describe("BlockBlastAudio music lifecycle", () => {
     await flushMicrotasks();
 
     expect(musicElement.play).toHaveBeenCalledTimes(1);
-    expect(fakeContext.createMediaElementSource).toHaveBeenCalledTimes(1);
+    // Dual-Engine architecture: BGM is pure HTML5 Audio to prevent suspended context muting on mobile
+    expect(fakeContext.createMediaElementSource).not.toHaveBeenCalled();
   });
 
   it("pauses the existing music element when music is turned off", async () => {
@@ -212,5 +219,96 @@ describe("BlockBlastAudio music lifecycle", () => {
     expect(createdAudio.length).toBeGreaterThanOrEqual(2);
     expect(createdAudio[0].load).toHaveBeenCalled();
     expect(createdAudio[1].load).toHaveBeenCalled();
+  });
+
+  it("pauses BGM when host is paused and resumes when unpaused", async () => {
+    const audio = new BlockBlastAudio();
+
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    const musicElement = createdAudio[0];
+    expect(musicElement.paused).toBe(false);
+
+    audio.setHostPaused(true);
+    expect(musicElement.pause).toHaveBeenCalledTimes(1);
+    expect(musicElement.paused).toBe(true);
+
+    audio.setHostPaused(false);
+    await flushMicrotasks();
+    expect(musicElement.play).toHaveBeenCalledTimes(2);
+    expect(musicElement.paused).toBe(false);
+  });
+
+  it("mutes/pauses BGM when host is muted without resetting currentTime, and resumes when unmuted", async () => {
+    const audio = new BlockBlastAudio();
+
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    const musicElement = createdAudio[0];
+    musicElement.currentTime = 42;
+
+    audio.setHostMuted(true);
+    expect(musicElement.pause).toHaveBeenCalledTimes(1);
+    expect(musicElement.paused).toBe(true);
+    // Boundary contract: currentTime must NOT be reset to 0 on host mute
+    expect(musicElement.currentTime).toBe(42);
+
+    audio.setHostMuted(false);
+    await flushMicrotasks();
+    expect(musicElement.play).toHaveBeenCalledTimes(2);
+  });
+
+  it("silences audio on pauseAll() and resumes on resumeBgm()", async () => {
+    const audio = new BlockBlastAudio();
+
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    const musicElement = createdAudio[0];
+    expect(musicElement.paused).toBe(false);
+
+    audio.pauseAll();
+    expect(musicElement.pause).toHaveBeenCalledTimes(1);
+    expect(musicElement.paused).toBe(true);
+
+    audio.resumeBgm();
+    await flushMicrotasks();
+    expect(musicElement.play).toHaveBeenCalledTimes(2);
+  });
+
+  it("adjusts BGM volume based on screen boundaries (landing vs game)", async () => {
+    const audio = new BlockBlastAudio();
+
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    const musicElement = createdAudio[0];
+
+    audio.setBgmVolume(LANDING_BGM_VOLUME);
+    expect(musicElement.volume).toBeCloseTo(LANDING_BGM_VOLUME, 2);
+
+    audio.setBgmVolume(GAME_BGM_VOLUME);
+    expect(musicElement.volume).toBeCloseTo(GAME_BGM_VOLUME, 2);
+  });
+
+  it("ducks BGM volume temporarily on duckBgm", async () => {
+    vi.useFakeTimers();
+    const audio = new BlockBlastAudio();
+
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    const musicElement = createdAudio[0];
+    audio.setBgmVolume(GAME_BGM_VOLUME);
+    const normalVolume = musicElement.volume;
+
+    audio.duckBgm(280);
+    expect(musicElement.volume).toBeLessThan(normalVolume);
+
+    vi.advanceTimersByTime(300);
+    expect(musicElement.volume).toBeCloseTo(normalVolume, 2);
+    vi.useRealTimers();
   });
 });

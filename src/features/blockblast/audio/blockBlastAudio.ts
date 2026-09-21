@@ -6,41 +6,45 @@ type ToneOptions = {
   freqEnd?: number;
 };
 
+export const LANDING_BGM_VOLUME = 0.30;
+export const GAME_BGM_VOLUME = 0.22;
+
 const DESKTOP_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.38,
   sfxVolume: 1.5,
 };
 
 const MOBILE_AUDIO = {
   masterVolume: 1,
-  musicVolume: 0.38,
   sfxVolume: 1.5,
 };
 
-const MUSIC_ASSET_GAIN = 0.50;
 const TONE_SFX_GAIN = 2.4;
 const SLASH_SFX_GAIN = 1.1;
 
 function clampVolume(volume: number) {
-  const clamped = Math.min(1, Math.max(0, volume));
-  return clamped;
+  return Math.min(1, Math.max(0, volume));
 }
 
+// ponytail: dual-engine architecture. HTML5 Audio streams BGM (saving 20-30MB RAM on mobile),
+// while Web Audio API handles polyphonic SFX with sample-accurate dynamics limiting.
 export class BlockBlastAudio {
   private context: AudioContext | null = null;
   private musicEnabled = false;
   private sfxEnabled = true;
+  private hostMuted = false;
+  private hostPaused = false;
+  private unlocked = false;
   private mobileAudioMode = false;
+  private currentBgmVolume = GAME_BGM_VOLUME;
+  private isDucked = false;
+  private duckTimer: number | null = null;
+
   private musicElement: HTMLAudioElement | null = null;
   private slashElement: HTMLAudioElement | null = null;
   private slashBuffer: AudioBuffer | null = null;
   private noiseBuffer: AudioBuffer | null = null;
-  private musicSourceNode: MediaElementAudioSourceNode | null = null;
-  private musicGainNode: GainNode | null = null;
-  private slashSourceNode: MediaElementAudioSourceNode | null = null;
-  private slashGainNode: GainNode | null = null;
-  private masterBgmGain: GainNode | null = null;
+
   private masterSfxGain: GainNode | null = null;
   private masterBusGain: GainNode | null = null;
   private masterLimiter: DynamicsCompressorNode | null = null;
@@ -80,43 +84,14 @@ export class BlockBlastAudio {
     }
   }
 
-  private setupWebAudioRouting() {
-    const context = this.ensureContext();
-    if (!context || !this.masterBgmGain || !this.masterSfxGain) return;
-
-    if (this.musicElement && !this.musicSourceNode) {
-      try {
-        this.musicSourceNode = context.createMediaElementSource(this.musicElement);
-        this.musicGainNode = context.createGain();
-        this.musicGainNode.gain.value = this.musicVolume();
-        this.musicSourceNode.connect(this.musicGainNode);
-        this.musicGainNode.connect(this.masterBgmGain);
-      } catch (e) {
-        console.warn("Failed to route music element", e);
-      }
-    }
-
-    if (this.slashElement && !this.slashSourceNode) {
-      try {
-        this.slashSourceNode = context.createMediaElementSource(this.slashElement);
-        this.slashGainNode = context.createGain();
-        this.slashGainNode.gain.value = this.sfxSlashVolume(0.62);
-        this.slashSourceNode.connect(this.slashGainNode);
-        this.slashGainNode.connect(this.masterSfxGain);
-      } catch (e) {
-        console.warn("Failed to route slash element", e);
-      }
-    }
-  }
-
   private readonly handleVisibilityChange = () => {
     if (typeof document === "undefined") return;
 
     if (document.hidden) {
-      if (this.masterBgmGain) this.masterBgmGain.gain.value = 0;
+      this.pauseAll();
     } else {
-      if (this.masterBgmGain && this.musicEnabled) {
-        this.masterBgmGain.gain.value = 1;
+      if (this.canPlayBgm()) {
+        this.resumeBgm();
       }
       if (this.context?.state === "suspended") {
         this.addUnlockListeners();
@@ -125,16 +100,15 @@ export class BlockBlastAudio {
   };
 
   private readonly unlock = () => {
-    this.unlockFromGesture({ removeFallbackListeners: true });
+    void this.unlockFromGesture({ removeFallbackListeners: true });
   };
 
-  async unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}) {
+  async unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}): Promise<boolean> {
+    this.unlocked = true;
     const context = this.ensureContext();
     let resumePromise: Promise<void> = Promise.resolve();
     if (context) {
       if (context.state === "suspended") {
-        // Start resume from the trusted gesture, but let the caller wait until
-        // the context is actually running before enabling gameplay.
         resumePromise = context.resume().catch(() => this.addUnlockListeners());
       }
       
@@ -147,16 +121,12 @@ export class BlockBlastAudio {
         gain.connect(context.destination);
         osc.start(context.currentTime);
         osc.stop(context.currentTime + 0.001);
-      } catch (e) {
+      } catch {
         // Ignore errors
       }
     }
 
-    if (removeFallbackListeners && (!context || context.state === "running")) {
-      this.removeUnlockListeners();
-    }
-
-    if (this.musicEnabled) {
+    if (this.canPlayBgm()) {
       this.startMusicTrack({ fromGesture: true });
     }
 
@@ -173,15 +143,12 @@ export class BlockBlastAudio {
   setMusicEnabled(enabled: boolean, { fromGesture = false }: { fromGesture?: boolean } = {}) {
     this.musicEnabled = enabled;
 
-    if (this.masterBgmGain) {
-      this.masterBgmGain.gain.value = enabled ? 1 : 0;
-    }
-
     if (!enabled) {
       if (this.musicElement) {
         this.musicElement.pause();
         this.musicElement.currentTime = 0;
       }
+      this.musicPlayPromise = null;
       this.removeUnlockListeners();
       this.removeVisibilityListener();
       return;
@@ -193,7 +160,7 @@ export class BlockBlastAudio {
       return;
     }
 
-    if (this.context?.state === "running") {
+    if (this.unlocked || this.context?.state === "running") {
       this.startMusicTrack();
     } else {
       this.addUnlockListeners();
@@ -202,19 +169,124 @@ export class BlockBlastAudio {
 
   setSfxEnabled(enabled: boolean) {
     this.sfxEnabled = enabled;
-    if (this.masterSfxGain) {
-      this.masterSfxGain.gain.value = enabled ? 1 : 0;
+    this.applySfxMuteState();
+  }
+
+  setHostMuted(muted: boolean) {
+    this.hostMuted = muted;
+    this.applySfxMuteState();
+    if (!this.musicElement) return;
+
+    if (muted) {
+      this.musicElement.pause();
+      this.musicPlayPromise = null;
+    } else if (this.canPlayBgm() && this.unlocked) {
+      this.resumeBgm();
     }
+  }
+
+  setHostPaused(paused: boolean) {
+    this.hostPaused = paused;
+    this.applySfxMuteState();
+    if (!this.musicElement) return;
+
+    if (paused) {
+      this.musicElement.pause();
+      this.musicPlayPromise = null;
+    } else if (this.canPlayBgm() && this.unlocked) {
+      this.resumeBgm();
+    }
+  }
+
+  setBgmVolume(volume: number) {
+    this.currentBgmVolume = clampVolume(volume);
+    this.applyBgmVolume();
+  }
+
+  duckBgm(durationMs = 280) {
+    if (!this.musicElement || !this.canPlayBgm()) return;
+    this.isDucked = true;
+    this.applyBgmVolume();
+
+    if (this.duckTimer !== null && typeof window !== "undefined") {
+      window.clearTimeout(this.duckTimer);
+    }
+    if (typeof window !== "undefined") {
+      this.duckTimer = window.setTimeout(() => {
+        this.isDucked = false;
+        this.duckTimer = null;
+        this.applyBgmVolume();
+      }, durationMs);
+    }
+  }
+
+  pauseAll() {
+    if (this.musicElement) {
+      this.musicElement.pause();
+    }
+    this.musicPlayPromise = null;
+  }
+
+  resumeBgm() {
+    if (!this.canPlayBgm()) return;
+    this.startMusicTrack();
   }
 
   setMobileAudioMode(enabled: boolean) {
     if (this.mobileAudioMode === enabled) return;
     this.mobileAudioMode = enabled;
-    this.applyAudioVolumes();
+    this.applyBgmVolume();
+  }
+
+  get isBgmPlaying(): boolean {
+    return Boolean(this.musicElement && !this.musicElement.paused && !this.musicElement.ended);
+  }
+
+  get landingBgmVolume(): number {
+    return LANDING_BGM_VOLUME;
+  }
+
+  get gameBgmVolume(): number {
+    return GAME_BGM_VOLUME;
+  }
+
+  get isUnlocked(): boolean {
+    return this.unlocked;
+  }
+
+  get isHostMuted(): boolean {
+    return this.hostMuted;
+  }
+
+  get isHostPaused(): boolean {
+    return this.hostPaused;
+  }
+
+  get isMusicEnabled(): boolean {
+    return this.musicEnabled;
+  }
+
+  get isSfxEnabled(): boolean {
+    return this.sfxEnabled;
+  }
+
+  private canPlayBgm(): boolean {
+    const isHidden = typeof document !== "undefined" && document.hidden;
+    return this.musicEnabled && !this.hostMuted && !this.hostPaused && !isHidden;
+  }
+
+  private canPlaySfx(): boolean {
+    return this.sfxEnabled && !this.hostMuted && !this.hostPaused;
+  }
+
+  private applySfxMuteState() {
+    if (this.masterSfxGain) {
+      this.masterSfxGain.gain.value = this.canPlaySfx() ? 1 : 0;
+    }
   }
 
   playButtonClick() {
-    if (!this.sfxEnabled) return;
+    if (!this.canPlaySfx()) return;
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.006;
@@ -234,7 +306,7 @@ export class BlockBlastAudio {
   }
 
   playPlace() {
-    if (!this.sfxEnabled) return;
+    if (!this.canPlaySfx()) return;
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
@@ -244,7 +316,7 @@ export class BlockBlastAudio {
   }
 
   playInvalid() {
-    if (!this.sfxEnabled) return;
+    if (!this.canPlaySfx()) return;
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
@@ -254,11 +326,15 @@ export class BlockBlastAudio {
   }
 
   playLineClear(clearedRows: number, clearedCols: number, combo: number) {
-    if (!this.sfxEnabled) return;
+    if (!this.canPlaySfx()) return;
 
-    this.playSlashSound(Math.min(0.9, 0.5 + (clearedRows + clearedCols) * 0.08), 1 + combo * 0.02);
+    const lineCount = clearedRows + clearedCols;
+    if (lineCount >= 2 || combo > 1) {
+      this.duckBgm(220);
+    }
+
+    this.playSlashSound(Math.min(0.9, 0.5 + lineCount * 0.08), 1 + combo * 0.02);
     this.withRunningContext((context) => {
-      const lineCount = clearedRows + clearedCols;
       const now = context.currentTime + 0.01;
       
       // Add a physical "crunch" sound (short noise burst)
@@ -272,7 +348,7 @@ export class BlockBlastAudio {
         this.tone(context, freq * 1.5, now + i * 0.055, 0.16, {
           waveform: "triangle",
           freqEnd: freq * 0.8, // Pitch slide down for punchiness
-          volume: this.sfxToneVolume(0.065), // slightly louder to compensate for drop
+          volume: this.sfxToneVolume(0.065),
           release: 0.12,
         });
       }
@@ -289,7 +365,11 @@ export class BlockBlastAudio {
   }
 
   playCombo(combo: number) {
-    if (!this.sfxEnabled) return;
+    if (!this.canPlaySfx()) return;
+
+    if (combo > 1) {
+      this.duckBgm(220);
+    }
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.02;
@@ -307,8 +387,9 @@ export class BlockBlastAudio {
   }
 
   playBoom() {
-    if (!this.sfxEnabled) return;
+    if (!this.canPlaySfx()) return;
 
+    this.duckBgm(320);
     this.playSlashSound(0.95, 0.92);
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
@@ -331,31 +412,8 @@ export class BlockBlastAudio {
     });
   }
 
-  private ensureMusicElement(): HTMLAudioElement | null {
-    if (typeof window === "undefined") return null;
-    if (this.musicElement) return this.musicElement;
-
-    const audio = new Audio("/assets/audio/music.mp3");
-    audio.loop = true;
-    audio.preload = "auto";
-    audio.load();
-    this.musicElement = audio;
-    return audio;
-  }
-
-  private ensureSlashElement(): HTMLAudioElement | null {
-    if (typeof window === "undefined") return null;
-    if (this.slashElement) return this.slashElement;
-
-    const audio = new Audio("/assets/audio/slash-clear.mp3");
-    audio.preload = "auto";
-    audio.load();
-    this.slashElement = audio;
-    return audio;
-  }
-
   playGameOver() {
-    if (!this.sfxEnabled) return;
+    if (!this.canPlaySfx()) return;
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.02;
@@ -367,6 +425,35 @@ export class BlockBlastAudio {
         });
       });
     });
+  }
+
+  private ensureMusicElement(): HTMLAudioElement | null {
+    if (typeof window === "undefined") return null;
+    if (this.musicElement) return this.musicElement;
+
+    const audio = new Audio("/assets/audio/music.mp3");
+    audio.loop = true;
+    audio.preload = "auto";
+    if (typeof audio.setAttribute === "function") {
+      audio.setAttribute("playsinline", "true");
+    }
+    audio.load();
+    this.musicElement = audio;
+    return audio;
+  }
+
+  private ensureSlashElement(): HTMLAudioElement | null {
+    if (typeof window === "undefined") return null;
+    if (this.slashElement) return this.slashElement;
+
+    const audio = new Audio("/assets/audio/slash-clear.mp3");
+    audio.preload = "auto";
+    if (typeof audio.setAttribute === "function") {
+      audio.setAttribute("playsinline", "true");
+    }
+    audio.load();
+    this.slashElement = audio;
+    return audio;
   }
 
   private ensureContext(): AudioContext | null {
@@ -381,7 +468,6 @@ export class BlockBlastAudio {
     if (!AudioCtor) return null;
 
     this.context = new AudioCtor();
-    this.masterBgmGain = this.context.createGain();
     this.masterSfxGain = this.context.createGain();
     this.masterBusGain = this.context.createGain();
     
@@ -390,17 +476,17 @@ export class BlockBlastAudio {
       (/^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
         /iPad|iPhone|iPod/.test(navigator.userAgent));
 
-    this.masterBgmGain.gain.value = this.musicEnabled ? 1 : 0;
-    this.masterSfxGain.gain.value = this.sfxEnabled ? 1 : 0;
+    this.masterSfxGain.gain.value = this.canPlaySfx() ? 1 : 0;
     this.masterBusGain.gain.value = isSafari ? 1.4 : 1.0;
     
-    this.masterBgmGain.connect(this.masterBusGain);
     this.masterSfxGain.connect(this.masterBusGain);
 
     if (typeof navigator !== "undefined" && "audioSession" in navigator) {
       try {
         (navigator as unknown as { audioSession: { type: string } }).audioSession.type = "playback";
-      } catch {}
+      } catch {
+        // Ignore audioSession failure
+      }
     }
 
     if (typeof this.context.createDynamicsCompressor === "function") {
@@ -431,59 +517,45 @@ export class BlockBlastAudio {
     return this.context;
   }
 
-  private async resumeContext(): Promise<AudioContext | null> {
-    const context = this.ensureContext();
-    if (!context) return null;
-
-    if (context.state === "suspended") {
-      try {
-        await context.resume();
-      } catch {
-        return context;
-      }
-    }
-
-    return context;
-  }
-
   private startMusicTrack({ fromGesture = false }: { fromGesture?: boolean } = {}) {
-    if (!this.musicEnabled) return;
+    if (!this.canPlayBgm()) return;
 
     const audio = this.ensureMusicElement();
     if (!audio) return;
 
     const context = this.ensureContext();
     if (context?.state === "suspended") {
-      if (!fromGesture) {
+      if (fromGesture) {
+        void context.resume().catch(() => this.addUnlockListeners());
+      } else {
         this.addUnlockListeners();
-        return;
       }
-      void context.resume().catch(() => this.addUnlockListeners());
     }
 
-    this.setupWebAudioRouting();
-
-    const vol = this.musicVolume();
-    if (this.musicGainNode) {
-      this.musicGainNode.gain.value = vol;
-    }
-
-    if (this.masterBgmGain) {
-      const isHidden = typeof document !== "undefined" && document.hidden;
-      this.masterBgmGain.gain.value = this.musicEnabled && !isHidden ? 1 : 0;
-    }
+    this.applyBgmVolume();
 
     if (!audio.paused && !audio.ended) {
+      this.unlocked = true;
       this.removeUnlockListeners();
       return;
     }
 
     if (this.musicPlayPromise && !fromGesture) return;
 
-    const playPromise = audio.play();
+    let playResult: Promise<void> | undefined;
+    try {
+      playResult = audio.play();
+    } catch {
+      this.addUnlockListeners();
+      return;
+    }
+
+    const playPromise = Promise.resolve(playResult);
     this.musicPlayPromise = playPromise;
+
     playPromise
       .then(() => {
+        this.unlocked = true;
         this.removeUnlockListeners();
       })
       .catch(() => {
@@ -516,7 +588,7 @@ export class BlockBlastAudio {
         }
         source.start();
         return;
-      } catch (e) {
+      } catch {
         // Fallback to audio element
       }
     }
@@ -528,19 +600,15 @@ export class BlockBlastAudio {
     const audio = this.ensureSlashElement();
     if (!audio) return;
 
-    void this.resumeContext();
-    this.setupWebAudioRouting();
-
     const vol = this.sfxSlashVolume(volume);
     audio.currentTime = 0;
-    if (this.slashGainNode) {
-      this.slashGainNode.gain.value = vol;
-    }
+    audio.volume = vol;
     audio.playbackRate = Math.max(0.75, Math.min(1.35, playbackRate));
     void audio.play().catch(() => this.addUnlockListeners());
   }
 
   private withRunningContext(callback: (context: AudioContext) => void) {
+    if (!this.canPlaySfx()) return;
     const context = this.ensureContext();
     if (!context) return;
 
@@ -635,6 +703,7 @@ export class BlockBlastAudio {
 
     window.addEventListener("pointerdown", this.unlock, { capture: true, passive: true });
     window.addEventListener("touchstart", this.unlock, { capture: true, passive: true });
+    window.addEventListener("touchend", this.unlock, { capture: true, passive: true });
     window.addEventListener("keydown", this.unlock, { capture: true, passive: true });
     this.unlockListenersBound = true;
   }
@@ -644,6 +713,7 @@ export class BlockBlastAudio {
 
     window.removeEventListener("pointerdown", this.unlock, { capture: true });
     window.removeEventListener("touchstart", this.unlock, { capture: true });
+    window.removeEventListener("touchend", this.unlock, { capture: true });
     window.removeEventListener("keydown", this.unlock, { capture: true });
     this.unlockListenersBound = false;
   }
@@ -663,7 +733,8 @@ export class BlockBlastAudio {
 
   private musicVolume() {
     const config = this.audioConfig();
-    const calculated = clampVolume(config.masterVolume * config.musicVolume * MUSIC_ASSET_GAIN);
+    const duckFactor = this.isDucked ? 0.6 : 1.0;
+    const calculated = clampVolume(config.masterVolume * this.currentBgmVolume * duckFactor);
     return calculated;
   }
 
@@ -679,10 +750,9 @@ export class BlockBlastAudio {
     return calculated;
   }
 
-  private applyAudioVolumes() {
-    const vol = this.musicVolume();
-    if (this.musicGainNode) {
-      this.musicGainNode.gain.value = vol;
+  private applyBgmVolume() {
+    if (this.musicElement) {
+      this.musicElement.volume = this.musicVolume();
     }
   }
 
@@ -701,13 +771,21 @@ export class BlockBlastAudio {
   dispose() {
     this.removeUnlockListeners();
     this.removeVisibilityListener();
+    if (this.duckTimer !== null && typeof window !== "undefined") {
+      window.clearTimeout(this.duckTimer);
+      this.duckTimer = null;
+    }
     if (this.musicElement) {
       this.musicElement.pause();
       this.musicElement.currentTime = 0;
+      this.musicElement.removeAttribute("src");
+      this.musicElement.load();
     }
     if (this.slashElement) {
       this.slashElement.pause();
       this.slashElement.currentTime = 0;
+      this.slashElement.removeAttribute("src");
+      this.slashElement.load();
     }
     if (this.context && this.context.state !== "closed") {
       void this.context.close();
@@ -720,17 +798,19 @@ export class BlockBlastAudio {
       this.masterBusGain.disconnect();
       this.masterBusGain = null;
     }
+    if (this.masterSfxGain) {
+      this.masterSfxGain.disconnect();
+      this.masterSfxGain = null;
+    }
     this.context = null;
-    this.masterBgmGain = null;
     this.masterSfxGain = null;
-    this.musicGainNode = null;
-    this.slashGainNode = null;
-    this.musicSourceNode = null;
-    this.slashSourceNode = null;
+    this.masterBusGain = null;
     this.musicElement = null;
     this.slashElement = null;
     this.slashBuffer = null;
     this.noiseBuffer = null;
+    this.musicPlayPromise = null;
+    this.unlocked = false;
   }
 }
 

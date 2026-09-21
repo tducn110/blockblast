@@ -1,10 +1,44 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-const LANGUAGE_STORAGE_KEY = '05-blockblast-language';
-type SupportedLanguage = "vi" | "en";
-const isSupportedLanguage = (value: string | null): value is SupportedLanguage => value === "vi" || value === "en";
-const getInitialLanguage = (): SupportedLanguage => {
+export const LANGUAGE_STORAGE_KEY = '05-blockblast-language';
+export type SupportedLanguage = "vi" | "en";
+export const isSupportedLanguage = (value: string | null): value is SupportedLanguage => value === "vi" || value === "en";
+
+export function hasStoredLanguagePreference(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const value = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    return isSupportedLanguage(value);
+  } catch {
+    return false;
+  }
+}
+
+let isApplyingHostLocale = false;
+
+export function applyHostLocale(value?: string): SupportedLanguage {
+  if (hasStoredLanguagePreference()) {
+    return i18n.resolvedLanguage?.startsWith("vi") ? "vi" : "en";
+  }
+  const baseLocale = value?.trim().toLowerCase().split(/[-_]/, 1)[0];
+  const normalized: SupportedLanguage = baseLocale === "vi" ? "vi" : "en";
+  try {
+    isApplyingHostLocale = true;
+    void i18n.changeLanguage(normalized);
+  } finally {
+    isApplyingHostLocale = false;
+  }
+  return normalized;
+}
+
+export function formatNumber(value: number, lang?: string): string {
+  const currentLang = lang || i18n.language || "en";
+  const locale = currentLang.startsWith("vi") ? "vi-VN" : "en-US";
+  return value.toLocaleString(locale);
+}
+
+export const getInitialLanguage = (): SupportedLanguage => {
   if (typeof window === 'undefined') return 'en';
   try {
     const value = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -15,13 +49,25 @@ const getInitialLanguage = (): SupportedLanguage => {
   
   return 'en';
 };
-const persistLanguage = (language: string): void => {
+
+export const persistLanguage = (language: string): void => {
   const normalized = language.split("-")[0];
   if (typeof window === "undefined" || !isSupportedLanguage(normalized)) return;
-  try { window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized); } catch { /* Optional persistence. */ }
+
+  if (typeof document !== "undefined" && document.documentElement) {
+    document.documentElement.lang = normalized;
+  }
+
+  if (isApplyingHostLocale) return;
+
+  try {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
+  } catch {
+    /* Optional persistence. */
+  }
 };
 
-const syncDocumentLang = (language: string): void => {
+export const syncDocumentLang = (language: string): void => {
   if (typeof document === "undefined") return;
   const normalized = language.split("-")[0];
   document.documentElement.lang = isSupportedLanguage(normalized) ? normalized : "en";
@@ -99,7 +145,7 @@ const resources = {
       RECORD: "Kỷ Lục",
       YOUR_RECORD: "Kỷ Lục Của Bạn",
       TITLE_RANK: "Danh hiệu:",
-      RANKING_1_10: "Ranking 1-10",
+      RANKING_1_10: "Xếp hạng 1-10",
       TOP_SCORE: "Top điểm",
       NO_RANKING_DATA: "Chưa có dữ liệu Ranking từ Wink.",
       YOUR_RANKING: "Bảng xếp hạng của bạn",
