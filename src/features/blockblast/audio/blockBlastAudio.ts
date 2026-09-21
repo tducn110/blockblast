@@ -6,21 +6,40 @@ type ToneOptions = {
   freqEnd?: number;
 };
 
-export const LANDING_BGM_VOLUME = 0.30;
-export const GAME_BGM_VOLUME = 0.22;
+/**
+ * Calibrated audio volume preset following 01_fruit and 02_2048 sound design standards:
+ * - Master is full scale (1.0) with DynamicsCompressor providing safety headroom against clipping.
+ * - BGM sits comfortably in the background (0.22 gameplay / 0.30 landing).
+ * - SFX are prominent and punchy (0.60 - 0.95), clearly louder than BGM (ratio ~2.8x - 4.1x).
+ * - BGM ducking (factor 0.40) dips music during high-impact events (clears, combos, boom)
+ *   so sound effects pop with full clarity.
+ */
+export const AUDIO_VOLUME = {
+  master: 1.0,
+  landingBgm: 0.30,
+  gameBgm: 0.22,
+  button: 0.65,
+  place: 0.70,
+  invalid: 0.60,
+  lineClear: 0.85,
+  combo: 0.80,
+  boom: 0.90,
+  gameOver: 0.80,
+  slash: 0.85,
+} as const;
+
+export const LANDING_BGM_VOLUME = AUDIO_VOLUME.landingBgm;
+export const GAME_BGM_VOLUME = AUDIO_VOLUME.gameBgm;
 
 const DESKTOP_AUDIO = {
-  masterVolume: 1,
-  sfxVolume: 1.5,
+  masterVolume: AUDIO_VOLUME.master,
+  sfxVolume: 1.0,
 };
 
 const MOBILE_AUDIO = {
-  masterVolume: 1,
-  sfxVolume: 1.5,
+  masterVolume: AUDIO_VOLUME.master,
+  sfxVolume: 1.0,
 };
-
-const TONE_SFX_GAIN = 2.4;
-const SLASH_SFX_GAIN = 1.1;
 
 function clampVolume(volume: number) {
   return Math.min(1, Math.max(0, volume));
@@ -36,7 +55,7 @@ export class BlockBlastAudio {
   private hostPaused = false;
   private unlocked = false;
   private mobileAudioMode = false;
-  private currentBgmVolume = GAME_BGM_VOLUME;
+  private currentBgmVolume: number = GAME_BGM_VOLUME;
   private isDucked = false;
   private duckTimer: number | null = null;
 
@@ -250,6 +269,10 @@ export class BlockBlastAudio {
     return GAME_BGM_VOLUME;
   }
 
+  get audioVolume() {
+    return AUDIO_VOLUME;
+  }
+
   get isUnlocked(): boolean {
     return this.unlocked;
   }
@@ -292,13 +315,13 @@ export class BlockBlastAudio {
       const now = context.currentTime + 0.006;
       this.tone(context, 587.33, now, 0.055, {
         waveform: "triangle",
-        volume: this.sfxToneVolume(0.045),
+        volume: this.sfxToneVolume(AUDIO_VOLUME.button),
         attack: 0.006,
         release: 0.045,
       });
       this.tone(context, 880, now + 0.028, 0.05, {
         waveform: "sine",
-        volume: this.sfxToneVolume(0.032),
+        volume: this.sfxToneVolume(AUDIO_VOLUME.button * 0.7),
         attack: 0.004,
         release: 0.04,
       });
@@ -310,8 +333,14 @@ export class BlockBlastAudio {
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
-      this.tone(context, 329.63, now, 0.08, { waveform: "triangle", volume: this.sfxToneVolume(0.05) });
-      this.tone(context, 493.88, now + 0.045, 0.09, { waveform: "sine", volume: this.sfxToneVolume(0.035) });
+      this.tone(context, 329.63, now, 0.08, {
+        waveform: "triangle",
+        volume: this.sfxToneVolume(AUDIO_VOLUME.place),
+      });
+      this.tone(context, 493.88, now + 0.045, 0.09, {
+        waveform: "sine",
+        volume: this.sfxToneVolume(AUDIO_VOLUME.place * 0.7),
+      });
     });
   }
 
@@ -320,8 +349,16 @@ export class BlockBlastAudio {
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
-      this.tone(context, 132, now, 0.11, { waveform: "sawtooth", volume: this.sfxToneVolume(0.025), release: 0.05 });
-      this.tone(context, 118, now + 0.035, 0.1, { waveform: "sawtooth", volume: this.sfxToneVolume(0.018), release: 0.05 });
+      this.tone(context, 132, now, 0.11, {
+        waveform: "sawtooth",
+        volume: this.sfxToneVolume(AUDIO_VOLUME.invalid),
+        release: 0.05,
+      });
+      this.tone(context, 118, now + 0.035, 0.1, {
+        waveform: "sawtooth",
+        volume: this.sfxToneVolume(AUDIO_VOLUME.invalid * 0.7),
+        release: 0.05,
+      });
     });
   }
 
@@ -330,15 +367,18 @@ export class BlockBlastAudio {
 
     const lineCount = clearedRows + clearedCols;
     if (lineCount >= 2 || combo > 1) {
-      this.duckBgm(220);
+      this.duckBgm(260);
     }
 
-    this.playSlashSound(Math.min(0.9, 0.5 + lineCount * 0.08), 1 + combo * 0.02);
+    this.playSlashSound(
+      Math.min(0.95, AUDIO_VOLUME.slash + Math.max(0, lineCount - 1) * 0.03),
+      1 + combo * 0.02
+    );
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
       
       // Add a physical "crunch" sound (short noise burst)
-      this.noiseBurst(context, now, 0.12, 0.045 * Math.min(4, lineCount));
+      this.noiseBurst(context, now, 0.12, Math.min(0.75, 0.50 + lineCount * 0.06));
 
       const base = clearedRows > 0 && clearedCols > 0 ? 392 : clearedRows > 0 ? 349.23 : 329.63;
 
@@ -348,7 +388,7 @@ export class BlockBlastAudio {
         this.tone(context, freq * 1.5, now + i * 0.055, 0.16, {
           waveform: "triangle",
           freqEnd: freq * 0.8, // Pitch slide down for punchiness
-          volume: this.sfxToneVolume(0.065),
+          volume: this.sfxToneVolume(AUDIO_VOLUME.lineClear),
           release: 0.12,
         });
       }
@@ -357,7 +397,7 @@ export class BlockBlastAudio {
         const finisherFreq = 659.25 + combo * 18;
         this.tone(context, finisherFreq, now + 0.13, 0.18, {
           waveform: "sine",
-          volume: this.sfxToneVolume(0.04),
+          volume: this.sfxToneVolume(AUDIO_VOLUME.lineClear * 0.75),
           release: 0.14,
         });
       }
@@ -368,18 +408,19 @@ export class BlockBlastAudio {
     if (!this.canPlaySfx()) return;
 
     if (combo > 1) {
-      this.duckBgm(220);
+      this.duckBgm(240);
     }
 
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.02;
       const notes = [523.25, 659.25, 783.99, 1046.5];
       const count = Math.min(notes.length, Math.max(2, combo));
+      const comboVolume = Math.min(0.92, AUDIO_VOLUME.combo + Math.min(4, combo - 1) * 0.03);
 
       for (let i = 0; i < count; i += 1) {
         this.tone(context, notes[i] + combo * 8, now + i * 0.05, 0.16, {
           waveform: "sine",
-          volume: this.sfxToneVolume(0.035),
+          volume: this.sfxToneVolume(comboVolume),
           release: 0.12,
         });
       }
@@ -389,24 +430,24 @@ export class BlockBlastAudio {
   playBoom() {
     if (!this.canPlaySfx()) return;
 
-    this.duckBgm(320);
+    this.duckBgm(340);
     this.playSlashSound(0.95, 0.92);
     this.withRunningContext((context) => {
       const now = context.currentTime + 0.01;
-      this.noiseBurst(context, now, 0.34, 0.055);
+      this.noiseBurst(context, now, 0.34, 0.75);
       this.tone(context, 82.41, now, 0.22, {
         waveform: "sawtooth",
-        volume: this.sfxToneVolume(0.07),
+        volume: this.sfxToneVolume(AUDIO_VOLUME.boom),
         release: 0.24,
       });
       this.tone(context, 523.25, now + 0.06, 0.2, {
         waveform: "triangle",
-        volume: this.sfxToneVolume(0.045),
+        volume: this.sfxToneVolume(AUDIO_VOLUME.boom * 0.75),
         release: 0.18,
       });
       this.tone(context, 783.99, now + 0.13, 0.22, {
         waveform: "sine",
-        volume: this.sfxToneVolume(0.04),
+        volume: this.sfxToneVolume(AUDIO_VOLUME.boom * 0.65),
         release: 0.2,
       });
     });
@@ -420,7 +461,7 @@ export class BlockBlastAudio {
       [392, 329.63, 261.63].forEach((frequency, index) => {
         this.tone(context, frequency, now + index * 0.1, 0.18, {
           waveform: "triangle",
-          volume: this.sfxToneVolume(0.035),
+          volume: this.sfxToneVolume(AUDIO_VOLUME.gameOver),
           release: 0.18,
         });
       });
@@ -733,20 +774,20 @@ export class BlockBlastAudio {
 
   private musicVolume() {
     const config = this.audioConfig();
-    const duckFactor = this.isDucked ? 0.6 : 1.0;
+    const duckFactor = this.isDucked ? 0.4 : 1.0;
     const calculated = clampVolume(config.masterVolume * this.currentBgmVolume * duckFactor);
     return calculated;
   }
 
   private sfxToneVolume(volume: number) {
     const config = this.audioConfig();
-    const calculated = clampVolume(config.masterVolume * config.sfxVolume * volume * TONE_SFX_GAIN);
+    const calculated = clampVolume(config.masterVolume * config.sfxVolume * volume);
     return calculated;
   }
 
   private sfxSlashVolume(volume: number) {
     const config = this.audioConfig();
-    const calculated = clampVolume(config.masterVolume * config.sfxVolume * volume * SLASH_SFX_GAIN);
+    const calculated = clampVolume(config.masterVolume * config.sfxVolume * volume);
     return calculated;
   }
 

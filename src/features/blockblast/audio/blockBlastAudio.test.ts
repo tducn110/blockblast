@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BlockBlastAudio, LANDING_BGM_VOLUME, GAME_BGM_VOLUME } from "./blockBlastAudio";
+import { BlockBlastAudio, AUDIO_VOLUME, LANDING_BGM_VOLUME, GAME_BGM_VOLUME } from "./blockBlastAudio";
 
 type MockAudioElement = HTMLAudioElement & {
   play: ReturnType<typeof vi.fn>;
@@ -306,9 +306,53 @@ describe("BlockBlastAudio music lifecycle & boundaries", () => {
 
     audio.duckBgm(280);
     expect(musicElement.volume).toBeLessThan(normalVolume);
+    expect(musicElement.volume).toBeCloseTo(normalVolume * 0.4, 2);
 
     vi.advanceTimersByTime(300);
     expect(musicElement.volume).toBeCloseTo(normalVolume, 2);
     vi.useRealTimers();
   });
 });
+
+describe("BlockBlastAudio volume calibration & SFX-to-BGM ratio standards (01_fruit & 02_2048)", () => {
+  it("defines standard volume constants aligned with 01_fruit and 02_2048", () => {
+    expect(AUDIO_VOLUME.gameBgm).toBe(0.22);
+    expect(AUDIO_VOLUME.landingBgm).toBe(0.30);
+    expect(AUDIO_VOLUME.button).toBe(0.65);
+    expect(AUDIO_VOLUME.place).toBe(0.70);
+    expect(AUDIO_VOLUME.invalid).toBe(0.60);
+    expect(AUDIO_VOLUME.lineClear).toBe(0.85);
+    expect(AUDIO_VOLUME.combo).toBe(0.80);
+    expect(AUDIO_VOLUME.boom).toBe(0.90);
+    expect(AUDIO_VOLUME.gameOver).toBe(0.80);
+    expect(AUDIO_VOLUME.slash).toBe(0.85);
+  });
+
+  it("guarantees every SFX is noticeably louder than gameplay BGM", () => {
+    const sfxKeys = ["button", "place", "invalid", "lineClear", "combo", "boom", "gameOver", "slash"] as const;
+    for (const key of sfxKeys) {
+      expect(AUDIO_VOLUME[key]).toBeGreaterThan(AUDIO_VOLUME.gameBgm);
+    }
+
+    // Place / move SFX ratio is >= 3x BGM (0.70 vs 0.22, matching 02_2048 move ratio 0.70/0.25 = 2.8x)
+    expect(AUDIO_VOLUME.place / AUDIO_VOLUME.gameBgm).toBeGreaterThanOrEqual(3.0);
+
+    // Line clear / merge ratio is >= 3.5x BGM (0.85 vs 0.22, matching 02_2048 merge ratio 0.85/0.25 = 3.4x)
+    expect(AUDIO_VOLUME.lineClear / AUDIO_VOLUME.gameBgm).toBeGreaterThanOrEqual(3.5);
+
+    // Boom / bomb / celebration ratio is >= 4.0x BGM (0.90 vs 0.22)
+    expect(AUDIO_VOLUME.boom / AUDIO_VOLUME.gameBgm).toBeGreaterThanOrEqual(4.0);
+
+    // Button click is >= 2.0x landing BGM (0.65 vs 0.30) and >= 2.9x game BGM
+    expect(AUDIO_VOLUME.button / AUDIO_VOLUME.landingBgm).toBeGreaterThanOrEqual(2.0);
+    expect(AUDIO_VOLUME.button / AUDIO_VOLUME.gameBgm).toBeGreaterThanOrEqual(2.9);
+  });
+
+  it("exposes audioVolume through instance getter", () => {
+    const audio = new BlockBlastAudio();
+    expect(audio.audioVolume).toBe(AUDIO_VOLUME);
+    expect(audio.gameBgmVolume).toBe(AUDIO_VOLUME.gameBgm);
+    expect(audio.landingBgmVolume).toBe(AUDIO_VOLUME.landingBgm);
+  });
+});
+
