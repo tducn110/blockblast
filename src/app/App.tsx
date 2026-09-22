@@ -99,6 +99,9 @@ export default function App() {
   useEffect(() => {
     blockBlastAudio.setHostMuted(wink.parentMuted);
     blockBlastAudio.setHostPaused(wink.hostPaused);
+    if (wink.hostPaused) {
+      setScreen((prev) => (prev === "game" ? "settings" : prev));
+    }
   }, [wink.parentMuted, wink.hostPaused]);
 
   useEffect(() => {
@@ -118,13 +121,14 @@ export default function App() {
     }
   }, [screen]);
 
-  // ponytail: lifecycle control matching 01_fruit & 03_muavu standard: pause game & audio on blur/hidden, resume on focus/visible
+  // ponytail: lifecycle control matching 01_fruit & 03_muavu standard: pause game & audio on blur/hidden, resume on focus/visible, open settings screen on pause
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {
         setIsWindowFocused(false);
         blockBlastAudio.pauseAll();
-      } else if (!document.hidden && (!document.hasFocus || document.hasFocus())) {
+        setScreen((prev) => (prev === "game" ? "settings" : prev));
+      } else if (!document.hidden) {
         setIsWindowFocused(true);
         if (!wink.hostPaused && !wink.parentMuted) {
           blockBlastAudio.resumeBgm();
@@ -134,6 +138,7 @@ export default function App() {
     const handleBlur = () => {
       setIsWindowFocused(false);
       blockBlastAudio.pauseAll();
+      setScreen((prev) => (prev === "game" ? "settings" : prev));
     };
     const handleFocus = () => {
       if (!document.hidden) {
@@ -289,6 +294,9 @@ export default function App() {
             shakeEnabled={shakeEnabled}
             scenery={scenery}
             paused={screen !== "game" || wink.hostPaused || !isWindowFocused}
+            unlockAudio={() => {
+              void blockBlastAudio.unlockFromGesture({ removeFallbackListeners: true }).catch(() => {});
+            }}
             onBoom={handleBoom}
             onRoundStart={wink.gameplayStart}
             onGameEnd={async (finalScore) => {

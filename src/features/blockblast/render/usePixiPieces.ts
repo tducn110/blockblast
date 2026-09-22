@@ -845,6 +845,8 @@ export function usePixiPieces(
           const current = latestRef.current;
           if (current.status !== "playing" || current.interactionLocked) return;
           if (event.button !== 0) return;
+          // ponytail: unlock Web Audio SFX + BGM simultaneously within first user piece touch gesture
+          void blockBlastAudio.unlockFromGesture({ removeFallbackListeners: true }).catch(() => {});
 
           const ctx = dragCtx.current;
           if (ctx.state !== "idle") {

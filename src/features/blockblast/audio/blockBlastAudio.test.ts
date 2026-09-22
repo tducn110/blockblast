@@ -254,6 +254,46 @@ describe("BlockBlastAudio music lifecycle & boundaries", () => {
     expect(createdAudio[1].load).toHaveBeenCalled();
   });
 
+  it("primes both WebAudio and HTML5 SFX alongside BGM in a single unlockFromGesture call", async () => {
+    const audio = new BlockBlastAudio();
+    await audio.preload();
+    audio.setMusicEnabled(true);
+
+    const musicElement = createdAudio[0];
+    const slashElement = createdAudio[1];
+    expect(musicElement.paused).toBe(true);
+
+    // Single touch gesture calls unlockFromGesture
+    await audio.unlockFromGesture();
+    await flushMicrotasks();
+
+    // 1. WebAudio context resumed
+    expect(fakeContext.resume).toHaveBeenCalled();
+    // 2. Silent oscillator created to unlock iOS Web Audio
+    expect(fakeContext.createOscillator).toHaveBeenCalled();
+    // 3. HTML5 SFX element primed with play
+    expect(slashElement.play).toHaveBeenCalled();
+    // 4. BGM started
+    expect(musicElement.play).toHaveBeenCalled();
+    expect(musicElement.paused).toBe(false);
+  });
+
+  it("triggers unlockFromGesture automatically on user touch/pointerdown after preload", async () => {
+    const audio = new BlockBlastAudio();
+    await audio.preload();
+    audio.setMusicEnabled(true);
+
+    const musicElement = createdAudio[0];
+    expect(musicElement.paused).toBe(true);
+
+    // User taps anywhere on the screen
+    window.dispatchEvent(new Event("pointerdown"));
+    await flushMicrotasks();
+
+    expect(fakeContext.resume).toHaveBeenCalled();
+    expect(musicElement.paused).toBe(false);
+  });
+
   it("pauses BGM when host is paused and resumes when unpaused", async () => {
     const audio = new BlockBlastAudio();
 

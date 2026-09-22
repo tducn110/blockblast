@@ -50,6 +50,7 @@ export function Game({
   sfxEnabled,
   musicEnabled,
   shakeEnabled,
+  unlockAudio,
   scenery,
   paused,
   onBoom,
@@ -314,7 +315,13 @@ export function Game({
 
       {/* Right Column: Canvas Board */}
       <div className="blockblast-game-board relative flex-1 min-h-0 flex flex-col items-center justify-center overflow-hidden">
-        <div className="blockblast-canvas-wrap w-full h-full min-h-0 relative max-w-[590px] lg:h-auto">
+        {/* ponytail: trigger audio gesture unlock on direct canvas container interaction */}
+        <div
+          className="blockblast-canvas-wrap w-full h-full min-h-0 relative max-w-[590px] lg:h-auto"
+          onPointerDown={() => {
+            void unlockAudio?.();
+          }}
+        >
           <PixiBlockBlastCanvas
             board={game.board}
             pieces={game.pieces}
@@ -328,7 +335,10 @@ export function Game({
             comboShakeEvent={shakeEnabled ? game.comboShakeEvent : null}
             paused={paused}
             interactionLocked={paused || game.adPending}
-            onSelectPiece={game.selectPiece}
+            onSelectPiece={(id) => {
+              void unlockAudio?.();
+              game.selectPiece(id);
+            }}
             onPlacePiece={game.placePiece}
             onUnlockReserve={handleUnlockReserve}
             onUseReserveSlot={game.useReserveSlot}

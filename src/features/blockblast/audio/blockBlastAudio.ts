@@ -76,6 +76,7 @@ export class BlockBlastAudio {
 
   async preload(): Promise<void> {
     this.addLifecycleListeners();
+    this.addUnlockListeners();
     const context = this.ensureContext();
     this.ensureMusicElement();
     this.ensureSlashElement();
@@ -207,6 +208,7 @@ export class BlockBlastAudio {
     void this.unlockFromGesture({ removeFallbackListeners: true });
   };
 
+  // ponytail: unlockFromGesture unifies WebAudio context resumption, silent iOS priming, HTML5 SFX priming, and BGM start in a single user touch frame
   async unlockFromGesture({ removeFallbackListeners = false }: { removeFallbackListeners?: boolean } = {}): Promise<boolean> {
     this.unlocked = true;
     const context = this.ensureContext();
@@ -219,6 +221,7 @@ export class BlockBlastAudio {
       // Play a silent oscillator to force iOS to unlock the Web Audio API
       try {
         const osc = context.createOscillator();
+        this.registerActiveNode(osc);
         const gain = context.createGain();
         gain.gain.value = 0;
         osc.connect(gain);
@@ -229,6 +232,27 @@ export class BlockBlastAudio {
         // Ignore errors
       }
     }
+
+    // Prime HTML5 Audio SFX voice synchronously in the same gesture
+    const slashAudio = this.ensureSlashElement();
+    if (slashAudio) {
+      try {
+        slashAudio.volume = 0;
+        const playPromise = slashAudio.play();
+        if (playPromise) {
+          playPromise
+            .then(() => {
+              slashAudio.pause();
+              slashAudio.currentTime = 0;
+            })
+            .catch(() => {});
+        }
+      } catch {
+        // Ignore priming errors
+      }
+    }
+
+    this.applySfxMuteState();
 
     if (this.canPlayBgm()) {
       this.startMusicTrack({ fromGesture: true });
