@@ -14,6 +14,26 @@ import { completeGameLoading, onGameLoadingDismiss, setGameLoadingProgress } fro
 type Screen = "game" | "dashboard" | "settings";
 
 export default function App() {
+  useEffect(() => {
+    const blockCopyAction = (event: Event) => {
+      event.preventDefault();
+    };
+
+    document.addEventListener("copy", blockCopyAction, true);
+    document.addEventListener("cut", blockCopyAction, true);
+    document.addEventListener("selectstart", blockCopyAction, true);
+    document.addEventListener("dragstart", blockCopyAction, true);
+    document.addEventListener("contextmenu", blockCopyAction, true);
+
+    return () => {
+      document.removeEventListener("copy", blockCopyAction, true);
+      document.removeEventListener("cut", blockCopyAction, true);
+      document.removeEventListener("selectstart", blockCopyAction, true);
+      document.removeEventListener("dragstart", blockCopyAction, true);
+      document.removeEventListener("contextmenu", blockCopyAction, true);
+    };
+  }, []);
+
   // Unified PapaStudio loading screen lifecycle barrier
   useEffect(() => {
     setGameLoadingProgress(20);
@@ -61,6 +81,7 @@ export default function App() {
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [shakeEnabled, setShakeEnabled] = useState(true);
+  const [isWindowFocused, setIsWindowFocused] = useState(true);
 
   const scoreData = useScoreData(wink.bestScore);
   const submitError = null;
@@ -97,21 +118,29 @@ export default function App() {
     }
   }, [screen]);
 
-  // Lifecycle control matching 01_fruit & 03_muavu standard: pause on blur/hidden, resume on focus/visible
+  // ponytail: lifecycle control matching 01_fruit & 03_muavu standard: pause game & audio on blur/hidden, resume on focus/visible
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {
+        setIsWindowFocused(false);
         blockBlastAudio.pauseAll();
-      } else if (!document.hidden && !wink.hostPaused && !wink.parentMuted) {
-        blockBlastAudio.resumeBgm();
+      } else if (!document.hidden && (!document.hasFocus || document.hasFocus())) {
+        setIsWindowFocused(true);
+        if (!wink.hostPaused && !wink.parentMuted) {
+          blockBlastAudio.resumeBgm();
+        }
       }
     };
     const handleBlur = () => {
+      setIsWindowFocused(false);
       blockBlastAudio.pauseAll();
     };
     const handleFocus = () => {
-      if (!document.hidden && !wink.hostPaused && !wink.parentMuted) {
-        blockBlastAudio.resumeBgm();
+      if (!document.hidden) {
+        setIsWindowFocused(true);
+        if (!wink.hostPaused && !wink.parentMuted) {
+          blockBlastAudio.resumeBgm();
+        }
       }
     };
 
@@ -259,7 +288,7 @@ export default function App() {
             musicEnabled={musicEnabled && !wink.parentMuted}
             shakeEnabled={shakeEnabled}
             scenery={scenery}
-            paused={screen !== "game" || wink.hostPaused}
+            paused={screen !== "game" || wink.hostPaused || !isWindowFocused}
             onBoom={handleBoom}
             onRoundStart={wink.gameplayStart}
             onGameEnd={async (finalScore) => {

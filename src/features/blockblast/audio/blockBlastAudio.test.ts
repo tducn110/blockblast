@@ -22,10 +22,15 @@ describe("BlockBlastAudio music lifecycle & boundaries", () => {
   let fakeContext: {
     state: "suspended" | "running";
     destination: object;
+    currentTime: number;
     resume: ReturnType<typeof vi.fn>;
+    suspend: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
     createGain: ReturnType<typeof vi.fn>;
     createMediaElementSource: ReturnType<typeof vi.fn>;
+    createOscillator?: ReturnType<typeof vi.fn>;
+    createBufferSource?: ReturnType<typeof vi.fn>;
+    createBiquadFilter?: ReturnType<typeof vi.fn>;
   };
   let previousAudio: typeof globalThis.Audio | undefined;
   let previousAudioContext: typeof window.AudioContext | undefined;
@@ -65,8 +70,12 @@ describe("BlockBlastAudio music lifecycle & boundaries", () => {
     fakeContext = {
       state: "suspended",
       destination: {},
+      currentTime: 0,
       resume: vi.fn().mockImplementation(async () => {
         fakeContext.state = "running";
+      }),
+      suspend: vi.fn().mockImplementation(async () => {
+        fakeContext.state = "suspended";
       }),
       close: vi.fn().mockResolvedValue(undefined),
       createGain: vi.fn(() => ({
@@ -81,6 +90,30 @@ describe("BlockBlastAudio music lifecycle & boundaries", () => {
       })),
       createMediaElementSource: vi.fn(() => ({
         connect: vi.fn(),
+      })),
+      createOscillator: vi.fn(() => ({
+        type: "sine",
+        frequency: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+        addEventListener: vi.fn(),
+      })),
+      createBufferSource: vi.fn(() => ({
+        buffer: null,
+        playbackRate: { value: 1 },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+        addEventListener: vi.fn(),
+      })),
+      createBiquadFilter: vi.fn(() => ({
+        type: "lowpass",
+        frequency: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
       })),
     };
 
@@ -311,6 +344,84 @@ describe("BlockBlastAudio music lifecycle & boundaries", () => {
     vi.advanceTimersByTime(300);
     expect(musicElement.volume).toBeCloseTo(normalVolume, 2);
     vi.useRealTimers();
+  });
+
+  it("suspends context and blocks SFX on pauseAll()", async () => {
+    const audio = new BlockBlastAudio();
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    expect(fakeContext.state).toBe("running");
+    expect(audio.isPaused).toBe(false);
+
+    audio.pauseAll();
+    expect(audio.isPaused).toBe(true);
+    expect(fakeContext.suspend).toHaveBeenCalledTimes(1);
+
+    // SFX should be completely blocked while paused
+    expect(fakeContext.createOscillator).not.toHaveBeenCalled();
+    audio.playButtonClick();
+    audio.playPlace();
+    expect(fakeContext.createOscillator).not.toHaveBeenCalled();
+  });
+
+  it("handles window blur and focus lifecycle events properly", async () => {
+    const audio = new BlockBlastAudio();
+    await audio.preload();
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    const musicElement = createdAudio[0];
+    expect(musicElement.paused).toBe(false);
+
+    // Window blur pauses audio
+    window.dispatchEvent(new Event("blur"));
+    expect(audio.isPaused).toBe(true);
+    expect(musicElement.paused).toBe(true);
+
+    // Window focus restores audio
+    window.dispatchEvent(new Event("focus"));
+    await flushMicrotasks();
+    expect(audio.isPaused).toBe(false);
+    expect(musicElement.paused).toBe(false);
+  });
+
+  it("does not restore audio on focus when hostPaused is true", async () => {
+    const audio = new BlockBlastAudio();
+    await audio.preload();
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    const musicElement = createdAudio[0];
+    expect(musicElement.paused).toBe(false);
+
+    audio.setHostPaused(true);
+    expect(audio.isPaused).toBe(true);
+    expect(musicElement.paused).toBe(true);
+
+    // Regaining window focus must NOT resume audio while hostPaused is active
+    window.dispatchEvent(new Event("focus"));
+    await flushMicrotasks();
+    expect(audio.isPaused).toBe(true);
+    expect(musicElement.paused).toBe(true);
+  });
+
+  it("does not restore audio on focus when hostMuted is true", async () => {
+    const audio = new BlockBlastAudio();
+    await audio.preload();
+    audio.setMusicEnabled(true, { fromGesture: true });
+    await flushMicrotasks();
+
+    const musicElement = createdAudio[0];
+    expect(musicElement.paused).toBe(false);
+
+    audio.setHostMuted(true);
+    expect(musicElement.paused).toBe(true);
+
+    // Regaining window focus must NOT resume audio while hostMuted is active
+    window.dispatchEvent(new Event("focus"));
+    await flushMicrotasks();
+    expect(musicElement.paused).toBe(true);
   });
 });
 
